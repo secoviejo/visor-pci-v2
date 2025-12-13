@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor de Detectores de Incendio - Edificio CIRCE</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <h1>Instalación PCI - CIRCE</h1>
+        </div>
+        <div class="controls">
+            <button id="btn-login" class="btn btn-outline" onclick="openLoginModal()">🔑 Login</button>
+            <button id="btn-logout" class="btn btn-outline" onclick="performLogout()" style="display: none;">🔒
+                Logout</button>
+        </div>
+        <div class="controls" id="admin-controls"
+            style="display: none; border-left: 1px solid #ccc; padding-left: 10px; margin-left: 10px;">
+            <select id="building-select" class="form-control">
+                <option value="">Cargando edificios...</option>
+            </select>
+            <button class="btn btn-outline" onclick="openAddBuildingModal()" title="Nuevo Edificio">➕🏢</button>
+
+            <select id="floor-select" class="form-control">
+                <option>Selecciona Planta</option>
+            </select>
+            <button class="btn btn-outline" onclick="openAddFloorModal()" title="Nueva Planta">➕🖼️</button>
+            <button class="btn btn-primary" onclick="openAddModal()">➕ Elemento</button>
+        </div>
+        <div class="controls">
+            <!-- Common controls -->
+            <select id="building-select-public" class="form-control">
+                <option value="">Cargando edificios...</option>
+            </select>
+            <select id="floor-select-public" class="form-control">
+                <option>Selecciona Planta</option>
+            </select>
+            <button class="btn btn-outline" onclick="resetView()">🎯 Centrar</button>
+        </div>
+    </header>
+
+    <div class="toast" id="toast">✅ Acción realizada</div>
+
+    <div id="viewport">
+        <div id="empty-state">
+            <h3>Cargando sistema...</h3>
+        </div>
+
+        <div id="map-container">
+            <img id="plano-img" src="" alt="Plano">
+            <!-- Puntos renderizados dinámicamente -->
+        </div>
+
+        <div class="legend">
+            <div class="legend-item" style="color:#666; font-style:italic; margin-bottom:10px;">
+                Mantén pulsado para mover
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot circle" style="background:var(--detector-color)"></div>Detector
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot square" style="background:var(--pulsador-color)"></div>Pulsador
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot circle" style="background:var(--sirena-color); border:1px solid #333"></div>
+                Sirena
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL INFO (EDITABLE) -->
+    <div class="modal-overlay" id="modal-info">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Editar Equipo</h3>
+                <button class="close-modal" onclick="closeModal('modal-info')">×</button>
+            </div>
+            <div class="modal-body" style="text-align: left;">
+
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8rem; color: #666;">Número</label>
+                        <input type="text" id="edit-num" class="form-control"
+                            style="width: 100%; box-sizing: border-box; font-size: 1.5rem; font-weight: bold; text-align: center;">
+                    </div>
+                    <div style="width: 120px;">
+                        <label style="font-size: 0.8rem; color: #666;">Tipo</label>
+                        <select id="edit-type" class="form-control" style="width: 100%; margin-top: 5px;">
+                            <option value="detector">Detector</option>
+                            <option value="pulsador">Pulsador</option>
+                            <option value="sirena">Sirena</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 0.8rem; color: #666;">Ubicación</label>
+                    <input type="text" id="edit-loc" class="form-control" style="width: 100%; box-sizing: border-box;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="font-size: 0.8rem; color: #666;">ID Sistema</label>
+                    <input type="text" id="edit-id" class="form-control"
+                        style="width: 100%; box-sizing: border-box; font-family: monospace;">
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary" onclick="saveDeviceEdits()" style="flex: 1;">💾 Guardar
+                        Cambios</button>
+                    <button id="btn-delete-device" class="btn btn-outline"
+                        style="border-color: red; color: red;">🗑️</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD DEVICE -->
+    <div class="modal-overlay" id="modal-add">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Añadir Dispositivo</h3>
+                <button class="close-modal" onclick="closeModal('modal-add')">×</button>
+            </div>
+            <div class="modal-body" style="text-align: left;">
+                <form id="add-form" onsubmit="saveNewDevice(event)">
+                    <div style="margin-bottom: 10px;">
+                        <label>Tipo:</label>
+                        <select id="add-type" class="form-control" style="width: 100%; margin-top: 5px;">
+                            <option value="detector">Detector</option>
+                            <option value="pulsador">Pulsador</option>
+                            <option value="sirena">Sirena</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label>Número / Etiqueta:</label>
+                        <input type="text" id="add-number" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label>Ubicación:</label>
+                        <input type="text" id="add-loc" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%">Guardar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD BUILDING -->
+    <div class="modal-overlay" id="modal-add-building">
+        <div class="modal" style="max-width: 300px;">
+            <div class="modal-header">
+                <h3>Añadir Nuevo Edificio</h3>
+                <button class="close-modal" onclick="closeModal('modal-add-building')">×</button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="saveNewBuilding(event)">
+                    <div style="margin-bottom: 15px;">
+                        <input type="text" id="add-building-name" class="form-control"
+                            style="width: 100%; box-sizing: border-box;" required placeholder="Nombre del Edificio">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%">Crear Edificio</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD FLOOR -->
+    <div class="modal-overlay" id="modal-add-floor">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Añadir Nueva Planta</h3>
+                <button class="close-modal" onclick="closeModal('modal-add-floor')">×</button>
+            </div>
+            <div class="modal-body" style="text-align: left;">
+                <form id="add-floor-form" onsubmit="saveNewFloor(event)">
+                    <div style="margin-bottom: 15px;">
+                        <label>Nombre de la Planta:</label>
+                        <input type="text" id="add-floor-name" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required
+                            placeholder="Ej. Planta 2">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label>Imagen del Plano:</label>
+                        <input type="file" id="add-floor-file" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%">Subir y Crear</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL LOGIN -->
+    <div class="modal-overlay" id="modal-login">
+        <div class="modal" style="max-width: 300px;">
+            <div class="modal-header">
+                <h3>Iniciar Sesión</h3>
+                <button class="close-modal" onclick="closeModal('modal-login')">×</button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="handleLogin(event)">
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" id="login-username" class="form-control" placeholder="Usuario"
+                            style="width: 100%; box-sizing: border-box;" required>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <input type="password" id="login-password" class="form-control" placeholder="Contraseña"
+                            style="width: 100%; box-sizing: border-box;" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%">Entrar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
