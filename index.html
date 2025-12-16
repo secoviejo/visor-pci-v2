@@ -105,6 +105,9 @@
                         <label style="font-size: 0.8rem; color: #666;">Tipo</label>
                         <select id="edit-type" class="form-control" style="width: 100%; margin-top: 5px;">
                             <option value="detector">Detector</option>
+                            <option value="detector">Detector Falso Techo (Deprecated - use detector_ft)</option>
+                            <!-- Temporary fix until logic update -->
+                            <option value="detector_ft">Detector Falso Techo</option>
                             <option value="pulsador">Pulsador</option>
                             <option value="sirena">Sirena</option>
                         </select>
@@ -146,6 +149,7 @@
                         <label>Tipo:</label>
                         <select id="add-type" class="form-control" style="width: 100%; margin-top: 5px;">
                             <option value="detector">Detector</option>
+                            <option value="detector_ft">Detector Falso Techo</option>
                             <option value="pulsador">Pulsador</option>
                             <option value="sirena">Sirena</option>
                         </select>

@@ -143,6 +143,7 @@ function renderDevices() {
         let typeClass = 'type-detector';
         if (d.t === 'pulsador') typeClass = 'type-pulsador';
         if (d.t === 'sirena') typeClass = 'type-sirena';
+        if (d.t === 'detector_ft') typeClass = 'type-detector_ft';
 
         dot.className = `hotspot ${typeClass}`;
         dot.style.left = d.x + '%';
@@ -316,7 +317,8 @@ function applyFilters() {
     const allDots = document.querySelectorAll('.hotspot');
     allDots.forEach(dot => {
         let isVisible = false;
-        if (dot.classList.contains('type-detector') && visibleTypes.detector) isVisible = true;
+        // Detectors filter covers both normal and fake ceiling detectors
+        if ((dot.classList.contains('type-detector') || dot.classList.contains('type-detector_ft')) && visibleTypes.detector) isVisible = true;
         if (dot.classList.contains('type-pulsador') && visibleTypes.pulsador) isVisible = true;
         if (dot.classList.contains('type-sirena') && visibleTypes.sirena) isVisible = true;
 
