@@ -10,6 +10,21 @@
     --sirena-color: rgba(255, 193, 7, 1);
 }
 
+.header-logo img {
+    height: 45px;
+    width: auto;
+    margin-left: 15px;
+}
+
+.footer-bar {
+    text-align: center;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    color: #999;
+    background-color: #f0f0f0;
+    border-top: 1px solid #e0e0e0;
+}
+
 body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     background-color: var(--bg-color);
