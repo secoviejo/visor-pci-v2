@@ -466,27 +466,34 @@ window.saveNewFloor = async function (e) {
 function checkAuth() {
     const isLogged = api.isLoggedIn();
     const adminControls = document.getElementById('admin-controls');
-    const publicSelect = document.getElementById('floor-select-public');
+
+    // Public controls
+    const publicBuildingSelect = document.getElementById('building-select-public');
+    const publicFloorSelect = document.getElementById('floor-select-public');
+    const commonControlsContainer = publicFloorSelect.parentElement;
+
     const loginBtn = document.getElementById('btn-login');
     const logoutBtn = document.getElementById('btn-logout');
 
     if (isLogged) {
+        // Admin Mode
         adminControls.style.display = 'flex';
-        publicSelect.parentElement.style.display = 'none'; // Hide public controls wrapper if needed or just the select
-        // Actually, we have two selects now which is messy. Let's fix that logic.
-        // Better logic: One select. Show/Hide "Add" buttons.
-        // My HTML edit created duplicate controls. I should fix that in JS or CSS.
-        // Let's assume I need to consolidate.
 
-        // Re-targeting IDs to keep it simple:
-        // I'll hide the public select and show the admin one (which I duplicated in HTML step)
-        // Ideally I should utilize single select.
+        // Hide public selects (duplicates), but KEEP container visible for Filters & Center button
+        publicBuildingSelect.style.display = 'none';
+        publicFloorSelect.style.display = 'none';
+        commonControlsContainer.style.display = 'flex';
 
         loginBtn.style.display = 'none';
         logoutBtn.style.display = 'block';
     } else {
+        // Public Mode
         adminControls.style.display = 'none';
-        publicSelect.parentElement.style.display = 'flex';
+
+        // Show public selects
+        publicBuildingSelect.style.display = 'block';
+        publicFloorSelect.style.display = 'block';
+        commonControlsContainer.style.display = 'flex';
 
         loginBtn.style.display = 'block';
         logoutBtn.style.display = 'none';
