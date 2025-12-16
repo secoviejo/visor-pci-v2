@@ -189,19 +189,19 @@ select.form-control {
 }
 
 .type-detector {
-    background-image: url('../img/detector.png');
+    background-image: url('../img/detector.svg');
 }
 
 .type-detector_ft {
-    background-image: url('../img/detector_ft.png');
+    background-image: url('../img/detector_ft.svg');
 }
 
 .type-pulsador {
-    background-image: url('../img/pulsador.png');
+    background-image: url('../img/pulsador.svg');
 }
 
 .type-sirena {
-    background-image: url('../img/sirena.png');
+    background-image: url('../img/sirena.svg');
 }
 
 /* TOOLTIP */
