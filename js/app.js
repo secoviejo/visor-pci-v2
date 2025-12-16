@@ -156,6 +156,9 @@ function renderDevices() {
 
         mapContainer.appendChild(dot);
     });
+
+    // Re-apply filters just in case state was saved but we re-rendered
+    applyFilters();
 }
 
 // ===========================================
@@ -281,6 +284,46 @@ function setTransform() {
 window.resetView = function () {
     scale = 1; pointX = 0; pointY = 0; setTransform();
 };
+
+// ===========================================
+// FILTER LOGIC
+// ===========================================
+const visibleTypes = {
+    detector: true,
+    pulsador: true,
+    sirena: true
+};
+
+window.toggleFilter = function (type) {
+    visibleTypes[type] = !visibleTypes[type];
+
+    // Update Button UI
+    const btn = document.getElementById(`filter-${type}`);
+    if (visibleTypes[type]) {
+        btn.classList.add('btn-primary');
+        btn.classList.remove('btn-outline');
+        btn.style.opacity = '1';
+    } else {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline');
+        btn.style.opacity = '0.7';
+    }
+
+    applyFilters();
+}
+
+function applyFilters() {
+    const allDots = document.querySelectorAll('.hotspot');
+    allDots.forEach(dot => {
+        let isVisible = false;
+        if (dot.classList.contains('type-detector') && visibleTypes.detector) isVisible = true;
+        if (dot.classList.contains('type-pulsador') && visibleTypes.pulsador) isVisible = true;
+        if (dot.classList.contains('type-sirena') && visibleTypes.sirena) isVisible = true;
+
+        dot.style.display = isVisible ? 'flex' : 'none';
+    });
+}
+
 
 // ===========================================
 // MODALS & UI

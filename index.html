@@ -34,6 +34,12 @@
         </div>
         <div class="controls">
             <!-- Common controls -->
+             <div style="display: flex; gap: 5px; margin-right: 15px; border-right: 1px solid #ddd; padding-right: 15px;">
+                <button id="filter-detector" class="btn btn-primary" onclick="toggleFilter('detector')" title="Ocultar/Mostrar Detectores" style="font-size: 0.8rem; padding: 4px 10px;">Detectores</button>
+                <button id="filter-pulsador" class="btn btn-primary" onclick="toggleFilter('pulsador')" title="Ocultar/Mostrar Pulsadores" style="font-size: 0.8rem; padding: 4px 10px;">Pulsadores</button>
+                <button id="filter-sirena" class="btn btn-primary" onclick="toggleFilter('sirena')" title="Ocultar/Mostrar Sirenas" style="font-size: 0.8rem; padding: 4px 10px;">Sirenas</button>
+            </div>
+
             <select id="building-select-public" class="form-control">
                 <option value="">Cargando edificios...</option>
             </select>
