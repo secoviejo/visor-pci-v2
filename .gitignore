@@ -3,5 +3,6 @@ pci.db
 *.log
 
 visor-pci-circe-github/
+visor-pci-v2-fresh/
 migrar DB.txt
 publicar.txt

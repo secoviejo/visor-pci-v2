@@ -1,4 +1,6 @@
 import * as api from './api.js';
+import { Simulator } from './simulator.js';
+import { AlertSystem } from './alerts.js';
 
 // ===========================================
 // VARIABLES GLOBALES
@@ -9,6 +11,13 @@ const mapImg = document.getElementById('plano-img');
 const emptyState = document.getElementById('empty-state');
 const toast = document.getElementById('toast');
 const floorSelect = document.getElementById('floor-select');
+
+// Simulator & Alerts instances
+const simulator = new Simulator();
+window.simulator = simulator;
+
+const alertSystem = new AlertSystem();
+window.alerts = alertSystem; // Public access
 
 // UI Refs
 const modalInfo = document.getElementById('modal-info');
@@ -28,6 +37,38 @@ let isDragMode = false;
 // INICIALIZACIÓN
 // ===========================================
 window.addEventListener('load', async () => {
+    // Initialize Alerts Panel (Do this first to catch startup events)
+    const alertPanel = document.getElementById('alerts-panel');
+    if (alertPanel) {
+        alertSystem.init(alertPanel);
+    }
+
+    // Listen for Alerts
+    window.addEventListener('pci:alarm:on', (e) => {
+        alertSystem.raiseAlert(e.detail);
+    });
+
+    window.addEventListener('pci:alarm:off', (e) => {
+        alertSystem.resolveAlert(e.detail.elementId, e.detail.type);
+    });
+
+    window.addEventListener('pci:alert:click', (e) => {
+        const { elementId, floorId, buildingId } = e.detail;
+
+        // If different floor/building, load it first
+        if (currentFloorId != floorId) {
+            // Future logic to switch floors would go here
+            return;
+        }
+
+        const target = document.querySelector(`.hotspot[data-db-id="${elementId}"]`);
+        if (target) {
+            target.style.transition = 'transform 0.5s';
+            target.style.transform = 'translate(-50%, -50%) scale(2.5)';
+            setTimeout(() => target.style.transform = '', 1000);
+        }
+    });
+
     try {
         await loadBuildings();
     } catch (error) {
@@ -132,6 +173,10 @@ async function loadFloorData(floorId) {
 
     // Load Devices
     devices = await api.getDevices(floorId);
+
+    // Update Simulator Context
+    simulator.loadContext(currentBuildingId, currentFloorId, devices);
+
     renderDevices();
 }
 
@@ -160,6 +205,9 @@ function renderDevices() {
 
     // Re-apply filters just in case state was saved but we re-rendered
     applyFilters();
+
+    // Re-apply simulator visuals (blinking)
+    if (window.simulator) window.simulator.updateVisuals();
 }
 
 // ===========================================
@@ -215,11 +263,15 @@ async function stopDragging(dot) {
         device.y = parseFloat(newY);
     }
 
+    console.log(`Attempting to save position for device ${dbId}: x=${newX}, y=${newY}`);
+
     try {
+        if (!dbId) throw new Error("ID de dispositivo no encontrado");
         await api.updateDevice(dbId, { x: newX, y: newY });
         showToast("✅ Posición actualizada");
-    } catch (e) {
-        showToast("❌ Error guardando posición");
+    } catch (err) {
+        console.error("Error updating position:", err);
+        showToast(`❌ Error guardando posición: ${err.message || ''}`);
     }
 }
 

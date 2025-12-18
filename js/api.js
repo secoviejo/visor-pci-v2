@@ -108,7 +108,14 @@ export async function updateDevice(dbId, data) {
         headers: headers,
         body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Error updating device');
+    if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+            logout(); // Clear token if unauthorized or forbidden
+        }
+        const errData = await res.json().catch(() => ({}));
+        console.error('Update failed:', res.status, errData);
+        throw new Error('Error updating device');
+    }
     return res.json();
 }
 

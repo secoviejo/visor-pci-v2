@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visor de Detectores de Incendio - Edificio CIRCE</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/simulator.css">
+    <link rel="stylesheet" href="css/alerts.css">
 </head>
 
 <body>
@@ -59,29 +61,61 @@
 
     <div class="toast" id="toast">✅ Acción realizada</div>
 
-    <div id="viewport">
-        <div id="empty-state">
-            <h3>Cargando sistema...</h3>
+    <div id="main-container" style="display: flex; flex: 1; overflow: hidden; position: relative;">
+        <!-- VIEWPORT (MAPA) -->
+        <div id="viewport"
+            style="flex: 1; position: relative; overflow: hidden; background-color: #e5e5e5; display: flex; align-items: center; justify-content: center;">
+            <div id="empty-state">
+                <h3>Cargando sistema...</h3>
+            </div>
+
+            <div id="map-container">
+                <img id="plano-img" src="" alt="Plano">
+                <!-- Puntos renderizados dinámicamente -->
+            </div>
+
+            <div class="legend">
+                <div class="legend-item" style="color:#666; font-style:italic; margin-bottom:10px;">
+                    Mantén pulsado para mover
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot circle" style="background:var(--detector-color)"></div>Detector
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot square" style="background:var(--pulsador-color)"></div>Pulsador
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot circle" style="background:var(--sirena-color); border:1px solid #333"></div>
+                    Sirena
+                </div>
+            </div>
         </div>
 
-        <div id="map-container">
-            <img id="plano-img" src="" alt="Plano">
-            <!-- Puntos renderizados dinámicamente -->
-        </div>
+        <!-- SIMULATOR PANEL -->
+        <div id="simulator-panel">
+            <div class="sim-header">
+                <h3>Simulador</h3>
+                <button id="sim-toggle-global" class="btn btn-outline"
+                    style="width: 100%; justify-content: center;">Simulación OFF</button>
+            </div>
 
-        <div class="legend">
-            <div class="legend-item" style="color:#666; font-style:italic; margin-bottom:10px;">
-                Mantén pulsado para mover
+            <div class="sim-controls">
+                <input type="text" id="sim-filter-input" placeholder="Buscar ID o Tipo..." class="form-control"
+                    style="width: 100%; margin-bottom: 8px;">
+                <div style="display: flex; gap: 5px;">
+                    <button id="sim-btn-all" class="btn btn-primary" style="flex: 1; font-size: 0.75rem;">Activar
+                        Todo</button>
+                    <button id="sim-btn-none" class="btn btn-outline"
+                        style="flex: 1; font-size: 0.75rem;">Desactivar</button>
+                </div>
             </div>
-            <div class="legend-item">
-                <div class="legend-dot circle" style="background:var(--detector-color)"></div>Detector
+
+            <div id="sim-list-container">
+                <!-- Items injected by JS -->
             </div>
-            <div class="legend-item">
-                <div class="legend-dot square" style="background:var(--pulsador-color)"></div>Pulsador
-            </div>
-            <div class="legend-item">
-                <div class="legend-dot circle" style="background:var(--sirena-color); border:1px solid #333"></div>
-                Sirena
+
+            <div class="sim-footer">
+                Activos: <span id="sim-active-count">0 / 0</span>
             </div>
         </div>
     </div>
@@ -242,6 +276,48 @@
         version beta Unidad de Seguridad
     </div>
 
+    <!-- ALERTS PANEL -->
+    <div id="alerts-panel">
+        <div class="alerts-header">
+            <h3>Alertas del Sistema</h3>
+            <div class="alerts-actions">
+                <select id="alert-filter-select" onchange="alerts.setFilter(this.value)"
+                    style="margin-right: 5px; padding: 2px;">
+                    <option value="ALL">Todas</option>
+                    <option value="ACTIVA">Activas</option>
+                    <option value="RESUELTA">Resueltas</option>
+                </select>
+                <button id="btn-refresh-alerts" onclick="alerts.refreshSummary()"
+                    title="Sincronizar con Simulador">🔄</button>
+                <button id="btn-clear-resolved" onclick="alerts.clearResolved()">Limpiar Resueltas</button>
+                <button id="btn-toggle-panel"
+                    onclick="document.getElementById('alerts-panel').classList.toggle('minimized')">_</button>
+            </div>
+        </div>
+        <div class="alerts-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Edificio</th>
+                        <th>Planta</th>
+                        <th>ID</th>
+                        <th>Tipo</th>
+                        <th>Ubicación</th>
+                        <th>Hora</th>
+                        <th>Origen</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-table-body">
+                    <!-- Rows injected by alerts.js -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script type="module" src="js/simulator.js"></script>
+    <script type="module" src="js/alerts.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
 

@@ -37,10 +37,16 @@ function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) return res.sendStatus(401);
+    if (!token) {
+        console.warn('Authentication failed: No token provided');
+        return res.sendStatus(401);
+    }
 
     jwt.verify(token, SECRET_KEY, (err, user) => {
-        if (err) return res.sendStatus(403);
+        if (err) {
+            console.warn('Authentication failed: Invalid or expired token');
+            return res.sendStatus(403);
+        }
         req.user = user;
         next();
     });
@@ -161,9 +167,11 @@ app.get('/api/floors/:floorId/devices', (req, res) => {
 
 // 3. Update Device (Protected)
 app.put('/api/devices/:dbId', authenticateToken, (req, res) => {
+    console.log(`PUT /api/devices/${req.params.dbId} requested by ${req.user.username}`);
     try {
         const { dbId } = req.params;
         const { x, y, n, loc, id, t } = req.body;
+        console.log('Update Body:', req.body);
 
         // Build query dynamically based on provided fields
         const fields = [];
