@@ -2,6 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./database');
+const modbusService = require('./js/services/modbusService');
+
+// Start Modbus Connection
+modbusService.connect();
+
+// Listen for hardware events
+modbusService.on('change', (event) => {
+    console.log('[Hardware Event]', event);
+    // TODO: Broadcast to frontend via WebSockets/SSE (next sprint)
+    // TODO: Persist to DB (next sprint)
+});
 
 const app = express();
 const PORT = 3000;
@@ -244,7 +255,109 @@ app.delete('/api/devices/:dbId', authenticateToken, (req, res) => {
     }
 });
 
+// 6. Alerts Schema
+const createAlertsTable = db.prepare(`
+    CREATE TABLE IF NOT EXISTS alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        element_id TEXT,
+        type TEXT,
+        building_id INTEGER,
+        floor_id INTEGER,
+        location TEXT,
+        description TEXT,
+        status TEXT, -- ACTIVA, RESUELTA
+        origin TEXT, -- REAL, SIMULACIÓN
+        started_at TEXT,
+        ended_at TEXT
+    )
+`);
+createAlertsTable.run();
+
+// --- Socket.io & Modbus Integration ---
+const http = require('http');
+const { Server } = require("socket.io");
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*", // Allow all for dev
+        methods: ["GET", "POST"]
+    }
+});
+
+io.on('connection', (socket) => {
+    console.log('[Socket] Client connected');
+    socket.on('disconnect', () => {
+        console.log('[Socket] Client disconnected');
+    });
+});
+
+// Broadcast Modbus Events
+modbusService.on('change', (event) => {
+    console.log('[Hardware Event]', event);
+
+    // Only process "ON" events (value=true) as alarms for now
+    // Logic: DI0 = 1 -> ALARM
+    if (event.value === true) {
+        const alertData = {
+            elementId: `CIE-${event.port}`, // Virtual ID
+            type: 'detector', // Default assumption
+            building_id: 1, // Default
+            floor_id: 1, // Default (needs config map later)
+            location: event.distinct === 'di0' ? 'Zona 1 (Hardware)' : 'Zona 2 (Hardware)',
+            description: 'Alarma de Fuego (Sensor Real)',
+            status: 'ACTIVA',
+            origin: 'REAL',
+            started_at: new Date().toISOString(),
+            ended_at: null
+        };
+
+        // Persist
+        try {
+            const stmt = db.prepare(`
+                INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
+                VALUES (@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
+            `);
+            const result = stmt.run(alertData);
+            alertData.db_id = result.lastInsertRowid;
+
+            // Broadcast
+            io.emit('pci:alarm:on', alertData);
+            console.log('[Socket] Emitted pci:alarm:on');
+        } catch (e) {
+            console.error('Error saving alert:', e);
+        }
+    } else {
+        // Handle "OFF" -> Resolve Alert?
+        // TODO: Implement resolve logic if needed
+    }
+});
+
+
+// 7. Control Endpoint (DO0 Siren)
+app.post('/api/devices/control', authenticateToken, async (req, res) => {
+    try {
+        const { action } = req.body;
+        // action: 'activate' | 'deactivate'
+
+        console.log(`[Control] Request: ${action} by ${req.user.username}`);
+
+        if (action === 'activate') {
+            await modbusService.writeOutput(0, true);
+            res.json({ success: true, state: 'ON' });
+        } else if (action === 'deactivate') {
+            await modbusService.writeOutput(0, false);
+            res.json({ success: true, state: 'OFF' });
+        } else {
+            res.status(400).json({ error: 'Invalid action' });
+        }
+    } catch (e) {
+        console.error(`[Control] Error: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Start Server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
 });

@@ -393,6 +393,26 @@ function openInfoModal(d) {
 
     // Setup delete button
     document.getElementById('btn-delete-device').onclick = () => handleDelete(d.db_id);
+
+    // Setup Siren Control
+    const btnSiren = document.getElementById('btn-activate-siren');
+    if (d.t === 'sirena') {
+        btnSiren.style.display = 'block';
+        btnSiren.onclick = async () => {
+            try {
+                // Toggle state logic could be fancier, but for now just Activate
+                if (confirm('¿Activar sirena física (DO0)?')) {
+                    await api.controlDevice('activate');
+                    showToast("🔔 Sirena ACTIVADA");
+                }
+            } catch (e) {
+                showToast("❌ Error activando sirena");
+            }
+        };
+    } else {
+        btnSiren.style.display = 'none';
+    }
+
     modalInfo.style.display = 'flex';
 }
 

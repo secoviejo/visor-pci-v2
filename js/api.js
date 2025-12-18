@@ -133,3 +133,16 @@ export async function deleteDevice(dbId) {
         return { success: false };
     }
 }
+
+export async function controlDevice(action) {
+    // action: 'activate' | 'deactivate'
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/devices/control`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ action })
+    });
+    if (!res.ok) throw new Error('Control failed');
+    return res.json();
+}
