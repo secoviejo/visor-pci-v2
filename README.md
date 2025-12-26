@@ -47,3 +47,28 @@ Por defecto, el sistema busca el controlador en:
 - **Unit ID:** `1`
 
 (Configurable vía variables de entorno en futuras versiones).
+
+## 🧪 Simulación y Testing
+
+El proyecto incluye un script de simulación para probar la integración Modbus sin hardware real.
+
+### 1. Iniciar el Simulador
+Ejecuta el siguiente comando en una terminal dedicada:
+```bash
+npm run sim
+```
+Esto levantará un servidor Modbus TCP en `localhost:502` y mostrará un menú interactivo para simular eventos de fuego (DI0/DI1).
+
+### 2. Configurar el Servidor
+El sistema incluye **Autodetección Inteligente**:
+1. Intentará conectar primero al Hardware Real (`192.168.0.200` por defecto).
+2. Si falla, conectará automáticamente al **Simulador Local** (`127.0.0.1`).
+
+¡No necesitas editar ningún archivo! Simplemente arranca el simulador y el visor detectará que no hay hardware real y usará la simulación.
+
+### 3. Ejecutar el Visor
+En otra terminal:
+```bash
+npm start
+```
+Ahora verás los eventos del simulador reflejados en tiempo real en la aplicación.

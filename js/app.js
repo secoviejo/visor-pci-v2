@@ -143,7 +143,13 @@ async function loadFloors(buildingId) {
             option.dataset.image = f.image_filename;
             sel.appendChild(option);
         });
-        sel.onchange = (e) => loadFloorData(e.target.value); // Reset listener
+        sel.onchange = (e) => {
+            const val = e.target.value;
+            // Sync other select
+            if (sel.id === 'floor-select' && selectPublic) selectPublic.value = val;
+            if (sel.id === 'floor-select-public' && selectAdmin) selectAdmin.value = val;
+            loadFloorData(val);
+        };
     };
 
     populate(selectAdmin);
@@ -160,8 +166,23 @@ async function loadFloors(buildingId) {
 }
 
 async function loadFloorData(floorId) {
+    if (!floorId) return;
     currentFloorId = floorId;
-    const selectedOption = floorSelect.options[floorSelect.selectedIndex];
+
+    // Get the image from whichever select is available and has the right value
+    const selectAdmin = document.getElementById('floor-select');
+    const selectPublic = document.getElementById('floor-select-public');
+
+    // Sync values
+    if (selectAdmin) selectAdmin.value = floorId;
+    if (selectPublic) selectPublic.value = floorId;
+
+    const sel = (selectAdmin && selectAdmin.options.length > 0 && selectAdmin.value == floorId) ? selectAdmin : selectPublic;
+    if (!sel || !sel.options[sel.selectedIndex]) {
+        console.warn("No selection found for floorId:", floorId);
+        return;
+    }
+    const selectedOption = sel.options[sel.selectedIndex];
     const imageName = selectedOption.dataset.image;
 
     // Load Image
@@ -181,14 +202,18 @@ async function loadFloorData(floorId) {
 }
 
 function renderDevices() {
+    console.log(`[App] Rendering ${devices.length} devices for floor ${currentFloorId}`);
     document.querySelectorAll('.hotspot').forEach(el => el.remove());
 
     devices.forEach(d => {
+        // ... (rest same, logging central)
+        if (d.t === 'central') console.log('[App] Rendering central device:', d);
         const dot = document.createElement('div');
         let typeClass = 'type-detector';
         if (d.t === 'pulsador') typeClass = 'type-pulsador';
         if (d.t === 'sirena') typeClass = 'type-sirena';
         if (d.t === 'detector_ft') typeClass = 'type-detector_ft';
+        if (d.t === 'central') typeClass = 'type-central';
 
         dot.className = `hotspot ${typeClass}`;
         dot.style.left = d.x + '%';
@@ -196,6 +221,10 @@ function renderDevices() {
         dot.textContent = d.n;
         dot.setAttribute('data-tooltip', d.loc);
         dot.dataset.dbId = d.db_id;
+
+        if (window.lastCreatedDeviceId == d.db_id) {
+            dot.classList.add('new-device');
+        }
 
         dot.addEventListener('mousedown', (e) => handleHotspotMouseDown(e, dot, d));
         dot.addEventListener('dragstart', (e) => e.preventDefault());
@@ -344,7 +373,8 @@ window.resetView = function () {
 const visibleTypes = {
     detector: true,
     pulsador: true,
-    sirena: true
+    sirena: true,
+    central: true
 };
 
 window.toggleFilter = function (type) {
@@ -373,6 +403,7 @@ function applyFilters() {
         if ((dot.classList.contains('type-detector') || dot.classList.contains('type-detector_ft')) && visibleTypes.detector) isVisible = true;
         if (dot.classList.contains('type-pulsador') && visibleTypes.pulsador) isVisible = true;
         if (dot.classList.contains('type-sirena') && visibleTypes.sirena) isVisible = true;
+        if (dot.classList.contains('type-central') && visibleTypes.central) isVisible = true;
 
         dot.style.display = isVisible ? 'flex' : 'none';
     });
@@ -396,21 +427,23 @@ function openInfoModal(d) {
 
     // Setup Siren Control
     const btnSiren = document.getElementById('btn-activate-siren');
-    if (d.t === 'sirena') {
-        btnSiren.style.display = 'block';
-        btnSiren.onclick = async () => {
-            try {
-                // Toggle state logic could be fancier, but for now just Activate
-                if (confirm('¿Activar sirena física (DO0)?')) {
-                    await api.controlDevice('activate');
-                    showToast("🔔 Sirena ACTIVADA");
+    if (btnSiren) {
+        if (d.t === 'sirena') {
+            btnSiren.style.display = 'block';
+            btnSiren.onclick = async () => {
+                try {
+                    // Toggle state logic could be fancier, but for now just Activate
+                    if (confirm('¿Activar sirena física (DO0)?')) {
+                        await api.controlDevice('activate');
+                        showToast("🔔 Sirena ACTIVADA");
+                    }
+                } catch (e) {
+                    showToast("❌ Error activando sirena");
                 }
-            } catch (e) {
-                showToast("❌ Error activando sirena");
-            }
-        };
-    } else {
-        btnSiren.style.display = 'none';
+            };
+        } else {
+            btnSiren.style.display = 'none';
+        }
     }
 
     modalInfo.style.display = 'flex';
@@ -465,10 +498,17 @@ window.saveNewDevice = async function (e) {
     };
 
     try {
-        await api.createDevice(newDevice);
+        const res = await api.createDevice(newDevice);
+        window.lastCreatedDeviceId = res.db_id; // Store to highlight
         showToast("✨ Dispositivo añadido");
         closeModal('modal-add');
-        loadFloorData(currentFloorId);
+        await loadFloorData(currentFloorId);
+
+        // Remove highlight after 10 seconds
+        setTimeout(() => {
+            window.lastCreatedDeviceId = null;
+            renderDevices();
+        }, 10000);
     } catch (error) {
         showToast("❌ Error añadiendo");
     }

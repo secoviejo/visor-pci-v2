@@ -8,6 +8,7 @@
     --detector-color: rgba(220, 53, 69, 1);
     --pulsador-color: rgba(0, 123, 255, 1);
     --sirena-color: rgba(255, 193, 7, 1);
+    --central-color: rgba(108, 117, 125, 1);
 }
 
 .header-logo img {
@@ -204,6 +205,10 @@ select.form-control {
     background-image: url('../img/sirena.svg');
 }
 
+.type-central {
+    background-image: url('../img/central.svg');
+}
+
 /* TOOLTIP */
 .hotspot::after {
     content: attr(data-tooltip);
@@ -277,7 +282,30 @@ select.form-control {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 2000;
+}
+
+/* New Device Highlight */
+@keyframes pulse-new {
+    0% {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.5);
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+.new-device {
+    animation: pulse-new 2s infinite;
+    z-index: 200;
 }
 
 .modal {

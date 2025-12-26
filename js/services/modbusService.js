@@ -20,23 +20,38 @@ class ModbusService extends EventEmitter {
     }
 
     async connect() {
+        // 1. Try Hardware (or Configured Host)
         try {
-            console.log(`[Modbus] Connecting to ${this.host}:${this.port}...`);
+            console.log(`[Modbus] Connecting to HARDWARE at ${this.host}:${this.port}...`);
             await this.client.connectTCP(this.host, { port: this.port });
-            this.client.setID(1); // Standard Unit ID
-            this.client.setTimeout(2000);
+            console.log('[Modbus] ✅ Connected to HARDWARE.');
+            this.finalizeConnection();
+            return;
+        } catch (e) {
+            console.warn(`[Modbus] ⚠️ Hardware connection failed: ${e.message}`);
+        }
 
-            this.isConnected = true;
-            console.log('[Modbus] Connected.');
-            this.emit('connected');
-
-            this.startPolling();
+        // 2. Try Simulator (Fallback)
+        try {
+            const simHost = '127.0.0.1';
+            console.log(`[Modbus] Attempting fallback to SIMULATOR at ${simHost}:${this.port}...`);
+            await this.client.connectTCP(simHost, { port: this.port });
+            console.log('[Modbus] ✅ Connected to SIMULATOR.');
+            this.finalizeConnection();
         } catch (e) {
             this.isConnected = false;
-            console.error(`[Modbus] Connection failed: ${e.message}`);
+            console.error(`[Modbus] ❌ All connection attempts failed.`);
             this.emit('error', e);
             this.scheduleReconnect();
         }
+    }
+
+    finalizeConnection() {
+        this.client.setID(1);
+        this.client.setTimeout(2000);
+        this.isConnected = true;
+        this.emit('connected');
+        this.startPolling();
     }
 
     scheduleReconnect() {

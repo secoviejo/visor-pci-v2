@@ -328,8 +328,33 @@ modbusService.on('change', (event) => {
             console.error('Error saving alert:', e);
         }
     } else {
-        // Handle "OFF" -> Resolve Alert?
-        // TODO: Implement resolve logic if needed
+        // Handle "OFF" -> Resolve Alert
+        const elementId = `CIE-${event.port}`;
+        console.log(`[Hardware Event] Resolving alert for ${elementId}`);
+
+        try {
+            // Find the last active alert for this element and resolve it
+            const stmt = db.prepare(`
+                UPDATE alerts 
+                SET status = 'RESUELTA', ended_at = ? 
+                WHERE element_id = ? AND status = 'ACTIVA'
+            `);
+            const now = new Date().toISOString();
+            const result = stmt.run(now, elementId);
+
+            if (result.changes > 0) {
+                // Broadcast deactivation
+                io.emit('pci:alarm:off', {
+                    elementId,
+                    type: 'detector', // Match frontend expectation
+                    status: 'RESUELTA',
+                    ended_at: now
+                });
+                console.log(`[Socket] Emitted pci:alarm:off for ${elementId}`);
+            }
+        } catch (e) {
+            console.error('Error resolving alert:', e);
+        }
     }
 });
 

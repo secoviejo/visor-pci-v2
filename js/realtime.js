@@ -28,3 +28,15 @@ socket.on('pci:alarm:on', (data) => {
         }
     }));
 });
+
+// Handle Alarm OFF
+socket.on('pci:alarm:off', (data) => {
+    console.log('[Realtime] Received Alarm RESOLVED:', data);
+
+    window.dispatchEvent(new CustomEvent('pci:alarm:off', {
+        detail: {
+            elementId: data.elementId,
+            type: data.type
+        }
+    }));
+});

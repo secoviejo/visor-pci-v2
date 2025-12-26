@@ -47,6 +47,8 @@
                     title="Ocultar/Mostrar Pulsadores" style="font-size: 0.8rem; padding: 4px 10px;">Pulsadores</button>
                 <button id="filter-sirena" class="btn btn-primary" onclick="toggleFilter('sirena')"
                     title="Ocultar/Mostrar Sirenas" style="font-size: 0.8rem; padding: 4px 10px;">Sirenas</button>
+                <button id="filter-central" class="btn btn-primary" onclick="toggleFilter('central')"
+                    title="Ocultar/Mostrar Centrales" style="font-size: 0.8rem; padding: 4px 10px;">Centrales</button>
             </div>
 
             <select id="building-select-public" class="form-control">
@@ -87,6 +89,10 @@
                 <div class="legend-item">
                     <div class="legend-dot circle" style="background:var(--sirena-color); border:1px solid #333"></div>
                     Sirena
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot square" style="background:var(--central-color)"></div>
+                    Central
                 </div>
             </div>
         </div>
@@ -144,6 +150,7 @@
                             <option value="detector_ft">Detector Falso Techo</option>
                             <option value="pulsador">Pulsador</option>
                             <option value="sirena">Sirena</option>
+                            <option value="central">Central de Incendios</option>
                         </select>
                     </div>
                 </div>
@@ -158,6 +165,9 @@
                     <input type="text" id="edit-id" class="form-control"
                         style="width: 100%; box-sizing: border-box; font-family: monospace;">
                 </div>
+
+                <button id="btn-activate-siren" class="btn btn-primary"
+                    style="display: none; width: 100%; margin-bottom: 10px;">🔔 Activar Sirena Física</button>
 
                 <div style="display: flex; gap: 10px;">
                     <button class="btn btn-primary" onclick="saveDeviceEdits()" style="flex: 1;">💾 Guardar
@@ -186,6 +196,7 @@
                             <option value="detector_ft">Detector Falso Techo</option>
                             <option value="pulsador">Pulsador</option>
                             <option value="sirena">Sirena</option>
+                            <option value="central">Central de Incendios</option>
                         </select>
                     </div>
                     <div style="margin-bottom: 10px;">
