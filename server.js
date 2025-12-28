@@ -498,6 +498,64 @@ app.post('/api/events/:id/acknowledge', authenticateToken, (req, res) => {
     }
 });
 
+
+// 9. Simulation & Status API (Phase 5)
+app.get('/api/campuses/stats', (req, res) => {
+    try {
+        // Count active ALARM events per campus
+        // We link events -> devices -> floors -> buildings -> campuses
+        // Note: events.device_id relates to devices.device_id (which is external ID)
+        // AND devices.device_id is stored in 'devices' table.
+        // But server.js uses 'elementId' for event insertion. elementId for hardware is 'CIE-XX'.
+        // For this query to work, we need to hope events.device_id matches devices.device_id OR devices.id
+        // Since we are simulating, we will ensure the inserted event uses a valid device_id from DB.
+
+        const query = `
+            SELECT c.id, c.name, COUNT(e.id) as alarm_count 
+            FROM campuses c 
+            LEFT JOIN buildings b ON b.campus_id = c.id 
+            LEFT JOIN floors f ON f.building_id = b.id 
+            LEFT JOIN devices d ON d.floor_id = f.id 
+            LEFT JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
+            GROUP BY c.id
+        `;
+        const stats = db.prepare(query).all();
+        res.json(stats);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
+    try {
+        // 1. Pick a random device
+        const device = db.prepare("SELECT device_id, type FROM devices ORDER BY RANDOM() LIMIT 1").get();
+
+        if (!device) return res.status(404).json({ error: 'No devices found to simulate' });
+
+        // 2. Insert ALARM event
+        const stmt = db.prepare(`
+            INSERT INTO events (device_id, type, message, value)
+            VALUES (?, 'ALARM', 'Incidencia Simulada', ?)
+        `);
+        const info = stmt.run(device.device_id, JSON.stringify({ simulated: true }));
+
+        // 3. Emit event
+        io.emit('event:new', {
+            id: info.lastInsertRowid,
+            device_id: device.device_id,
+            type: 'ALARM',
+            message: 'Incidencia Simulada',
+            timestamp: new Date(),
+            acknowledged: false
+        });
+
+        res.json({ success: true, device });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Start Server
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);

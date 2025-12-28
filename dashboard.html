@@ -50,11 +50,29 @@
                 </div>
             </div>
             <div class="flex gap-4">
+                <button onclick="triggerSimulation()"
+                    class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-bug"></i> Simular Incidencia
+                </button>
                 <button onclick="logout()"
                     class="flex items-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                     <i class="fa fa-lock text-gray-400"></i> Logout
                 </button>
             </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast"
+            class="fixed top-20 right-5 bg-white border-l-4 border-blue-500 shadow-lg rounded p-4 hidden transition-opacity duration-300 z-50 max-w-sm">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <i id="toast-icon" class="fa fa-info-circle text-blue-500"></i>
+                </div>
+                <div class="ml-3">
+                    <p id="toast-message" class="text-sm text-gray-700 font-medium"></p>
+                </div>
+            </div>
+        </div>
         </div>
     </header>
 
@@ -92,7 +110,11 @@
 
         async function loadCampuses() {
             try {
-                const campuses = await api.getCampuses();
+                // Fetch stats which includes campus list + alarm count
+                const res = await fetch('/api/campuses/stats');
+                if (!res.ok) throw new Error('Error cargando estadísticas');
+                const campuses = await res.json();
+
                 const grid = document.getElementById('campus-grid');
                 grid.innerHTML = '';
 
@@ -102,16 +124,19 @@
                 }
 
                 for (const c of campuses) {
-                    // Fetch buildings count for statistics (inefficient but works for now)
-                    // Ideal: API returns count
-                    let buildingsCount = 0;
+                    // Try to get buildings count properly
+                    let buildingsCount = '(?)';
                     try {
                         const buildings = await api.getBuildings(c.id);
                         buildingsCount = buildings.length;
-                    } catch (e) { }
+                    } catch (e) { };
 
                     const card = document.createElement('div');
-                    card.className = 'campus-card bg-white rounded-lg overflow-hidden shadow border border-gray-100';
+                    // Style change if alarm active
+                    const isAlarm = c.alarm_count > 0;
+                    const borderClass = isAlarm ? 'border-red-500 border-2 shadow-red-100' : 'border-gray-100 shadow';
+
+                    card.className = `campus-card bg-white rounded-lg overflow-hidden ${borderClass}`;
                     card.onclick = () => {
                         window.location.href = `campus_view.html?campusId=${c.id}`;
                     };
@@ -119,19 +144,26 @@
                     const imgSrc = c.image_filename ? c.image_filename : 'https://placehold.co/600x400/e2e8f0/64748b?text=Sin+Imagen';
 
                     // Mock Status
-                    const status = buildingsCount > 0 ?
-                        '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Normal</span>' :
-                        '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Sin Datos</span>';
+                    // const status = buildingsCount > 0 ?
+                    //     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Normal</span>' :
+                    //     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Sin Datos</span>';
 
                     card.innerHTML = `
                         <div class="h-48 bg-gray-200 relative">
                             <img src="${imgSrc}" class="w-full h-full object-cover" alt="${c.name}">
+                            ${isAlarm ? '<div class="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shadow animate-bounce">🔥 ALARMA ACTIVA</div>' : ''}
                         </div>
                         <div class="p-6">
                             <h3 class="text-xl font-bold text-gray-900 mb-2">${c.name}</h3>
-                            <p class="text-gray-600 text-sm mb-4 h-12 overflow-hidden text-ellipsis">${c.description || 'Descripción no disponible.'} ${buildingsCount} Edificios.</p>
-                            <button onclick="window.location.href = 'campus_view.html?campusId=${c.id}'" class="w-full bg-[#0056b3] hover:bg-[#004494] text-white font-medium py-2 px-4 rounded transition-colors">
-                                Ver Edificios
+                            <p class="text-gray-600 text-sm mb-4 h-12 overflow-hidden text-ellipsis">
+                                ${c.description || 'Descripción no disponible.'} 
+                                <br>
+                                <span class="font-semibold">${buildingsCount} Edificios.</span>
+                                ${isAlarm ? `<span class="text-red-600 font-bold ml-2">${c.alarm_count} Incidencias.</span>` : ''}
+                            </p>
+                            <button onclick="window.location.href = 'campus_view.html?campusId=${c.id}'" 
+                                class="w-full ${isAlarm ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0056b3] hover:bg-[#004494]'} text-white font-medium py-2 px-4 rounded transition-colors">
+                                ${isAlarm ? 'Ver Incidencias' : 'Ver Edificios'}
                             </button>
                         </div>
                     `;
@@ -141,9 +173,56 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('campus-grid').innerHTML =
-                    `<div class="col-span-3 text-center text-red-500">Error cargando datos: ${err.message}</div>`;
+                    `<div class="col-span-3 text-center text-red-500">Error cargando datos: ${err.message}. Asegúrese de haber iniciado sesión.</div>`;
             }
         }
+
+        window.triggerSimulation = async function () {
+            try {
+                const token = localStorage.getItem('auth_token');
+                if (!token) return alert("Debes iniciar sesión para simular.");
+
+                const res = await fetch('/api/simulation/alarm', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast("Incidencia Simulada: " + data.device.device_id, 'alarm');
+                    loadCampuses(); // Refresh view
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function showToast(msg, type = 'info') {
+            const t = document.getElementById('toast');
+            const m = document.getElementById('toast-message');
+            const i = document.getElementById('toast-icon');
+
+            m.textContent = msg;
+            if (type === 'alarm') {
+                t.classList.replace('border-blue-500', 'border-red-500');
+                i.className = 'fa fa-fire text-red-500';
+            } else {
+                t.classList.replace('border-red-500', 'border-blue-500');
+                i.className = 'fa fa-info-circle text-blue-500';
+            }
+
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 3000);
+        }
+
+        // Auth Check
+        if (!api.isLoggedIn()) {
+            // Guest logic or redirect
+        }
+
+        loadCampuses();
 
         // Auth Check
         if (!api.isLoggedIn()) {
