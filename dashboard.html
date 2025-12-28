@@ -111,11 +111,7 @@
                     const card = document.createElement('div');
                     card.className = 'campus-card bg-white rounded-lg overflow-hidden shadow border border-gray-100';
                     card.onclick = () => {
-                        // Navigate to building view or direct to app if simple
-                        // For now we assume we jump to the viewer with prefiltered buildings
-                        // But wait, the viewer (app.html) expects to load EVERYTHING.
-                        // We need to pass ?campusId=X to app.html so it loads only that campus.
-                        window.location.href = `app.html?campusId=${c.id}`;
+                        window.location.href = `campus_view.html?campusId=${c.id}`;
                     };
 
                     const imgSrc = c.image_filename ? c.image_filename : 'https://placehold.co/600x400/e2e8f0/64748b?text=Sin+Imagen';

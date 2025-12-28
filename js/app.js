@@ -117,9 +117,22 @@ async function loadBuildings() {
 
     checkAuth();
 
-    // Select first building by default
-    if (buildings.length > 0) {
-        loadFloors(buildings[0].id);
+    // Check for buildingId in URL to pre-select
+    const buildingIdParam = urlParams.get('buildingId');
+    let initialBuildingId = null;
+
+    if (buildingIdParam) {
+        // Verify it exists in the filtered list
+        const exists = buildings.find(b => b.id == buildingIdParam);
+        if (exists) initialBuildingId = buildingIdParam;
+    }
+
+    if (!initialBuildingId && buildings.length > 0) {
+        initialBuildingId = buildings[0].id;
+    }
+
+    if (initialBuildingId) {
+        loadFloors(initialBuildingId);
     }
 }
 

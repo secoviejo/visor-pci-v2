@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edificios - Visor PCI</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'zaragoza-blue': '#2E6DA4',
+                        'zaragoza-dark': '#333333',
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f4f7f6;
+        }
+
+        .building-card {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .building-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            border-color: #2E6DA4;
+        }
+    </style>
+</head>
+
+<body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
+
+    <!-- Header -->
+    <header class="bg-white py-4 px-8 shadow-sm relative z-20 flex-shrink-0">
+        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <div class="flex items-center gap-[10px] cursor-pointer" onclick="window.location.href='dashboard.html'">
+                <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
+                <div class="flex flex-col font-sans text-[#333333] leading-tight">
+                    <span class="font-bold text-lg">Universidad</span>
+                    <span class="text-lg">Zaragoza</span>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="logout()" class="text-red-600 font-semibold hover:text-red-800">
+                    <i class="fa fa-sign-out"></i> Salir
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumbs -->
+    <div class="bg-white border-b border-gray-200 py-3 px-8">
+        <div class="max-w-7xl mx-auto flex items-center text-sm text-gray-500">
+            <a href="dashboard.html" class="hover:text-zaragoza-blue"><i class="fa fa-home"></i> Inicio</a>
+            <span class="mx-2">/</span>
+            <span id="campus-name-breadcrumb" class="font-medium text-gray-800">Cargando Campus...</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-grow p-8">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-3xl font-bold mb-2 text-zaragoza-blue" id="campus-title">Edificios</h1>
+            <p class="text-gray-600 mb-8">Seleccione un edificio para visualizar sus planos y elementos.</p>
+
+            <div id="building-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Loading State -->
+                <div class="col-span-full text-center py-10">
+                    <i class="fa fa-spinner fa-spin text-3xl text-gray-400"></i>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto text-center px-4">
+            <p class="text-xs text-[#333333]">© 2025 Universidad Zaragoza. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <script type="module">
+        import * as api from './js/api.js';
+
+        window.logout = function () {
+            api.logout();
+            window.location.href = 'index.html';
+        }
+
+        async function init() {
+            if (!api.isLoggedIn()) {
+                // Guest access allowed or redirect?
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const campusId = urlParams.get('campusId');
+
+            if (!campusId) {
+                alert("Campus no especificado");
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            try {
+                // Fetch Campus Info (We might need an endpoint for single campus or filter list)
+                // For efficiency/time, we just get all campuses and find ours, or rely on API.
+                // Ideal: api.getCampus(id). For now:
+                const campuses = await api.getCampuses();
+                const campus = campuses.find(c => c.id == campusId);
+
+                if (campus) {
+                    document.getElementById('campus-name-breadcrumb').textContent = campus.name;
+                    document.getElementById('campus-title').textContent = campus.name;
+                }
+
+                // Fetch Buildings
+                const buildings = await api.getBuildings(campusId);
+                const grid = document.getElementById('building-grid');
+                grid.innerHTML = '';
+
+                if (buildings.length === 0) {
+                    grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">No hay edificios registrados en este campus.</div>';
+                    return;
+                }
+
+                buildings.forEach(b => {
+                    const card = document.createElement('div');
+                    card.className = 'building-card bg-white rounded-lg overflow-hidden shadow border border-gray-200 flex flex-col';
+                    card.onclick = () => {
+                        // Go to viewer, preselecting this building
+                        // We link to app.html. We must pass campusId so it loads the list, 
+                        // AND buildingId so it auto-selects it.
+                        window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
+                    };
+
+                    const statusColor = 'bg-green-100 text-green-800';
+                    const statusText = 'Normal';
+                    // Future: Check status (alarms)
+
+                    card.innerHTML = `
+                        <div class="p-5 flex-grow">
+                             <div class="flex justify-between items-start mb-4">
+                                <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
+                                    <i class="fa fa-building text-xl"></i>
+                                </div>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
+                                    ${statusText}
+                                </span>
+                            </div>
+                            <h3 class="text-lg font-bold text-gray-900 mb-1">${b.name}</h3>
+                            <p class="text-sm text-gray-500">ID: ${b.id}</p>
+                        </div>
+                        <div class="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-between items-center text-sm">
+                            <span class="text-gray-500">Ver Planos</span>
+                            <i class="fa fa-chevron-right text-gray-400"></i>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('building-grid').innerHTML =
+                    `<div class="col-span-full text-center text-red-500">Error: ${err.message}</div>`;
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
