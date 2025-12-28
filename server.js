@@ -149,6 +149,36 @@ app.post('/api/buildings', authenticateToken, (req, res) => {
     }
 });
 
+// 1.1.1 Update Building (Protected)
+app.put('/api/buildings/:id', authenticateToken, (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, campus_id, x, y } = req.body;
+
+        // Build dynamic SET clause
+        const updates = [];
+        const params = [];
+        if (name !== undefined) { updates.push('name = ?'); params.push(name); }
+        if (campus_id !== undefined) { updates.push('campus_id = ?'); params.push(campus_id); }
+        if (x !== undefined) { updates.push('x = ?'); params.push(x); }
+        if (y !== undefined) { updates.push('y = ?'); params.push(y); }
+
+        if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+        params.push(id);
+        const stmt = db.prepare(`UPDATE buildings SET ${updates.join(', ')} WHERE id = ?`);
+        const result = stmt.run(...params);
+
+        if (result.changes > 0) {
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Building not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // 1.0 Get All Campuses (Public)
 app.get('/api/campuses', (req, res) => {
     try {
@@ -467,26 +497,39 @@ app.post('/api/devices/control', authenticateToken, async (req, res) => {
 // 8. Events API
 app.get('/api/events', authenticateToken, (req, res) => {
     try {
-        const { limit = 50, offset = 0, type, resolved } = req.query;
-        let query = 'SELECT * FROM events';
+        const { limit = 50, offset = 0, type, resolved, campusId } = req.query;
+
+        let query = `
+            SELECT e.*, d.number as device_number, d.type as device_type, d.location as device_location, 
+                   f.name as floor_name, b.name as building_name, b.id as building_id, b.campus_id
+            FROM events e
+            LEFT JOIN devices d ON e.device_id = d.device_id
+            LEFT JOIN floors f ON d.floor_id = f.id
+            LEFT JOIN buildings b ON f.building_id = b.id
+        `;
+
         const params = [];
         const conditions = [];
 
         if (type) {
-            conditions.push('type = ?');
+            conditions.push('e.type = ?');
             params.push(type);
         }
         if (resolved !== undefined) {
-            conditions.push('resolved = ?');
+            conditions.push('e.resolved = ?');
             params.push(resolved === 'true' ? 1 : 0);
+        }
+        if (campusId) {
+            conditions.push('b.campus_id = ?');
+            params.push(parseInt(campusId));
         }
 
         if (conditions.length > 0) {
             query += ' WHERE ' + conditions.join(' AND ');
         }
 
-        query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
-        params.push(limit, offset);
+        query += ' ORDER BY e.timestamp DESC LIMIT ? OFFSET ?';
+        params.push(parseInt(limit), parseInt(offset));
 
         const events = db.prepare(query).all(...params);
         res.json(events);
@@ -525,7 +568,7 @@ app.get('/api/campuses/stats', (req, res) => {
         // Since we are simulating, we will ensure the inserted event uses a valid device_id from DB.
 
         const query = `
-            SELECT c.id, c.name, COUNT(e.id) as alarm_count 
+            SELECT c.id, c.name, c.description, c.image_filename, COUNT(e.id) as alarm_count 
             FROM campuses c 
             LEFT JOIN buildings b ON b.campus_id = c.id 
             LEFT JOIN floors f ON f.building_id = b.id 
@@ -542,25 +585,39 @@ app.get('/api/campuses/stats', (req, res) => {
 
 app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
     try {
-        // 1. Pick a random device
-        const device = db.prepare("SELECT device_id, type FROM devices ORDER BY RANDOM() LIMIT 1").get();
+        const { campusId } = req.query;
+        let device;
 
-        if (!device) return res.status(404).json({ error: 'No devices found to simulate' });
+        if (campusId) {
+            device = db.prepare(`
+                SELECT d.device_id, d.type 
+                FROM devices d
+                JOIN floors f ON d.floor_id = f.id
+                JOIN buildings b ON f.building_id = b.id
+                WHERE b.campus_id = ?
+                ORDER BY RANDOM() LIMIT 1
+            `).get(campusId);
+        } else {
+            device = db.prepare("SELECT device_id, type FROM devices ORDER BY RANDOM() LIMIT 1").get();
+        }
+
+        if (!device) return res.status(404).json({ error: 'No devices found for this campus' });
 
         // 2. Insert ALARM event
         const stmt = db.prepare(`
-            INSERT INTO events (device_id, type, message, value)
-            VALUES (?, 'ALARM', 'Incidencia Simulada', ?)
+            INSERT INTO events (device_id, type, message, value, origin)
+            VALUES (?, 'ALARM', 'Incidencia Simulada', ?, 'SIM')
         `);
         const info = stmt.run(device.device_id, JSON.stringify({ simulated: true }));
 
-        // 3. Emit event
+        // 3. Emit event ... (same as before)
         io.emit('event:new', {
             id: info.lastInsertRowid,
             device_id: device.device_id,
             type: 'ALARM',
             message: 'Incidencia Simulada',
             timestamp: new Date(),
+            origin: 'SIM',
             acknowledged: false
         });
 

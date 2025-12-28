@@ -10,7 +10,9 @@ function initDb() {
         CREATE TABLE IF NOT EXISTS buildings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            campus_id INTEGER DEFAULT 1, -- Default to Campus 1 (Migration)
+            campus_id INTEGER DEFAULT 1,
+            x REAL,
+            y REAL,
             FOREIGN KEY(campus_id) REFERENCES campuses(id)
         )
     `);
@@ -19,11 +21,32 @@ function initDb() {
     db.exec(`
         CREATE TABLE IF NOT EXISTS campuses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            image_filename TEXT
+            name TEXT NOT NULL
         )
     `);
+
+    // Migration: Add description and image_filename if missing
+    const campusCols = db.prepare("PRAGMA table_info(campuses)").all();
+    if (!campusCols.some(c => c.name === 'description')) {
+        db.exec("ALTER TABLE campuses ADD COLUMN description TEXT");
+        console.log('Added description column to campuses.');
+    }
+    if (!campusCols.some(c => c.name === 'image_filename')) {
+        db.exec("ALTER TABLE campuses ADD COLUMN image_filename TEXT");
+        console.log('Added image_filename column to campuses.');
+    }
+
+    // Migration for Building Campus Link & Coords
+    const buildingCols = db.prepare("PRAGMA table_info(buildings)").all();
+    if (!buildingCols.some(c => c.name === 'campus_id')) {
+        db.exec("ALTER TABLE buildings ADD COLUMN campus_id INTEGER DEFAULT 1");
+    }
+    if (!buildingCols.some(c => c.name === 'x')) {
+        db.exec("ALTER TABLE buildings ADD COLUMN x REAL");
+    }
+    if (!buildingCols.some(c => c.name === 'y')) {
+        db.exec("ALTER TABLE buildings ADD COLUMN y REAL");
+    }
 
     // Check if we need to migrate floors (add building_id)
     // We can't easily ALTER COLUMN to add FK in SQLite, so we check if table exists and has column.
@@ -149,19 +172,75 @@ function seedData() {
         console.log('Please ensure "bcryptjs" is installed (npm install).');
     }
 
+    // Check Campuses
+    const campusCount = db.prepare('SELECT count(*) as count FROM campuses').get();
+
+    // If we have less than 6 campuses, assume we need to re-seed (migration from 3 to 6)
+    if (campusCount.count < 6) {
+        console.log('Seeding/Updating Campuses...');
+
+        // Clear existing to avoid duplicates or IDs mismatch if we want clean list
+        // WARNING: This might break FKs if we delete. Better to Upsert or just Delete if safe.
+        // Since this is dev/demo, we can try to DELETE ALL and re-insert, but that breaks buildings links.
+        // Better strategy: Update existing by ID 1, 2, 3 and Insert 4, 5, 6.
+
+        const campuses = [
+            { id: 1, name: 'Campus Plaza San Francisco', desc: 'Campus principal. Ciencias, Derecho, Educación.', img: 'img/campuses/campus_sf_3d.png' },
+            { id: 2, name: 'Campus Río Ebro', desc: 'Ingeniería (EINA) y Arquitectura.', img: 'img/campuses/rio_ebro_3d.png' },
+            { id: 3, name: 'Campus Huesca y Jaca', desc: 'Salud, Deporte y Gestión Pública.', img: 'img/campuses/campus_huesca.jpg' },
+            { id: 4, name: 'Campus Paraíso', desc: 'Facultades de Economía, Empresa y Gran Vía.', img: 'img/campuses/campus_paraiso.jpg' },
+            { id: 5, name: 'Campus Veterinaria', desc: 'Facultad de Veterinaria.', img: 'img/campuses/campus_veterinaria.jpg' },
+            { id: 6, name: 'Campus Teruel', desc: 'Ciencias Sociales y Humanas, Ingeniería.', img: 'img/campuses/campus_teruel.jpg' }
+        ];
+
+        const upsert = db.prepare(`
+            INSERT INTO campuses (id, name, description, image_filename) 
+            VALUES (@id, @name, @desc, @img)
+            ON CONFLICT(id) DO UPDATE SET
+                name=excluded.name, 
+                description=excluded.description, 
+                image_filename=excluded.image_filename
+        `);
+
+        const insert = db.prepare('INSERT INTO campuses (name, description, image_filename) VALUES (@name, @desc, @img)');
+
+        for (const c of campuses) {
+            // Check if exists
+            const exists = db.prepare('SELECT id FROM campuses WHERE id = ?').get(c.id);
+            if (exists) {
+                upsert.run(c);
+            } else {
+                // If we rely on autoincrement but want specific IDs, we can force ID text or just insert
+                // SQLite allows inserting ID.
+                upsert.run(c);
+            }
+        }
+        console.log('✅ Campuses Updated (6 Campuses).');
+    }
+
     const floorsCount = db.prepare('SELECT count(*) as count FROM floors').get();
     if (floorsCount.count === 0) {
-        console.log('Seeding initial data...');
+        console.log('Seeding initial floors/devices...');
 
         // 1. Insert Main Floor (Image from index.html)
         // 0. Insert Default Campuses
-        // 0. Insert Default Campuses
-        const stmtCampus = db.prepare('INSERT INTO campuses (name, description, image_filename) VALUES (?, ?, ?)');
-        const campusSanFrancisco = stmtCampus.run('Campus San Francisco', 'Campus principal con facultades de humanidades y ciencias. 12 Edificios.', 'campus_sf.jpg'); // ID 1
-        const campusRioEbro = stmtCampus.run('Campus Río Ebro', 'Facultades de ingeniería y arquitectura. 8 Edificios.', 'campus_rio_ebro.jpg');     // ID 2
-        const campusHuesca = stmtCampus.run('Campus Huesca', 'Ciencias de la salud y sociales. 6 Edificios.', 'campus_huesca.jpg'); // ID 3
+        // This block is now handled by the campus update logic above.
+        // const stmtCampus = db.prepare('INSERT INTO campuses (name, description, image_filename) VALUES (?, ?, ?)');
 
-        console.log('Seeded Campuses.');
+        // const campuses = [
+        //     { name: 'Campus Paraíso', desc: 'Facultades de Economía, Empresa y Gran Vía.', img: 'campus_paraiso.jpg' },
+        //     { name: 'Campus Plaza San Francisco', desc: 'Campus principal. Ciencias, Derecho, Educación.', img: 'campus_sf.jpg' },
+        //     { name: 'Campus Río Ebro', desc: 'Ingeniería (EINA) y Arquitectura.', img: 'campus_rio_ebro.jpg' },
+        //     { name: 'Campus Veterinaria', desc: 'Facultad de Veterinaria.', img: 'campus_veterinaria.jpg' },
+        //     { name: 'Campus Huesca y Jaca', desc: 'Salud, Deporte y Gestión Pública.', img: 'campus_huesca.jpg' },
+        //     { name: 'Campus Teruel', desc: 'Ciencias Sociales y Humanas, Ingeniería.', img: 'campus_teruel.jpg' }
+        // ];
+
+        // for (const c of campuses) {
+        //     stmtCampus.run(c.name, c.desc, c.img);
+        // }
+
+        // console.log('Seeded Campuses (Real University List).');
 
         // 1. Insert Main Floor (Image from index.html)
         const stmt = db.prepare('INSERT INTO floors (name, image_filename, building_id) VALUES (?, ?, ?)');
@@ -169,7 +248,7 @@ function seedData() {
         // But for simplicity, let's update Building 1 to be in Campus 2
         db.prepare('UPDATE buildings SET campus_id = 2 WHERE id = 1').run();
 
-        const info = stmt.run('Planta 1 - General', 'image_9020d6.jpg', 1);
+        const info = stmt.run('Planta 1 - General', 'img/placeholders/floor_generic.jpg', 1);
         const floorId = info.lastInsertRowid;
 
         // 2. Insert Devices (Extracted from index.html)

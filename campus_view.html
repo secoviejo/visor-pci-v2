@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full bg-gray-100">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edificios - Visor PCI</title>
+    <title>Dashboard Campus - Visor PCI</title>
     <!-- Tailwind CSS v3 -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
@@ -21,73 +21,228 @@
         }
     </script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
         body {
-            background-color: #f4f7f6;
+            font-family: 'Inter', sans-serif;
         }
 
-        .building-card {
-            transition: all 0.2s;
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            grid-template-rows: 1fr 250px;
+            grid-template-areas:
+                "map sidebar"
+                "alerts alerts";
+            height: calc(100vh - 64px - 48px);
+            /* Full height - header - breadcrumbs */
+        }
+
+        .map-area {
+            grid-area: map;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar-area {
+            grid-area: sidebar;
+            border-left: 1px solid #e5e7eb;
+            overflow-y: auto;
+            background: white;
+        }
+
+        .alerts-area {
+            grid-area: alerts;
+            border-top: 1px solid #e5e7eb;
+            background: #1f2937;
+            color: white;
+            overflow-y: auto;
+        }
+
+        .building-marker {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
             cursor: pointer;
+            z-index: 10;
         }
 
-        .building-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-            border-color: #2E6DA4;
+        .building-marker:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .marker-label {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            margin-top: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            color: #1f2937;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        .alert-row {
+            border-bottom: 1px solid #374151;
+        }
+
+        .alert-row:last-child {
+            border-bottom: none;
         }
     </style>
 </head>
 
-<body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
+<body class="h-full flex flex-col overflow-hidden">
 
     <!-- Header -->
-    <header class="bg-white py-4 px-8 shadow-sm relative z-20 flex-shrink-0">
-        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
-            <div class="flex items-center gap-[10px] cursor-pointer" onclick="window.location.href='dashboard.html'">
-                <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-                <div class="flex flex-col font-sans text-[#333333] leading-tight">
-                    <span class="font-bold text-lg">Universidad</span>
-                    <span class="text-lg">Zaragoza</span>
-                </div>
+    <header class="bg-white py-3 px-6 shadow-sm relative z-30 flex-shrink-0 flex justify-between items-center h-[64px]">
+        <div class="flex items-center gap-3 cursor-pointer" onclick="window.location.href='dashboard.html'">
+            <img alt="Icono Universidad" class="h-9 w-auto" src="logo_unizar.png" />
+            <div class="flex flex-col leading-none">
+                <span class="font-bold text-gray-800 text-lg uppercase tracking-tight">Universidad</span>
+                <span class="text-gray-600 text-sm">Zaragoza</span>
             </div>
-            <div class="flex gap-4">
-                <button onclick="logout()" class="text-red-600 font-semibold hover:text-red-800">
-                    <i class="fa fa-sign-out"></i> Salir
-                </button>
-            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <span id="user-display" class="text-sm font-medium text-gray-600">Admin</span>
+            <button onclick="logout()" class="p-2 text-gray-400 hover:text-red-600 transition-colors">
+                <i class="fa-solid fa-right-from-bracket text-lg"></i>
+            </button>
         </div>
     </header>
 
     <!-- Breadcrumbs -->
-    <div class="bg-white border-b border-gray-200 py-3 px-8">
-        <div class="max-w-7xl mx-auto flex items-center text-sm text-gray-500">
-            <a href="dashboard.html" class="hover:text-zaragoza-blue"><i class="fa fa-home"></i> Inicio</a>
-            <span class="mx-2">/</span>
-            <span id="campus-name-breadcrumb" class="font-medium text-gray-800">Cargando Campus...</span>
+    <nav class="bg-gray-50 border-b border-gray-200 py-3 px-6 h-[48px] flex items-center shrink-0">
+        <div class="flex items-center text-xs text-gray-500 gap-2">
+            <a href="dashboard.html" class="hover:text-zaragoza-blue transition-colors flex items-center gap-1.5">
+                <i class="fa-solid fa-house"></i> Inicio
+            </a>
+            <i class="fa-solid fa-chevron-right text-[10px]"></i>
+            <span id="campus-name-breadcrumb" class="font-semibold text-gray-800">Cargando Campus...</span>
         </div>
-    </div>
+    </nav>
 
-    <!-- Main Content -->
-    <main class="flex-grow p-8">
-        <div class="max-w-7xl mx-auto">
-            <h1 class="text-3xl font-bold mb-2 text-zaragoza-blue" id="campus-title">Edificios</h1>
-            <p class="text-gray-600 mb-8">Seleccione un edificio para visualizar sus planos y elementos.</p>
+    <!-- Content Layout -->
+    <div class="layout-grid flex-grow">
+        <!-- Campus Map Area -->
+        <div class="map-area bg-gray-200">
+            <div id="campus-map-container" class="w-full h-full relative bg-center bg-no-repeat bg-cover">
+                <!-- Markers will be injected here -->
+            </div>
+            <!-- Map Overlay info -->
+            <div
+                class="absolute top-6 left-6 z-20 bg-white/90 backdrop-blur p-4 rounded-xl shadow-lg border border-white/20">
+                <h1 id="campus-title" class="text-xl font-bold text-gray-900 leading-tight">Cargando...</h1>
+                <p id="campus-desc" class="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">Cargando
+                    descripción...</p>
+            </div>
+        </div>
 
-            <div id="building-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <!-- Building Sidebar Area -->
+        <div class="sidebar-area flex flex-col">
+            <div class="p-4 border-b bg-gray-50/50">
+                <div class="relative">
+                    <i
+                        class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                    <input type="text" id="search-buildings" placeholder="Buscar edificio..."
+                        class="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-zaragoza-blue focus:border-transparent">
+                </div>
+            </div>
+            <div id="building-list" class="flex-grow">
                 <!-- Loading State -->
-                <div class="col-span-full text-center py-10">
-                    <i class="fa fa-spinner fa-spin text-3xl text-gray-400"></i>
+                <div class="p-8 text-center text-gray-400">
+                    <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i>
+                    <p class="text-sm">Cargando edificios...</p>
                 </div>
             </div>
         </div>
-    </main>
 
-    <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
-        <div class="max-w-7xl mx-auto text-center px-4">
-            <p class="text-xs text-[#333333]">© 2025 Universidad Zaragoza. Todos los derechos reservados.</p>
+        <!-- System Alerts Panel Area -->
+        <div class="alerts-area flex flex-col">
+            <div class="flex items-center justify-between px-6 py-3 bg-gray-900 sticky top-0 z-10">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span class="text-xs font-bold uppercase tracking-widest text-gray-300">Alertas del Sistema</span>
+                </div>
+                <div class="flex items-center gap-4 text-xs">
+                    <select id="filter-alerts"
+                        class="bg-gray-800 border-gray-700 text-gray-300 rounded px-2 py-1 text-[11px] focus:ring-0">
+                        <option value="all">Todas</option>
+                        <option value="ALARM">Alarmas</option>
+                        <option value="FAULT">Averías</option>
+                    </select>
+                    <button
+                        class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1 rounded transition-colors border border-gray-700">
+                        Limpiar Resueltas
+                    </button>
+                    <button id="sim-incidence"
+                        class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-1 rounded border border-red-500/30 transition-colors">
+                        Simular Incidencia
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-grow overflow-x-auto min-w-[1000px]">
+                <table class="w-full text-left text-xs">
+                    <thead
+                        class="bg-gray-800/50 text-gray-400 font-semibold uppercase tracking-wider sticky top-[40px]">
+                        <tr>
+                            <th class="px-6 py-3">Edificio</th>
+                            <th class="px-6 py-3">Planta</th>
+                            <th class="px-6 py-3">ID</th>
+                            <th class="px-6 py-3">Tipo</th>
+                            <th class="px-6 py-3">Ubicación</th>
+                            <th class="px-6 py-3">Hora</th>
+                            <th class="px-6 py-3">Origen</th>
+                            <th class="px-6 py-3">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alerts-tbody" class="divide-y divide-gray-800">
+                        <!-- Alert rows injected here -->
+                        <tr>
+                            <td colspan="8" class="px-6 py-8 text-center text-gray-500 italic">No hay alertas activas en
+                                el campus</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </footer>
+    </div>
 
     <script type="module">
         import * as api from './js/api.js';
@@ -97,83 +252,256 @@
             window.location.href = 'index.html';
         }
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const campusId = urlParams.get('campusId');
+
+        let buildings = [];
+        let curCampus = null;
+
         async function init() {
-            if (!api.isLoggedIn()) {
-                // Guest access allowed or redirect?
-            }
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const campusId = urlParams.get('campusId');
-
             if (!campusId) {
-                alert("Campus no especificado");
                 window.location.href = 'dashboard.html';
                 return;
             }
 
             try {
-                // Fetch Campus Info (We might need an endpoint for single campus or filter list)
-                // For efficiency/time, we just get all campuses and find ours, or rely on API.
-                // Ideal: api.getCampus(id). For now:
+                // Set User
+                const user = api.getCurrentUser();
+                if (user) document.getElementById('user-display').textContent = user.username.toUpperCase();
+
+                // 1. Get Campus Info
                 const campuses = await api.getCampuses();
-                const campus = campuses.find(c => c.id == campusId);
+                curCampus = campuses.find(c => c.id == campusId);
 
-                if (campus) {
-                    document.getElementById('campus-name-breadcrumb').textContent = campus.name;
-                    document.getElementById('campus-title').textContent = campus.name;
+                if (curCampus) {
+                    document.getElementById('campus-name-breadcrumb').textContent = curCampus.name;
+                    document.getElementById('campus-title').textContent = curCampus.name;
+                    document.getElementById('campus-desc').textContent = curCampus.description;
+
+                    if (curCampus.image_filename) {
+                        document.getElementById('campus-map-container').style.backgroundImage = `url('${curCampus.image_filename}')`;
+                    }
                 }
 
-                // Fetch Buildings
-                const buildings = await api.getBuildings(campusId);
-                const grid = document.getElementById('building-grid');
-                grid.innerHTML = '';
+                // 2. Load Buildings
+                await refreshBuildings();
 
-                if (buildings.length === 0) {
-                    grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">No hay edificios registrados en este campus.</div>';
-                    return;
-                }
-
-                buildings.forEach(b => {
-                    const card = document.createElement('div');
-                    card.className = 'building-card bg-white rounded-lg overflow-hidden shadow border border-gray-200 flex flex-col';
-                    card.onclick = () => {
-                        // Go to viewer, preselecting this building
-                        // We link to app.html. We must pass campusId so it loads the list, 
-                        // AND buildingId so it auto-selects it.
-                        window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
-                    };
-
-                    const statusColor = 'bg-green-100 text-green-800';
-                    const statusText = 'Normal';
-                    // Future: Check status (alarms)
-
-                    card.innerHTML = `
-                        <div class="p-5 flex-grow">
-                             <div class="flex justify-between items-start mb-4">
-                                <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
-                                    <i class="fa fa-building text-xl"></i>
-                                </div>
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">
-                                    ${statusText}
-                                </span>
-                            </div>
-                            <h3 class="text-lg font-bold text-gray-900 mb-1">${b.name}</h3>
-                            <p class="text-sm text-gray-500">ID: ${b.id}</p>
-                        </div>
-                        <div class="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-between items-center text-sm">
-                            <span class="text-gray-500">Ver Planos</span>
-                            <i class="fa fa-chevron-right text-gray-400"></i>
-                        </div>
-                    `;
-                    grid.appendChild(card);
-                });
+                // 3. Load Alerts Loop
+                refreshAlerts();
+                setInterval(refreshAlerts, 5000);
 
             } catch (err) {
                 console.error(err);
-                document.getElementById('building-grid').innerHTML =
-                    `<div class="col-span-full text-center text-red-500">Error: ${err.message}</div>`;
             }
         }
+
+        async function refreshBuildings() {
+            try {
+                buildings = await api.getBuildings(campusId);
+                const events = await api.getEvents({ resolved: 0, campusId: campusId, type: 'ALARM' });
+
+                renderBuildings(buildings, events);
+                renderMapMarkers(buildings, events);
+            } catch (err) { console.error(err); }
+        }
+
+        function renderBuildings(list, events) {
+            const container = document.getElementById('building-list');
+            container.innerHTML = '';
+
+            if (list.length === 0) {
+                container.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">No hay edificios registrados</div>';
+                return;
+            }
+
+            list.forEach(b => {
+                const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
+                const card = document.createElement('div');
+                card.className = "p-4 border-b hover:bg-gray-50 transition-colors cursor-pointer group flex gap-4";
+                card.onclick = () => window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
+
+                const statusText = hasAlarm ? 'Alerta Activa' : 'Normal';
+                const statusColor = hasAlarm ? 'text-red-600' : 'text-green-600';
+
+                card.innerHTML = `
+                    <div class="h-20 w-28 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative border border-gray-100">
+                        <div class="absolute inset-0 flex items-center justify-center text-gray-300">
+                            <i class="fa-solid fa-building text-2xl ${hasAlarm ? 'text-red-200' : ''}"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow py-1">
+                        <h4 class="font-bold text-gray-900 group-hover:text-zaragoza-blue transition-colors">${b.name}</h4>
+                        <p class="text-[11px] text-gray-500 mt-1 uppercase tracking-tight">Status: <span class="font-bold ${statusColor} uppercase">${statusText}</span></p>
+                        <div class="mt-2 flex items-center gap-1.5 px-3 py-1 bg-gray-100 group-hover:bg-zaragoza-blue group-hover:text-white rounded text-[11px] font-bold w-fit transition-colors">
+                            VIEW FLOOR PLANS <i class="fa-solid fa-chevron-right text-[9px]"></i>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        let isDragging = false;
+        let draggedBuildingId = null;
+        let dragMarker = null;
+
+        function renderMapMarkers(list, events) {
+            const container = document.getElementById('campus-map-container');
+            const existingMarkers = container.querySelectorAll('.building-marker');
+            existingMarkers.forEach(m => m.remove());
+
+            const user = api.getCurrentUser();
+            const isAdmin = user && user.role === 'admin';
+
+            list.forEach((b, idx) => {
+                const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
+                const marker = document.createElement('div');
+                marker.className = 'building-marker group';
+                marker.dataset.id = b.id;
+
+                // Use stored coordinates or fallback to deterministic positions
+                const left = b.x != null ? b.x : (20 + (idx * 15) % 65);
+                const top = b.y != null ? b.y : (20 + (idx * 23) % 65);
+                marker.style.left = `${left}%`;
+                marker.style.top = `${top}%`;
+
+                // Add pointer-events: none to marker-label to prevent drag interference
+                marker.innerHTML = `
+                    <div class="status-badge ${hasAlarm ? 'bg-red-600 animate-pulse' : 'bg-green-500'} group-hover:scale-110 transition-transform">
+                        <i class="fa-solid ${hasAlarm ? 'fa-triangle-exclamation' : 'fa-check'} text-white text-[10px]"></i>
+                    </div>
+                    <div class="marker-label flex items-center gap-2 pointer-events-none select-none">
+                         <span>${b.name}</span>
+                         <span class="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] font-bold text-gray-400 group-hover:bg-zaragoza-blue group-hover:text-white transition-colors">Ver Planos</span>
+                    </div>
+                `;
+
+                if (isAdmin) {
+                    marker.style.cursor = 'move';
+                    marker.onmousedown = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        isDragging = true;
+                        draggedBuildingId = b.id;
+                        dragMarker = marker;
+                        marker.classList.add('z-50');
+                        marker.style.transition = 'none'; // Smoothness while dragging
+                    };
+                }
+
+                // Normal click (only if not dragged)
+                marker.onclick = (e) => {
+                    if (isDragging) return;
+                    window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
+                };
+
+                container.appendChild(marker);
+            });
+        }
+
+        // Global drag handlers
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging || !dragMarker) return;
+
+            const container = document.getElementById('campus-map-container');
+            const rect = container.getBoundingClientRect();
+
+            let x = ((e.clientX - rect.left) / rect.width) * 100;
+            let y = ((e.clientY - rect.top) / rect.height) * 100;
+
+            // Constrain
+            x = Math.max(0, Math.min(100, x));
+            y = Math.max(0, Math.min(100, y));
+
+            dragMarker.style.left = `${x.toFixed(2)}%`;
+            dragMarker.style.top = `${y.toFixed(2)}%`;
+        });
+
+        document.addEventListener('mouseup', async (e) => {
+            if (!isDragging || !dragMarker) return;
+
+            const x = parseFloat(dragMarker.style.left);
+            const y = parseFloat(dragMarker.style.top);
+            const bid = draggedBuildingId;
+
+            // Reset state
+            isDragging = false;
+            draggedBuildingId = null;
+            dragMarker.classList.remove('z-50');
+            dragMarker.style.transition = '';
+            const m = dragMarker;
+            dragMarker = null;
+
+            try {
+                await api.updateBuilding(bid, { x, y });
+                console.log(`Building ${bid} position saved: ${x}, ${y}`);
+                // Update local model
+                const building = buildings.find(b => b.id === bid);
+                if (building) {
+                    building.x = x;
+                    building.y = y;
+                }
+            } catch (err) {
+                console.error("Error saving position:", err);
+                // Optionally revert position
+            }
+        });
+
+        async function refreshAlerts() {
+            try {
+                const activeEvents = await api.getEvents({ resolved: 0, campusId: campusId });
+                const tbody = document.getElementById('alerts-tbody');
+
+                if (activeEvents.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-500 italic text-[11px]">No hay alertas activas en el campus</td></tr>';
+                } else {
+                    tbody.innerHTML = activeEvents.map(e => {
+                        const time = new Date(e.timestamp).toLocaleTimeString();
+                        const isAlarm = e.type === 'ALARM';
+                        const statusClass = isAlarm ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20';
+                        return `
+                        <tr class="alert-row hover:bg-gray-800/30 transition-colors">
+                            <td class="px-6 py-3 font-semibold text-gray-200">${e.building_name || 'N/A'}</td>
+                            <td class="px-6 py-3 text-gray-400">${e.floor_name || 'N/A'}</td>
+                            <td class="px-6 py-3 font-mono text-gray-500 uppercase">${e.device_id || 'SYS'}</td>
+                            <td class="px-6 py-3 uppercase text-gray-400 font-medium">${e.device_type || 'N/A'}</td>
+                            <td class="px-6 py-3 text-gray-400">${e.device_location || 'N/A'}</td>
+                            <td class="px-6 py-3 text-gray-500">${time}</td>
+                            <td class="px-6 py-3 text-gray-400 tracking-wider">${e.origin || 'REAL'}</td>
+                            <td class="px-6 py-3">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusClass}">
+                                    ${e.type}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                    }).join('');
+                }
+
+                // Sync markers and building list with active events
+                renderBuildings(buildings, activeEvents.filter(e => e.type === 'ALARM'));
+                renderMapMarkers(buildings, activeEvents.filter(e => e.type === 'ALARM'));
+
+            } catch (err) { console.error("Error refreshing alerts:", err); }
+        }
+
+        // Simulation Button
+        document.getElementById('sim-incidence').onclick = async () => {
+            try {
+                await fetch(`/api/simulation/alarm?campusId=${campusId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+                });
+                refreshAlerts();
+            } catch (e) { alert("Error simulando incidencia"); }
+        };
+
+        // Search logic
+        document.getElementById('search-buildings').oninput = (e) => {
+            const val = e.target.value.toLowerCase();
+            const filtered = buildings.filter(b => b.name.toLowerCase().includes(val));
+            renderBuildings(filtered);
+        };
 
         init();
     </script>

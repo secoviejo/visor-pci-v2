@@ -68,6 +68,19 @@ export async function createBuilding(name, campusId) {
     return res.json();
 }
 
+export async function updateBuilding(id, data) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+
+    const res = await fetch(`${API_URL}/buildings/${id}`, {
+        method: 'PUT',
+        headers: headers,
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Error updating building');
+    return res.json();
+}
+
 export async function getFloors(buildingId = null) {
     let url = `${API_URL}/floors`;
     if (buildingId) {
