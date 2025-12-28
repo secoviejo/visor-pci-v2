@@ -671,7 +671,7 @@ window.handleLogin = async function (e) {
 window.performLogout = function () {
     api.logout();
     checkAuth();
-    window.location.reload();
+    window.location.href = 'index.html';
 }
 
 window.closeModal = function (id) {

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor de Detectores de Incendio - Edificio CIRCE</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/simulator.css">
+    <link rel="stylesheet" href="css/alerts.css">
+</head>
+
+<body>
+
+    <header>
+        <div class="header-logo">
+            <img src="logo_unizar.png" alt="Universidad de Zaragoza" style="height: 50px;">
+        </div>
+        <div>
+            <h1>Instalación PCI - CIRCE</h1>
+        </div>
+        <div class="controls">
+            <button id="btn-login" class="btn btn-outline" onclick="window.location.href='index.html'">🔑 Login</button>
+            <button id="btn-logout" class="btn btn-outline" onclick="performLogout()" style="display: none;">🔒
+                Logout</button>
+        </div>
+        <div class="controls" id="admin-controls"
+            style="display: none; border-left: 1px solid #ccc; padding-left: 10px; margin-left: 10px;">
+            <select id="building-select" class="form-control">
+                <option value="">Cargando edificios...</option>
+            </select>
+            <button class="btn btn-outline" onclick="openAddBuildingModal()" title="Nuevo Edificio">➕🏢</button>
+
+            <select id="floor-select" class="form-control">
+                <option>Selecciona Planta</option>
+            </select>
+            <button class="btn btn-outline" onclick="openAddFloorModal()" title="Nueva Planta">➕🖼️</button>
+            <button class="btn btn-primary" onclick="openAddModal()">➕ Elemento</button>
+        </div>
+        <div class="controls">
+            <!-- Common controls -->
+            <div
+                style="display: flex; gap: 5px; margin-right: 15px; border-right: 1px solid #ddd; padding-right: 15px;">
+                <button id="filter-detector" class="btn btn-primary" onclick="toggleFilter('detector')"
+                    title="Ocultar/Mostrar Detectores" style="font-size: 0.8rem; padding: 4px 10px;">Detectores</button>
+                <button id="filter-pulsador" class="btn btn-primary" onclick="toggleFilter('pulsador')"
+                    title="Ocultar/Mostrar Pulsadores" style="font-size: 0.8rem; padding: 4px 10px;">Pulsadores</button>
+                <button id="filter-sirena" class="btn btn-primary" onclick="toggleFilter('sirena')"
+                    title="Ocultar/Mostrar Sirenas" style="font-size: 0.8rem; padding: 4px 10px;">Sirenas</button>
+                <button id="filter-central" class="btn btn-primary" onclick="toggleFilter('central')"
+                    title="Ocultar/Mostrar Centrales" style="font-size: 0.8rem; padding: 4px 10px;">Centrales</button>
+            </div>
+
+            <select id="building-select-public" class="form-control">
+                <option value="">Cargando edificios...</option>
+            </select>
+            <select id="floor-select-public" class="form-control">
+                <option>Selecciona Planta</option>
+            </select>
+            <button class="btn btn-outline" onclick="resetView()">🎯 Centrar</button>
+        </div>
+    </header>
+
+    <div class="toast" id="toast">✅ Acción realizada</div>
+
+    <div id="main-container" style="display: flex; flex: 1; overflow: hidden; position: relative;">
+        <!-- VIEWPORT (MAPA) -->
+        <div id="viewport"
+            style="flex: 1; position: relative; overflow: hidden; background-color: #e5e5e5; display: flex; align-items: center; justify-content: center;">
+            <div id="empty-state">
+                <h3>Cargando sistema...</h3>
+            </div>
+
+            <div id="map-container">
+                <img id="plano-img" src="" alt="Plano">
+                <!-- Puntos renderizados dinámicamente -->
+            </div>
+
+            <div class="legend">
+                <div class="legend-item" style="color:#666; font-style:italic; margin-bottom:10px;">
+                    Mantén pulsado para mover
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot circle" style="background:var(--detector-color)"></div>Detector
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot square" style="background:var(--pulsador-color)"></div>Pulsador
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot circle" style="background:var(--sirena-color); border:1px solid #333"></div>
+                    Sirena
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot square" style="background:var(--central-color)"></div>
+                    Central
+                </div>
+            </div>
+        </div>
+
+        <!-- SIMULATOR PANEL -->
+        <div id="simulator-panel">
+            <div class="sim-header">
+                <h3>Simulador</h3>
+                <button id="sim-toggle-global" class="btn btn-outline"
+                    style="width: 100%; justify-content: center;">Simulación OFF</button>
+            </div>
+
+            <div class="sim-controls">
+                <input type="text" id="sim-filter-input" placeholder="Buscar ID o Tipo..." class="form-control"
+                    style="width: 100%; margin-bottom: 8px;">
+                <div style="display: flex; gap: 5px;">
+                    <button id="sim-btn-all" class="btn btn-primary" style="flex: 1; font-size: 0.75rem;">Activar
+                        Todo</button>
+                    <button id="sim-btn-none" class="btn btn-outline"
+                        style="flex: 1; font-size: 0.75rem;">Desactivar</button>
+                </div>
+            </div>
+
+            <div id="sim-list-container">
+                <!-- Items injected by JS -->
+            </div>
+
+            <div class="sim-footer">
+                Activos: <span id="sim-active-count">0 / 0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL INFO (EDITABLE) -->
+    <div class="modal-overlay" id="modal-info">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Editar Equipo</h3>
+                <button class="close-modal" onclick="closeModal('modal-info')">×</button>
+            </div>
+            <div class="modal-body" style="text-align: left;">
+
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 0.8rem; color: #666;">Número</label>
+                        <input type="text" id="edit-num" class="form-control"
+                            style="width: 100%; box-sizing: border-box; font-size: 1.5rem; font-weight: bold; text-align: center;">
+                    </div>
+                    <div style="width: 120px;">
+                        <label style="font-size: 0.8rem; color: #666;">Tipo</label>
+                        <select id="edit-type" class="form-control" style="width: 100%; margin-top: 5px;">
+                            <option value="detector">Detector</option>
+                            <option value="detector">Detector Falso Techo (Deprecated - use detector_ft)</option>
+                            <!-- Temporary fix until logic update -->
+                            <option value="detector_ft">Detector Falso Techo</option>
+                            <option value="pulsador">Pulsador</option>
+                            <option value="sirena">Sirena</option>
+                            <option value="central">Central de Incendios</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 0.8rem; color: #666;">Ubicación</label>
+                    <input type="text" id="edit-loc" class="form-control" style="width: 100%; box-sizing: border-box;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="font-size: 0.8rem; color: #666;">ID Sistema</label>
+                    <input type="text" id="edit-id" class="form-control"
+                        style="width: 100%; box-sizing: border-box; font-family: monospace;">
+                </div>
+
+                <button id="btn-activate-siren" class="btn btn-primary"
+                    style="display: none; width: 100%; margin-bottom: 10px;">🔔 Activar Sirena Física</button>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary" onclick="saveDeviceEdits()" style="flex: 1;">💾 Guardar
+                        Cambios</button>
+                    <button id="btn-delete-device" class="btn btn-outline"
+                        style="border-color: red; color: red;">🗑️</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD DEVICE -->
+    <div class="modal-overlay" id="modal-add">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Añadir Dispositivo</h3>
+                <button class="close-modal" onclick="closeModal('modal-add')">×</button>
+            </div>
+            <div class="modal-body" style="text-align: left;">
+                <form id="add-form" onsubmit="saveNewDevice(event)">
+                    <div style="margin-bottom: 10px;">
+                        <label>Tipo:</label>
+                        <select id="add-type" class="form-control" style="width: 100%; margin-top: 5px;">
+                            <option value="detector">Detector</option>
+                            <option value="detector_ft">Detector Falso Techo</option>
+                            <option value="pulsador">Pulsador</option>
+                            <option value="sirena">Sirena</option>
+                            <option value="central">Central de Incendios</option>
+                        </select>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label>Número / Etiqueta:</label>
+                        <input type="text" id="add-number" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label>Ubicación:</label>
+                        <input type="text" id="add-loc" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%">Guardar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD BUILDING -->
+    <div class="modal-overlay" id="modal-add-building">
+        <div class="modal" style="max-width: 300px;">
+            <div class="modal-header">
+                <h3>Añadir Nuevo Edificio</h3>
+                <button class="close-modal" onclick="closeModal('modal-add-building')">×</button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="saveNewBuilding(event)">
+                    <div style="margin-bottom: 15px;">
+                        <input type="text" id="add-building-name" class="form-control"
+                            style="width: 100%; box-sizing: border-box;" required placeholder="Nombre del Edificio">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%">Crear Edificio</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL ADD FLOOR -->
+    <div class="modal-overlay" id="modal-add-floor">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Añadir Nueva Planta</h3>
+                <button class="close-modal" onclick="closeModal('modal-add-floor')">×</button>
+            </div>
+            <div class="modal-body" style="text-align: left;">
+                <form id="add-floor-form" onsubmit="saveNewFloor(event)">
+                    <div style="margin-bottom: 15px;">
+                        <label>Nombre de la Planta:</label>
+                        <input type="text" id="add-floor-name" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required
+                            placeholder="Ej. Planta 2">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label>Imagen del Plano:</label>
+                        <input type="file" id="add-floor-file" class="form-control"
+                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%">Subir y Crear</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL LOGIN REMOVED - NOW USES index.html -->
+
+
+    <div class="footer-bar">
+        version beta Unidad de Seguridad
+    </div>
+
+    <!-- ALERTS PANEL -->
+    <div id="alerts-panel">
+        <div class="alerts-header">
+            <h3>Alertas del Sistema</h3>
+            <div class="alerts-actions">
+                <select id="alert-filter-select" onchange="alerts.setFilter(this.value)"
+                    style="margin-right: 5px; padding: 2px;">
+                    <option value="ALL">Todas</option>
+                    <option value="ACTIVA">Activas</option>
+                    <option value="RESUELTA">Resueltas</option>
+                </select>
+                <button id="btn-refresh-alerts" onclick="alerts.refreshSummary()"
+                    title="Sincronizar con Simulador">🔄</button>
+                <button id="btn-clear-resolved" onclick="alerts.clearResolved()">Limpiar Resueltas</button>
+                <button id="btn-toggle-panel"
+                    onclick="document.getElementById('alerts-panel').classList.toggle('minimized')">_</button>
+            </div>
+        </div>
+        <div class="alerts-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Edificio</th>
+                        <th>Planta</th>
+                        <th>ID</th>
+                        <th>Tipo</th>
+                        <th>Ubicación</th>
+                        <th>Hora</th>
+                        <th>Origen</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-table-body">
+                    <!-- Rows injected by alerts.js -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script type="module" src="js/simulator.js"></script>
+    <script type="module" src="js/alerts.js"></script>
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="js/realtime.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
