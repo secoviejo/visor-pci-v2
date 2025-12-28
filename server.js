@@ -3,15 +3,29 @@ const cors = require('cors');
 const path = require('path');
 const db = require('./database');
 const modbusService = require('./js/services/modbusService');
+const bacnetService = require('./js/services/bacnetService'); // [NEW] BACnet Integration
 
 // Start Modbus Connection
 modbusService.connect();
 
-// Listen for hardware events
+// Listen for hardware events (Modbus)
 modbusService.on('change', (event) => {
-    console.log('[Hardware Event]', event);
-    // TODO: Broadcast to frontend via WebSockets/SSE (next sprint)
-    // TODO: Persist to DB (next sprint)
+    console.log('[Hardware Modbus]', event);
+    // Logic handles in socket section
+});
+
+// Start BACnet Discovery
+try {
+    bacnetService.discover();
+    console.log('[BACnet] Discovery started on port ' + bacnetService.localPort);
+} catch (e) {
+    console.warn('[BACnet] Startup error:', e.message);
+}
+
+// Listen for BACnet devices
+bacnetService.on('deviceFound', (device) => {
+    // Just log for now. In future could map to Rooms/Zones.
+    console.log(`[BACnet] New Device: ${device.deviceId} (${device.address})`);
 });
 
 const app = express();

@@ -10,6 +10,7 @@ class ModbusService extends EventEmitter {
         this.pollingInterval = parseInt(process.env.CIE_POLL_MS) || 500;
 
         this.isConnected = false;
+        this.isLocalSimulator = false;
         this.intervalHandle = null;
 
         // Internal state to track changes
@@ -25,6 +26,7 @@ class ModbusService extends EventEmitter {
             console.log(`[Modbus] Connecting to HARDWARE at ${this.host}:${this.port}...`);
             await this.client.connectTCP(this.host, { port: this.port });
             console.log('[Modbus] ✅ Connected to HARDWARE.');
+            this.isLocalSimulator = false;
             this.finalizeConnection();
             return;
         } catch (e) {
@@ -36,7 +38,8 @@ class ModbusService extends EventEmitter {
             const simHost = '127.0.0.1';
             console.log(`[Modbus] Attempting fallback to SIMULATOR at ${simHost}:${this.port}...`);
             await this.client.connectTCP(simHost, { port: this.port });
-            console.log('[Modbus] ✅ Connected to SIMULATOR.');
+            console.log('[Modbus] ✅ Connected to SIMULATOR (Modbus Slave).');
+            this.isLocalSimulator = true;
             this.finalizeConnection();
         } catch (e) {
             this.isConnected = false;
@@ -66,11 +69,19 @@ class ModbusService extends EventEmitter {
             if (!this.isConnected) return;
 
             try {
-                // Read discrete inputs. Address 0 for DI0, Address 1 for DI1?
-                // CIE-H12 usually maps inputs to 0, 1, etc.
-                // We read 2 bits starting at address 0.
-                const data = await this.client.readDiscreteInputs(0, 2);
-                const [di0, di1] = data.data;
+                // Read data based on connection type
+                let data;
+                if (this.isLocalSimulator) {
+                    // Modbus Slave usually uses Holding Registers for tests
+                    const response = await this.client.readHoldingRegisters(0, 2);
+                    data = response.data.map(v => v > 0); // Convert to boolean
+                } else {
+                    // CIE-H12 hardware uses Discrete Inputs
+                    const response = await this.client.readDiscreteInputs(0, 2);
+                    data = response.data;
+                }
+
+                const [di0, di1] = data;
 
                 // Check for changes
                 if (di0 !== this.inputs.di0) {

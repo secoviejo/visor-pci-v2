@@ -9,6 +9,8 @@
     "sim": "node simulator.js"
   },
   "dependencies": {
+    "@widesky/node-bacstack": "^1.0.1",
+    "bacstack": "^0.0.1-beta.14",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.4.3",
     "cors": "^2.8.5",
