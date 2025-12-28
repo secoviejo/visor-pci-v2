@@ -838,4 +838,110 @@ document.addEventListener('DOMContentLoaded', () => {
             renderSidebarDevices(e.target.value);
         });
     }
+
+    // Initial fetch of events
+    if (api.isLoggedIn()) {
+        loadEvents();
+    }
 });
+
+// ===========================================
+// EVENTS SYSTEM LOGIC
+// ===========================================
+window.toggleEventsPanel = function () {
+    const p = document.getElementById('events-panel');
+    if (p.style.display === 'none' || !p.style.display) {
+        p.style.display = 'flex';
+        loadEvents();
+    } else {
+        p.style.display = 'none';
+    }
+}
+
+window.loadEvents = async function () {
+    const container = document.getElementById('events-list');
+    if (!container) return;
+
+    try {
+        const events = await api.getEvents({ limit: 50 });
+        renderEventsList(events);
+    } catch (e) {
+        console.error("Error loading events", e);
+        container.innerHTML = '<div style="color:red; text-align:center;">Error cargando eventos</div>';
+    }
+}
+
+window.renderEventsList = function (events) {
+    const container = document.getElementById('events-list');
+    container.innerHTML = '';
+
+    if (events.length === 0) {
+        container.innerHTML = '<div style="color:#999; text-align:center;">Sin eventos recientes</div>';
+        return;
+    }
+
+    events.forEach(ev => {
+        const div = document.createElement('div');
+        div.style.padding = '8px';
+        div.style.borderBottom = '1px solid #eee';
+        div.style.fontSize = '0.85rem';
+
+        // Color coding
+        let borderLeft = '4px solid #ccc'; // INFO
+        if (ev.type === 'ALARM') borderLeft = '4px solid #dc3545';
+        else if (ev.type === 'FAULT') borderLeft = '4px solid #ffc107';
+
+        div.style.borderLeft = borderLeft;
+        div.style.marginBottom = '5px';
+        div.style.background = ev.acknowledged ? '#fff' : '#fff3cd'; // Highlight unacked
+
+        const time = new Date(ev.timestamp).toLocaleTimeString();
+
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span style="font-weight:bold; color:#333;">${ev.type}</span>
+                <span style="color:#666;">${time}</span>
+            </div>
+            <div style="margin-bottom:4px;">${ev.message} <span style="font-family:monospace;">${ev.device_id || ''}</span></div>
+            ${!ev.acknowledged && ev.type !== 'INFO' ?
+                `<button onclick="ackEvent(${ev.id})" style="width:100%; border:1px solid #ccc; background:#f9f9f9; padding:2px; cursor:pointer;">Reconocer</button>` :
+                `<div style="font-size:0.75em; color:#999; text-align:right;">${ev.acknowledged ? 'Reconocido' : ''}</div>`
+            }
+        `;
+        container.appendChild(div);
+    });
+}
+
+window.ackEvent = async function (id) {
+    try {
+        await api.acknowledgeEvent(id);
+        // Optimistic update
+        const btn = document.activeElement;
+        if (btn) btn.disabled = true;
+        showToast("Evento reconocido");
+        loadEvents(); // Reload to be sure
+    } catch (e) {
+        showToast("Error al reconocer");
+    }
+}
+
+// Socket Listeners for Events
+// We need to access the io() socket. It's in window.socket (exposed by realtime.js ideally, or we grab it)
+// Checking realtime.js ... assuming it exposes 'socket' globally or we need to import it.
+// Actually standard socket.io client adds 'socket' if established.
+// Let's hook into the global socket if available.
+setTimeout(() => {
+    if (window.socket) {
+        window.socket.on('event:new', (ev) => {
+            showToast(`⚠️ Nuevo Evento: ${ev.type}`);
+            if (document.getElementById('events-panel').style.display !== 'none') {
+                loadEvents();
+            }
+        });
+        window.socket.on('event:ack', () => {
+            if (document.getElementById('events-panel').style.display !== 'none') {
+                loadEvents();
+            }
+        });
+    }
+}, 1000);

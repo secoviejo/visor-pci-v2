@@ -40,18 +40,19 @@
 <body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
 
     <!-- Header -->
-    <header class="bg-white py-4 px-8 shadow-sm relative z-20 flex-shrink-0">
+    <header class="bg-white py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
         <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
-            <div class="flex items-center gap-[10px]">
+            <div class="flex items-center gap-[15px]">
                 <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-                <div class="flex flex-col font-sans text-[#333333] leading-tight">
+                <div class="border-l border-gray-300 pl-4 flex flex-col font-sans text-[#333333] leading-tight">
                     <span class="font-bold text-lg">Universidad</span>
                     <span class="text-lg">Zaragoza</span>
                 </div>
             </div>
             <div class="flex gap-4">
-                <button onclick="logout()" class="text-red-600 font-semibold hover:text-red-800">
-                    <i class="fa fa-sign-out"></i> Salir
+                <button onclick="logout()"
+                    class="flex items-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    <i class="fa fa-lock text-gray-400"></i> Logout
                 </button>
             </div>
         </div>
@@ -60,8 +61,9 @@
     <!-- Main Content -->
     <main class="flex-grow p-8">
         <div class="max-w-7xl mx-auto">
-            <h1 class="text-3xl font-bold mb-2">Estado General de Campus</h1>
-            <p class="text-gray-600 mb-8">Seleccione un campus para ver sus edificios e instalaciones.</p>
+            <h1 class="text-3xl font-normal text-gray-900 mb-8 mt-4">Sistema de Alarma de Incendios - Selección de
+                Campus</h1>
+            <!-- <p class="text-gray-600 mb-8">Seleccione un campus para ver sus edificios e instalaciones.</p> REMOVED TO MATCH DESIGN -->
 
             <div id="campus-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <!-- Loading State -->
@@ -124,16 +126,13 @@
                     card.innerHTML = `
                         <div class="h-48 bg-gray-200 relative">
                             <img src="${imgSrc}" class="w-full h-full object-cover" alt="${c.name}">
-                            <div class="absolute top-2 right-2">
-                                ${status}
-                            </div>
                         </div>
                         <div class="p-6">
                             <h3 class="text-xl font-bold text-gray-900 mb-2">${c.name}</h3>
-                            <div class="flex justify-between items-center text-sm text-gray-500">
-                                <span><i class="fa fa-building-o mr-1"></i> ${buildingsCount} Edificios</span>
-                                <span class="text-zaragoza-blue font-semibold">Ver Detalles <i class="fa fa-arrow-right ml-1"></i></span>
-                            </div>
+                            <p class="text-gray-600 text-sm mb-4 h-12 overflow-hidden text-ellipsis">${c.description || 'Descripción no disponible.'} ${buildingsCount} Edificios.</p>
+                            <button onclick="window.location.href = 'campus_view.html?campusId=${c.id}'" class="w-full bg-[#0056b3] hover:bg-[#004494] text-white font-medium py-2 px-4 rounded transition-colors">
+                                Ver Edificios
+                            </button>
                         </div>
                     `;
                     grid.appendChild(card);

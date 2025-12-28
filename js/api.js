@@ -159,3 +159,30 @@ export async function controlDevice(action) {
     if (!res.ok) throw new Error('Control failed');
     return res.json();
 }
+
+export async function getEvents(filters = {}) {
+    let url = `${API_URL}/events`;
+    const params = new URLSearchParams();
+    if (filters.limit) params.append('limit', filters.limit);
+    if (filters.offset) params.append('offset', filters.offset);
+    if (filters.type) params.append('type', filters.type);
+    if (filters.resolved !== undefined) params.append('resolved', filters.resolved);
+
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const headers = getHeaders();
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error('Error loading events');
+    return res.json();
+}
+
+export async function acknowledgeEvent(eventId) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/events/${eventId}/acknowledge`, {
+        method: 'POST',
+        headers: headers
+    });
+    if (!res.ok) throw new Error('Error acknowledging event');
+    return res.json();
+}

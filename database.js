@@ -20,6 +20,7 @@ function initDb() {
         CREATE TABLE IF NOT EXISTS campuses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            description TEXT,
             image_filename TEXT
         )
     `);
@@ -90,6 +91,21 @@ function initDb() {
         )
     `);
 
+    // Events History table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT, -- Link to device external ID if applicable
+            type TEXT NOT NULL, -- ALARM, FAULT, INFO
+            message TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            acknowledged BOOLEAN DEFAULT 0,
+            acknowledged_by TEXT,
+            resolved BOOLEAN DEFAULT 0,
+            value TEXT -- Raw value or JSON
+        )
+    `);
+
     console.log('Database schema initialized.');
     seedData();
 }
@@ -118,9 +134,11 @@ function seedData() {
 
         // 1. Insert Main Floor (Image from index.html)
         // 0. Insert Default Campuses
-        const stmtCampus = db.prepare('INSERT INTO campuses (name, image_filename) VALUES (?, ?)');
-        const campusSanFrancisco = stmtCampus.run('Campus San Francisco', 'campus_sf.jpg'); // ID 1
-        const campusRioEbro = stmtCampus.run('Campus Río Ebro', 'campus_rio_ebro.jpg');     // ID 2
+        // 0. Insert Default Campuses
+        const stmtCampus = db.prepare('INSERT INTO campuses (name, description, image_filename) VALUES (?, ?, ?)');
+        const campusSanFrancisco = stmtCampus.run('Campus San Francisco', 'Campus principal con facultades de humanidades y ciencias. 12 Edificios.', 'campus_sf.jpg'); // ID 1
+        const campusRioEbro = stmtCampus.run('Campus Río Ebro', 'Facultades de ingeniería y arquitectura. 8 Edificios.', 'campus_rio_ebro.jpg');     // ID 2
+        const campusHuesca = stmtCampus.run('Campus Huesca', 'Ciencias de la salud y sociales. 6 Edificios.', 'campus_huesca.jpg'); // ID 3
 
         console.log('Seeded Campuses.');
 

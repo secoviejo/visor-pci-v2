@@ -372,6 +372,29 @@ modbusService.on('change', (event) => {
         } catch (e) {
             console.error('Error saving alert:', e);
         }
+
+        // --- NEW EVENT LOGGING (ON) ---
+        // Priority Logic: Detector = ALARM, Pulsador = ALARM, System = INFO
+        let eventType = 'ALARM';
+
+        try {
+            const stmt = db.prepare(`
+                INSERT INTO events (device_id, type, message, value)
+                VALUES (?, ?, 'Dispositivo Activado', ?)
+            `);
+            const info = stmt.run(elementId, eventType, JSON.stringify(event.value));
+
+            // Emit Event Update
+            io.emit('event:new', {
+                id: info.lastInsertRowid,
+                device_id: elementId,
+                type: eventType,
+                message: 'Dispositivo Activado',
+                timestamp: new Date(),
+                acknowledged: false
+            });
+        } catch (e) { console.error("Error logging event:", e); }
+
     } else {
         // Handle "OFF" -> Resolve Alert
         const elementId = `CIE-${event.port}`;
@@ -423,6 +446,54 @@ app.post('/api/devices/control', authenticateToken, async (req, res) => {
         }
     } catch (e) {
         console.error(`[Control] Error: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 8. Events API
+app.get('/api/events', authenticateToken, (req, res) => {
+    try {
+        const { limit = 50, offset = 0, type, resolved } = req.query;
+        let query = 'SELECT * FROM events';
+        const params = [];
+        const conditions = [];
+
+        if (type) {
+            conditions.push('type = ?');
+            params.push(type);
+        }
+        if (resolved !== undefined) {
+            conditions.push('resolved = ?');
+            params.push(resolved === 'true' ? 1 : 0);
+        }
+
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?';
+        params.push(limit, offset);
+
+        const events = db.prepare(query).all(...params);
+        res.json(events);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/events/:id/acknowledge', authenticateToken, (req, res) => {
+    try {
+        const { id } = req.params;
+        const stmt = db.prepare('UPDATE events SET acknowledged = 1, acknowledged_by = ? WHERE id = ?');
+        const result = stmt.run(req.user.username, id);
+
+        if (result.changes > 0) {
+            io.emit('event:ack', { id, user: req.user.username });
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Evento no encontrado' });
+        }
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
