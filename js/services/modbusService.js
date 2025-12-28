@@ -44,7 +44,7 @@ class ModbusService extends EventEmitter {
         } catch (e) {
             this.isConnected = false;
             console.error(`[Modbus] ❌ All connection attempts failed.`);
-            this.emit('error', e);
+            // this.emit('error', e); // Removed to avoid crashing server if no listener
             this.scheduleReconnect();
         }
     }
