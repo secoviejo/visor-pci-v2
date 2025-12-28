@@ -80,7 +80,14 @@ window.addEventListener('load', async () => {
 });
 
 async function loadBuildings() {
-    const buildings = await api.getBuildings();
+    const urlParams = new URLSearchParams(window.location.search);
+    const campusId = urlParams.get('campusId');
+
+    // If we have a campusId, filter buildings. If not, maybe we should redirect to dashboard?
+    // For now, if no campusId, we show ALL (legacy behavior) or redirect.
+    // Let's support ALL for backward compatibility but log it.
+
+    const buildings = await api.getBuildings(campusId);
 
     // Admin Select
     const adminSel = document.getElementById('building-select');

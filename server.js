@@ -99,11 +99,20 @@ app.post('/api/auth/verify', authenticateToken, (req, res) => {
     res.json({ valid: true, user: req.user });
 });
 
-// 1. Get All Buildings (Public)
+// 1. Get All Buildings (Public) - Filter by Campus
 app.get('/api/buildings', (req, res) => {
     try {
-        const stmt = db.prepare('SELECT * FROM buildings');
-        const buildings = stmt.all();
+        const { campusId } = req.query;
+        let query = 'SELECT * FROM buildings';
+        const params = [];
+
+        if (campusId) {
+            query += ' WHERE campus_id = ?';
+            params.push(campusId);
+        }
+
+        const stmt = db.prepare(query);
+        const buildings = stmt.all(...params);
         res.json(buildings);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -113,13 +122,35 @@ app.get('/api/buildings', (req, res) => {
 // 1.1 Create Building (Protected)
 app.post('/api/buildings', authenticateToken, (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, campusId } = req.body;
         if (!name) return res.status(400).json({ error: 'Name is required' });
 
-        const stmt = db.prepare('INSERT INTO buildings (name) VALUES (?)');
-        const result = stmt.run(name);
-        res.json({ success: true, id: result.lastInsertRowid, name });
+        const cId = campusId || 1; // Default to Campus 1
+
+        const stmt = db.prepare('INSERT INTO buildings (name, campus_id) VALUES (?, ?)');
+        const result = stmt.run(name, cId);
+        res.json({ success: true, id: result.lastInsertRowid, name, campus_id: cId });
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 1.0 Get All Campuses (Public)
+app.get('/api/campuses', (req, res) => {
+    try {
+        // If table doesn't exist yet (migration timing), return empty or mock
+        // But database.js should have created it.
+        const stmt = db.prepare('SELECT * FROM campuses');
+        const campuses = stmt.all();
+        res.json(campuses);
+    } catch (error) {
+        // Fallback if table missing (dev safety)
+        if (error.message.includes('no such table')) {
+            return res.json([
+                { id: 1, name: 'Campus San Francisco (Mock)', image_filename: 'campus_sf.jpg' },
+                { id: 2, name: 'Campus Río Ebro (Mock)', image_filename: 'campus_rio_ebro.jpg' }
+            ]);
+        }
         res.status(500).json({ error: error.message });
     }
 });

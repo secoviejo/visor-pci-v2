@@ -114,7 +114,7 @@
                             <a class="text-xs text-gray-600 hover:text-zaragoza-blue" href="#">
                                 ¿Olvidaste tu contraseña?
                             </a>
-                            <a class="text-sm font-bold text-zaragoza-blue hover:underline mt-2" href="app.html">
+                            <a class="text-sm font-bold text-zaragoza-blue hover:underline mt-2" href="dashboard.html">
                                 Acceder como Invitado (Modo Público)
                             </a>
                         </div>
@@ -135,7 +135,7 @@
 
         // Check if already logged in
         if (api.isLoggedIn()) {
-            window.location.href = 'app.html';
+            window.location.href = 'dashboard.html';
         }
 
         const form = document.getElementById('login-form');
@@ -157,7 +157,7 @@
                 await api.login(u, p);
                 showToast("¡Bienvenido!");
                 setTimeout(() => {
-                    window.location.href = 'app.html';
+                    window.location.href = 'dashboard.html';
                 }, 500);
             } catch (err) {
                 showToast("Usuario o contraseña incorrectos", true);

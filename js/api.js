@@ -37,19 +37,32 @@ export function logout() {
     localStorage.removeItem('auth_token');
 }
 
-export async function getBuildings() {
-    const res = await fetch(`${API_URL}/buildings`);
+export async function getCampuses() {
+    const res = await fetch(`${API_URL}/campuses`);
+    if (!res.ok) throw new Error('Error loading campuses');
+    return res.json();
+}
+
+export async function getBuildings(campusId = null) {
+    let url = `${API_URL}/buildings`;
+    if (campusId) {
+        url += `?campusId=${campusId}`;
+    }
+    const res = await fetch(url);
     if (!res.ok) throw new Error('Error loading buildings');
     return res.json();
 }
 
-export async function createBuilding(name) {
+export async function createBuilding(name, campusId) {
     const headers = getHeaders();
     headers['Content-Type'] = 'application/json';
+    const body = { name };
+    if (campusId) body.campusId = campusId;
+
     const res = await fetch(`${API_URL}/buildings`, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ name })
+        body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error('Error creating building');
     return res.json();

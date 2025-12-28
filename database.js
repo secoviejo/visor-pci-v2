@@ -9,7 +9,18 @@ function initDb() {
     db.exec(`
         CREATE TABLE IF NOT EXISTS buildings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL
+            name TEXT NOT NULL,
+            campus_id INTEGER DEFAULT 1, -- Default to Campus 1 (Migration)
+            FOREIGN KEY(campus_id) REFERENCES campuses(id)
+        )
+    `);
+
+    // Campuses table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS campuses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            image_filename TEXT
         )
     `);
 
@@ -106,8 +117,20 @@ function seedData() {
         console.log('Seeding initial data...');
 
         // 1. Insert Main Floor (Image from index.html)
-        const stmt = db.prepare('INSERT INTO floors (name, image_filename) VALUES (?, ?)');
-        const info = stmt.run('Planta 1 - General', 'image_9020d6.jpg');
+        // 0. Insert Default Campuses
+        const stmtCampus = db.prepare('INSERT INTO campuses (name, image_filename) VALUES (?, ?)');
+        const campusSanFrancisco = stmtCampus.run('Campus San Francisco', 'campus_sf.jpg'); // ID 1
+        const campusRioEbro = stmtCampus.run('Campus Río Ebro', 'campus_rio_ebro.jpg');     // ID 2
+
+        console.log('Seeded Campuses.');
+
+        // 1. Insert Main Floor (Image from index.html)
+        const stmt = db.prepare('INSERT INTO floors (name, image_filename, building_id) VALUES (?, ?, ?)');
+        // Ensure building 1 is linked to Campus 2 (Río Ebro -> CIRCE usually)
+        // But for simplicity, let's update Building 1 to be in Campus 2
+        db.prepare('UPDATE buildings SET campus_id = 2 WHERE id = 1').run();
+
+        const info = stmt.run('Planta 1 - General', 'image_9020d6.jpg', 1);
         const floorId = info.lastInsertRowid;
 
         // 2. Insert Devices (Extracted from index.html)
