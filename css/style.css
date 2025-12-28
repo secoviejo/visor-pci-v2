@@ -285,6 +285,32 @@ select.form-control {
     z-index: 2000;
 }
 
+/* Sidebar & Search Highlights */
+.device-highlight {
+    z-index: 500 !important;
+    transform: translate(-50%, -50%) scale(1.5);
+    box-shadow: 0 0 20px rgba(0, 123, 255, 0.8) !important;
+    border: 2px solid #fff !important;
+}
+
+@keyframes ping {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 20px rgba(0, 123, 255, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+    }
+}
+
+.ping-animation {
+    animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
 /* New Device Highlight */
 @keyframes pulse-new {
     0% {

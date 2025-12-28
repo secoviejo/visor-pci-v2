@@ -93,6 +93,24 @@ async function loadBuildings() {
     const adminSel = document.getElementById('building-select');
     const publicSel = document.getElementById('building-select-public');
 
+    // Breadcrumb Campus Logic
+    const bcCampus = document.getElementById('bc-campus');
+    if (campusId) {
+        try {
+            const campuses = await api.getCampuses(); // Valid await here (loadBuildings is async)
+            const campus = campuses.find(c => c.id == campusId);
+            if (campus) {
+                bcCampus.textContent = campus.name;
+                bcCampus.href = `campus_view.html?campusId=${campusId}`;
+            } else {
+                bcCampus.textContent = "Campus Desconocido";
+            }
+        } catch (e) { console.error("Error loading campus info", e); }
+    } else {
+        bcCampus.textContent = "Todos los Campus";
+        bcCampus.href = "dashboard.html";
+    }
+
     // Helper to populate
     const populate = (sel) => {
         sel.innerHTML = '';
@@ -102,6 +120,7 @@ async function loadBuildings() {
             sel.appendChild(opt);
             return;
         }
+
         buildings.forEach(b => {
             const option = document.createElement('option');
             option.value = b.id;
@@ -138,6 +157,14 @@ async function loadBuildings() {
 
 async function loadFloors(buildingId) {
     currentBuildingId = buildingId;
+
+    // Update Building Breadcrumb
+    const sel = document.getElementById('building-select');
+    // Find name from select (simplest way since we populated it)
+    const option = [...sel.options].find(o => o.value == buildingId);
+    if (option) {
+        document.getElementById('bc-building').textContent = option.textContent;
+    }
 
     // Sync selects (if user changed one, change the other visually so state is consistent)
     document.getElementById('building-select').value = buildingId;
@@ -243,6 +270,8 @@ function renderDevices() {
         dot.textContent = d.n;
         dot.setAttribute('data-tooltip', d.loc);
         dot.dataset.dbId = d.db_id;
+        dot.classList.add('device-marker'); // Class for querySelector
+        dot.setAttribute('data-dbid', d.db_id); // Attribute for selector
 
         if (window.lastCreatedDeviceId == d.db_id) {
             dot.classList.add('new-device');
@@ -258,7 +287,13 @@ function renderDevices() {
     applyFilters();
 
     // Re-apply simulator visuals (blinking)
+    // Re-apply simulator visuals (blinking)
     if (window.simulator) window.simulator.updateVisuals();
+
+    // Update global reference for explorer
+    currentDevices = devices;
+    // Update Sidebar
+    if (window.renderSidebarDevices) window.renderSidebarDevices(document.getElementById('sim-filter-input')?.value || '');
 }
 
 // ===========================================
@@ -711,3 +746,96 @@ function showToast(msg) {
     toast.style.opacity = 1;
     setTimeout(() => toast.style.opacity = 0, 2000);
 }
+
+// Explorer / Sidebar List Logic
+window.renderSidebarDevices = function (filterText = '') {
+    const listContainer = document.getElementById('sim-list-container');
+    if (!listContainer) return;
+
+    listContainer.innerHTML = '';
+    const devices = currentDevices || [];
+
+    // Sort logic (maybe by type or number?)
+    const filtered = devices.filter(d => {
+        if (!filterText) return true;
+        const txt = filterText.toLowerCase();
+        return (d.device_id && d.device_id.toLowerCase().includes(txt)) ||
+            (d.location && d.location.toLowerCase().includes(txt)) ||
+            (d.type && d.type.toLowerCase().includes(txt)) ||
+            (d.number && d.number.toString().includes(txt));
+    });
+
+    if (filtered.length === 0) {
+        listContainer.innerHTML = '<div style="padding:10px; color:#999; text-align:center;">No se encontraron elementos</div>';
+        return;
+    }
+
+    filtered.forEach(d => {
+        const item = document.createElement('div');
+        // Re-using simulator styling for now
+        item.className = 'sim-item';
+        item.style.display = 'flex';
+        item.style.justifyContent = 'space-between';
+        item.style.alignItems = 'center';
+        item.style.padding = '8px';
+        item.style.borderBottom = '1px solid #eee';
+        item.style.cursor = 'pointer';
+
+        // Icon
+        let iconHtml = '';
+        if (d.type === 'detector' || d.type === 'detector_ft') iconHtml = '<div class="legend-dot circle" style="background:var(--detector-color); width:10px; height:10px;"></div>';
+        else if (d.type === 'pulsador') iconHtml = '<div class="legend-dot square" style="background:var(--pulsador-color); width:10px; height:10px;"></div>';
+        else if (d.type === 'sirena') iconHtml = '<div class="legend-dot circle" style="background:var(--sirena-color); width:10px; height:10px; border:1px solid #333"></div>';
+        else if (d.type === 'central') iconHtml = '<div class="legend-dot square" style="background:var(--central-color); width:10px; height:10px;"></div>';
+
+        item.innerHTML = `
+            <div style="flex:1; display:flex; align-items:center; gap:8px;">
+                ${iconHtml}
+                <div>
+                    <div style="font-weight:bold; font-size:0.9em;">${d.type.toUpperCase()} #${d.number || '?'}</div>
+                    <div style="font-size:0.8em; color:#666;">${d.location || 'Sin ubicación'}</div>
+                </div>
+            </div>
+            <div style="font-family:monospace; font-size:0.8em; color:#999;">${d.device_id || ''}</div>
+        `;
+
+        item.onclick = function () {
+            highlightDevice(d.id);
+        };
+
+        listContainer.appendChild(item);
+    });
+
+    // Update count
+    const countSpan = document.getElementById('sim-active-count'); // reusing ID
+    if (countSpan) countSpan.textContent = `${filtered.length} / ${devices.length}`;
+}
+
+window.highlightDevice = function (dbId) {
+    // 1. Find device
+    const device = currentDevices.find(d => d.id === dbId);
+    if (!device) return;
+
+    // Trigger highlight visual
+    const marker = document.querySelector(`.device-marker[data-dbid="${dbId}"]`);
+    if (marker) {
+        // Remove existing highlights
+        document.querySelectorAll('.device-highlight').forEach(el => el.classList.remove('device-highlight'));
+        marker.classList.add('device-highlight');
+
+        // Add temporary ping animation class
+        marker.classList.add('ping-animation');
+        setTimeout(() => marker.classList.remove('ping-animation'), 2000);
+    }
+}
+
+// Hook up search input
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('sim-filter-input');
+    if (searchInput) {
+        searchInput.placeholder = "Buscar (Tipo, ID, Ubicación)...";
+        searchInput.addEventListener('input', (e) => {
+            renderSidebarDevices(e.target.value);
+        });
+    }
+});
