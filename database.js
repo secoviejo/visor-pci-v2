@@ -87,7 +87,28 @@ function initDb() {
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
-            password_hash TEXT
+            password_hash TEXT,
+            role TEXT DEFAULT 'viewer' -- admin, operator, viewer
+        )
+    `);
+
+    // Migration for Roles
+    const userCols = db.prepare("PRAGMA table_info(users)").all();
+    if (!userCols.some(c => c.name === 'role')) {
+        db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'viewer'");
+        db.prepare("UPDATE users SET role = 'admin' WHERE username = 'admin'").run();
+        console.log('Migrated users table with roles.');
+    }
+
+    // Gateways table (Configuración Pasarelas)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS gateways (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL, -- MODBUS, BACNET
+            ip_address TEXT,
+            port INTEGER,
+            config TEXT -- JSON extra config
         )
     `);
 
@@ -120,9 +141,9 @@ function seedData() {
         const deleteStmt = db.prepare('DELETE FROM users WHERE username = ?');
         deleteStmt.run('admin');
 
-        const insertStmt = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)');
-        insertStmt.run('admin', hash);
-        console.log('✅ Admin user reset: admin / admin123');
+        const insertStmt = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)');
+        insertStmt.run('admin', hash, 'admin');
+        console.log('✅ Admin user reset: admin / admin123 / role:admin');
     } catch (e) {
         console.error('⚠️ Could not seed admin user:', e.message);
         console.log('Please ensure "bcryptjs" is installed (npm install).');

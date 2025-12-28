@@ -50,6 +50,12 @@
                 </div>
             </div>
             <div class="flex gap-4">
+                <div id="admin-controls" class="hidden">
+                    <a href="admin.html"
+                        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                        <i class="fa fa-cogs"></i> Admin Panel
+                    </a>
+                </div>
                 <button onclick="triggerSimulation()"
                     class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
                     <i class="fa fa-bug"></i> Simular Incidencia
@@ -217,18 +223,10 @@
             setTimeout(() => t.classList.add('hidden'), 3000);
         }
 
-        // Auth Check
-        if (!api.isLoggedIn()) {
-            // Guest logic or redirect
-        }
-
-        loadCampuses();
-
-        // Auth Check
-        if (!api.isLoggedIn()) {
-            // Allows public access to dashboard? Maybe guest mode.
-            // If strictly private, redirect to login.
-            // Let's allow guest mode for now.
+        // Auth & Role Check
+        const user = api.getCurrentUser();
+        if (user && user.role === 'admin') {
+            document.getElementById('admin-controls').classList.remove('hidden');
         }
 
         loadCampuses();

@@ -499,20 +499,40 @@ function applyFilters() {
 // ===========================================
 let currentEditingId = null;
 
-function openInfoModal(d) {
-    currentEditingId = d.db_id;
-    document.getElementById('edit-num').value = d.n;
-    document.getElementById('edit-type').value = d.t;
-    document.getElementById('edit-loc').value = d.loc;
-    document.getElementById('edit-id').value = d.id;
+function openInfoModal(device) { // Changed parameter name from 'd' to 'device' for clarity
+    currentEditingId = device.db_id; // Populate Modal
+    document.getElementById('edit-id').value = device.id || '';
+    document.getElementById('edit-num').value = device.n || '';
+    document.getElementById('edit-type').value = device.t;
+    document.getElementById('edit-loc').value = device.loc || ''; // Add location
 
-    // Setup delete button
-    document.getElementById('btn-delete-device').onclick = () => handleDelete(d.db_id);
+    // Role Check for Edit Buttons
+    const user = api.getCurrentUser();
+    const isAdmin = user && user.role === 'admin';
+    const btnSave = document.querySelector('#modal-info button[onclick="saveDeviceEdits()"]');
+    const btnDelete = document.getElementById('btn-delete-device');
 
-    // Setup Siren Control
+    // Hide the whole button group row if not admin, or just buttons
+    // Assuming btnSave's parent is the container for edit/delete buttons
+    if (btnSave && btnSave.parentElement) {
+        btnSave.parentElement.style.display = isAdmin ? 'flex' : 'none';
+    }
+    // Individual buttons are also hidden in case the parent structure is different
+    if (btnSave) btnSave.style.display = isAdmin ? 'inline-block' : 'none';
+    if (btnDelete) btnDelete.style.display = isAdmin ? 'inline-block' : 'none';
+
+    // Setup delete button (only if admin)
+    if (isAdmin && btnDelete) {
+        btnDelete.onclick = () => handleDelete(device.db_id);
+    }
+
+    // Siren Control Button (Keep logic but respect role?)
+    // Operators might need to activate sirens manually? Let's say yes for now, or restriction? 
+    // Usually operators can control. Admins can configure.
+    // Let's leave Siren Control visible if it was visible.
     const btnSiren = document.getElementById('btn-activate-siren');
     if (btnSiren) {
-        if (d.t === 'sirena') {
+        if (device.t === 'sirena') {
             btnSiren.style.display = 'block';
             btnSiren.onclick = async () => {
                 try {
@@ -674,8 +694,21 @@ function checkAuth() {
     const logoutBtn = document.getElementById('btn-logout');
 
     if (isLogged) {
-        // Admin Mode
+        // Logged In Mode
         adminControls.style.display = 'flex';
+
+        // Role Based UI
+        const user = api.getCurrentUser();
+        const isAdmin = user && user.role === 'admin';
+
+        // Admin-only buttons in Header
+        const btnAddBuilding = document.querySelector('button[title="Nuevo Edificio"]');
+        const btnAddFloor = document.querySelector('button[title="Nueva Planta"]');
+        const btnAddElement = document.querySelector('button[onclick="openAddModal()"]');
+
+        if (btnAddBuilding) btnAddBuilding.style.display = isAdmin ? 'inline-block' : 'none';
+        if (btnAddFloor) btnAddFloor.style.display = isAdmin ? 'inline-block' : 'none';
+        if (btnAddElement) btnAddElement.style.display = isAdmin ? 'inline-block' : 'none';
 
         // Hide public selects (duplicates), but KEEP container visible for Filters & Center button
         publicBuildingSelect.style.display = 'none';

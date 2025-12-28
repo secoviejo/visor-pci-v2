@@ -186,3 +186,60 @@ export async function acknowledgeEvent(eventId) {
     if (!res.ok) throw new Error('Error acknowledging event');
     return res.json();
 }
+
+// ADMIN API
+export async function getUsers() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/users`, { headers });
+    if (!res.ok) throw new Error('Error loading users');
+    return res.json();
+}
+
+export async function createUser(username, password, role) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ username, password, role })
+    });
+    if (!res.ok) throw new Error('Error creating user');
+    return res.json();
+}
+
+export async function deleteUser(id) {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/users/${id}`, {
+        method: 'DELETE',
+        headers: headers
+    });
+    if (!res.ok) throw new Error('Error deleting user');
+    return res.json();
+}
+
+export async function getGateways() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/gateways`, { headers });
+    if (!res.ok) throw new Error('Error loading gateways');
+    return res.json();
+}
+
+export async function createGateway(gateway) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/gateways`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(gateway)
+    });
+    if (!res.ok) throw new Error('Error creating gateway');
+    return res.json();
+}
+
+export function getCurrentUser() {
+    if (!authToken) return null;
+    try {
+        const payload = JSON.parse(atob(authToken.split('.')[1]));
+        return payload;
+    } catch (e) { return null; }
+}

@@ -48,7 +48,7 @@ const upload = multer({ storage: storage });
 // Auth Config
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const SECRET_KEY = 'super_secret_key_change_me'; // In prod use ENV
+const JWT_SECRET = 'super_secret_key_change_me'; // In prod use ENV
 
 // Middleware
 app.use(cors());
@@ -67,7 +67,7 @@ function authenticateToken(req, res, next) {
         return res.sendStatus(401);
     }
 
-    jwt.verify(token, SECRET_KEY, (err, user) => {
+    jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
             console.warn('Authentication failed: Invalid or expired token');
             return res.sendStatus(403);
@@ -75,25 +75,39 @@ function authenticateToken(req, res, next) {
         req.user = user;
         next();
     });
-}
+};
 
 // --- REST API ROUTES ---
 
 // 0. Auth Routes
-app.post('/api/auth/login', (req, res) => {
-    const { username, password } = req.body;
-    const stmt = db.prepare('SELECT * FROM users WHERE username = ?');
-    const user = stmt.get(username);
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
 
-    if (!user) return res.status(400).json({ error: 'User not found' });
+        if (!user || !await bcrypt.compare(password, user.password_hash)) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
 
-    if (!bcrypt.compareSync(password, user.password_hash)) {
-        return res.status(403).json({ error: 'Invalid password' });
+        const token = jwt.sign(
+            { id: user.id, username: user.username, role: user.role || 'viewer' },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+        res.json({ token, username: user.username, role: user.role || 'viewer' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
-
-    const token = jwt.sign({ username: user.username, id: user.id }, SECRET_KEY, { expiresIn: '24h' });
-    res.json({ token, username: user.username });
 });
+
+// Middleware for Role Checking
+const authorizeRole = (roles) => {
+    return (req, res, next) => {
+        if (!req.user) return res.sendStatus(401);
+        if (!roles.includes(req.user.role)) return res.sendStatus(403);
+        next();
+    };
+};
 
 app.post('/api/auth/verify', authenticateToken, (req, res) => {
     res.json({ valid: true, user: req.user });
@@ -554,6 +568,51 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// 10. Admin API (Phase 6)
+
+// USERS
+app.get('/api/users', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    try {
+        const users = db.prepare('SELECT id, username, role FROM users').all();
+        res.json(users);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        const { username, password, role } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const stmt = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)');
+        const info = stmt.run(username, hashedPassword, role || 'viewer');
+        res.json({ success: true, id: info.lastInsertRowid });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    try {
+        if (req.params.id == req.user.id) return res.status(400).json({ error: "Cannot delete self" });
+        db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GATEWAYS
+app.get('/api/gateways', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    try {
+        const gateways = db.prepare('SELECT * FROM gateways').all();
+        res.json(gateways);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/gateways', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    try {
+        const { name, type, ip_address, port, config } = req.body;
+        const stmt = db.prepare('INSERT INTO gateways (name, type, ip_address, port, config) VALUES (?, ?, ?, ?, ?)');
+        const info = stmt.run(name, type, ip_address, port, JSON.stringify(config || {}));
+        res.json({ success: true, id: info.lastInsertRowid });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Start Server

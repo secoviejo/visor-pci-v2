@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Visor PCI</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <style>
+        .active-tab {
+            border-bottom: 2px solid #2563EB;
+            color: #2563EB;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800 font-sans">
+    <header class="bg-white shadow px-8 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            <i class="fa fa-cogs text-blue-600"></i> Administración del Sistema
+        </h1>
+        <div class="flex gap-4">
+            <a href="dashboard.html" class="text-gray-600 hover:text-blue-600 font-medium">Volver al Dashboard</a>
+            <button onclick="logout()" class="text-red-500 hover:text-red-700 font-medium">Logout</button>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto mt-8 p-4">
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-200 mb-6">
+            <button id="tab-users" class="px-6 py-2 font-medium text-gray-500 hover:text-blue-600 active-tab"
+                onclick="switchTab('users')">Usuarios</button>
+            <button id="tab-gateways" class="px-6 py-2 font-medium text-gray-500 hover:text-blue-600"
+                onclick="switchTab('gateways')">Pasarelas y Hardware</button>
+        </div>
+
+        <!-- Users Section -->
+        <div id="section-users" class="block">
+            <div class="flex justify-between mb-4">
+                <h2 class="text-lg font-semibold">Gestión de Usuarios</h2>
+                <button onclick="document.getElementById('modal-user').classList.remove('hidden')"
+                    class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                    + Nuevo Usuario
+                </button>
+            </div>
+            <div class="bg-white rounded shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Usuario</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Rol</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table" class="bg-white divide-y divide-gray-200">
+                        <!-- JS Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Gateways Section -->
+        <div id="section-gateways" class="hidden">
+            <div class="flex justify-between mb-4">
+                <h2 class="text-lg font-semibold">Configuración de Pasarelas (Modbus/BACnet)</h2>
+                <button onclick="document.getElementById('modal-gateway').classList.remove('hidden')"
+                    class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                    + Nueva Pasarela
+                </button>
+            </div>
+            <div class="bg-white rounded shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Nombre</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tipo</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                IP / Puerto</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gateways-table" class="bg-white divide-y divide-gray-200">
+                        <!-- JS Injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Create User -->
+    <div id="modal-user" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded shadow-lg w-96">
+            <h3 class="text-lg font-bold mb-4">Crear Usuario</h3>
+            <form onsubmit="handleCreateUser(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">Username</label>
+                    <input type="text" id="new-user-name" class="w-full border rounded p-2" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">Password</label>
+                    <input type="password" id="new-user-pass" class="w-full border rounded p-2" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">Rol</label>
+                    <select id="new-user-role" class="w-full border rounded p-2">
+                        <option value="viewer">Viewer</option>
+                        <option value="operator">Operator</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="document.getElementById('modal-user').classList.add('hidden')"
+                        class="text-gray-500 hover:text-gray-700">Cancelar</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Crear</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Create Gateway -->
+    <div id="modal-gateway" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded shadow-lg w-96">
+            <h3 class="text-lg font-bold mb-4">Nueva Pasarela</h3>
+            <form onsubmit="handleCreateGateway(event)">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">Nombre</label>
+                    <input type="text" id="gw-name" class="w-full border rounded p-2" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">Tipo</label>
+                    <select id="gw-type" class="w-full border rounded p-2">
+                        <option value="MODBUS">MODBUS TCP</option>
+                        <option value="BACNET">BACNET IP</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <div class="mb-4 flex-1">
+                        <label class="block text-sm font-bold mb-1">IP</label>
+                        <input type="text" id="gw-ip" class="w-full border rounded p-2" placeholder="192.168.1.10">
+                    </div>
+                    <div class="mb-4 w-24">
+                        <label class="block text-sm font-bold mb-1">Puerto</label>
+                        <input type="number" id="gw-port" class="w-full border rounded p-2" placeholder="502">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="document.getElementById('modal-gateway').classList.add('hidden')"
+                        class="text-gray-500 hover:text-gray-700">Cancelar</button>
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script type="module">
+        import * as api from './js/api.js';
+
+        // Check Auth & Role
+        const user = api.getCurrentUser();
+        if (!user || user.role !== 'admin') {
+            alert('Acceso Denegado. Se requiere rol de Administrador.');
+            window.location.href = 'index.html';
+        }
+
+        window.logout = function () {
+            api.logout();
+            window.location.href = 'index.html';
+        };
+
+        window.switchTab = function (tab) {
+            document.querySelectorAll('button[id^="tab-"]').forEach(b => b.classList.remove('active-tab'));
+            document.getElementById(`tab-${tab}`).classList.add('active-tab');
+
+            document.getElementById('section-users').classList.add('hidden');
+            document.getElementById('section-gateways').classList.add('hidden');
+            document.getElementById(`section-${tab}`).classList.remove('hidden');
+
+            if (tab === 'users') loadUsers();
+            if (tab === 'gateways') loadGateways();
+        };
+
+        // --- USERS ---
+        async function loadUsers() {
+            try {
+                const users = await api.getUsers();
+                const tbody = document.getElementById('users-table');
+                tbody.innerHTML = users.map(u => `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">${u.username}</td>
+                        <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${u.role}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="deleteUser(${u.id})" class="text-red-600 hover:text-red-900 ml-4">Borrar</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        window.handleCreateUser = async function (e) {
+            e.preventDefault();
+            try {
+                const name = document.getElementById('new-user-name').value;
+                const pass = document.getElementById('new-user-pass').value;
+                const role = document.getElementById('new-user-role').value;
+                await api.createUser(name, pass, role);
+                document.getElementById('modal-user').classList.add('hidden');
+                loadUsers();
+            } catch (e) { alert('Error creando usuario'); }
+        };
+
+        window.deleteUser = async function (id) {
+            if (!confirm('¿Seguro que quieres borrar este usuario?')) return;
+            try {
+                await api.deleteUser(id);
+                loadUsers();
+            } catch (e) { alert('Error borrando usuario'); }
+        }
+
+        // --- GATEWAYS ---
+        async function loadGateways() {
+            try {
+                const gws = await api.getGateways();
+                const tbody = document.getElementById('gateways-table');
+                tbody.innerHTML = gws.map(g => `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap font-bold">${g.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">${g.type}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-mono text-sm">${g.ip_address}:${g.port}</td>
+                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button class="text-gray-400 cursor-not-allowed">Editar</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        window.handleCreateGateway = async function (e) {
+            e.preventDefault();
+            try {
+                const gw = {
+                    name: document.getElementById('gw-name').value,
+                    type: document.getElementById('gw-type').value,
+                    ip_address: document.getElementById('gw-ip').value,
+                    port: document.getElementById('gw-port').value
+                };
+                await api.createGateway(gw);
+                document.getElementById('modal-gateway').classList.add('hidden');
+                loadGateways();
+            } catch (e) { alert('Error creando pasarela'); }
+        }
+
+        // Init
+        loadUsers();
+
+    </script>
+</body>
+
+</html>
