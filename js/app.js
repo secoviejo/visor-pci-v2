@@ -32,6 +32,8 @@ let isPanning = false, startX = 0, startY = 0;
 let draggingEl = null;
 let longPressTimer = null;
 let isDragMode = false;
+let mouseStartX = 0, mouseStartY = 0;
+let hasMoved = false;
 
 // ===========================================
 // INICIALIZACIÓN
@@ -250,22 +252,49 @@ function handleHotspotMouseDown(e, dot, data) {
     }
 
     e.stopPropagation();
-    e.preventDefault();
+    // No preventDefault here to allow potential click events if needed, 
+    // but handled manually anyway.
 
+    mouseStartX = e.clientX;
+    mouseStartY = e.clientY;
+    hasMoved = false;
+
+    // Start timer for visual drag activation
     longPressTimer = setTimeout(() => {
-        startDragging(dot, e);
-    }, 500);
+        if (!hasMoved) startDragging(dot);
+    }, 400);
+
+    const onMouseMove = (moveEvent) => {
+        const dx = moveEvent.clientX - mouseStartX;
+        const dy = moveEvent.clientY - mouseStartY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > 5 && !isDragMode) {
+            hasMoved = true;
+            clearTimeout(longPressTimer);
+            startDragging(dot);
+        }
+    };
 
     const onMouseUp = () => {
         clearTimeout(longPressTimer);
+        window.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
-        if (!isDragMode) openInfoModal(data);
-        else stopDragging(dot);
+
+        if (!isDragMode) {
+            // It was a simple click or short press without much movement
+            openInfoModal(data);
+        } else {
+            // It was a drag, save the new position
+            stopDragging(dot);
+        }
     };
+
+    window.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
 }
 
-function startDragging(dot, e) {
+function startDragging(dot) {
     isDragMode = true;
     draggingEl = dot;
     dot.classList.add('dragging');
