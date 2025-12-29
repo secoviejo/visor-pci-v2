@@ -36,6 +36,14 @@ function initDb() {
         console.log('Added background_image column to campuses.');
     }
 
+    // Ensure Campus 1 exists before we try to link buildings to it (Bootstrapping)
+    const defaultCampus = db.prepare('SELECT id FROM campuses WHERE id = 1').get();
+    if (!defaultCampus) {
+        console.log('Bootstrapping default campus (ID 1)...');
+        // Minimal insert to satisfy FK. seedData() will fix/update details later.
+        db.prepare("INSERT INTO campuses (id, name, description, image_filename, background_image) VALUES (1, 'Campus Default', 'Temp', 'placeholder.jpg', 'placeholder.jpg')").run();
+    }
+
     // Migration for Building Campus Link & Coords
     const buildingCols = db.prepare("PRAGMA table_info(buildings)").all();
     if (!buildingCols.some(c => c.name === 'campus_id')) {
