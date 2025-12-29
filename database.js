@@ -31,9 +31,9 @@ function initDb() {
         db.exec("ALTER TABLE campuses ADD COLUMN description TEXT");
         console.log('Added description column to campuses.');
     }
-    if (!campusCols.some(c => c.name === 'image_filename')) {
-        db.exec("ALTER TABLE campuses ADD COLUMN image_filename TEXT");
-        console.log('Added image_filename column to campuses.');
+    if (!campusCols.some(c => c.name === 'background_image')) {
+        db.exec("ALTER TABLE campuses ADD COLUMN background_image TEXT");
+        console.log('Added background_image column to campuses.');
     }
 
     // Migration for Building Campus Link & Coords
@@ -146,7 +146,8 @@ function initDb() {
             acknowledged BOOLEAN DEFAULT 0,
             acknowledged_by TEXT,
             resolved BOOLEAN DEFAULT 0,
-            value TEXT -- Raw value or JSON
+            value TEXT, -- Raw value or JSON
+            origin TEXT -- REAL, SIM
         )
     `);
 
@@ -185,24 +186,25 @@ function seedData() {
         // Better strategy: Update existing by ID 1, 2, 3 and Insert 4, 5, 6.
 
         const campuses = [
-            { id: 1, name: 'Campus Plaza San Francisco', desc: 'Campus principal. Ciencias, Derecho, Educación.', img: 'img/campuses/campus_sf_3d.png' },
-            { id: 2, name: 'Campus Río Ebro', desc: 'Ingeniería (EINA) y Arquitectura.', img: 'img/campuses/rio_ebro_3d.png' },
-            { id: 3, name: 'Campus Huesca y Jaca', desc: 'Salud, Deporte y Gestión Pública.', img: 'img/campuses/campus_huesca.jpg' },
-            { id: 4, name: 'Campus Paraíso', desc: 'Facultades de Economía, Empresa y Gran Vía.', img: 'img/campuses/campus_paraiso.jpg' },
-            { id: 5, name: 'Campus Veterinaria', desc: 'Facultad de Veterinaria.', img: 'img/campuses/campus_veterinaria.jpg' },
-            { id: 6, name: 'Campus Teruel', desc: 'Ciencias Sociales y Humanas, Ingeniería.', img: 'img/campuses/campus_teruel.jpg' }
+            { id: 1, name: 'Campus Plaza San Francisco', desc: 'Campus principal. Ciencias, Derecho, Educación.', img: 'img/campuses/thumbnail_sf.jpg', bg: 'img/campuses/campus_sf_3d.png' },
+            { id: 2, name: 'Campus Río Ebro', desc: 'Ingeniería (EINA) y Arquitectura.', img: 'img/campuses/thumbnail_rio_ebro.png', bg: 'img/campuses/rio_ebro_3d.png' },
+            { id: 3, name: 'Campus Huesca y Jaca', desc: 'Salud, Deporte y Gestión Pública.', img: 'img/campuses/thumbnail_huesca.png', bg: 'img/campuses/campus_huesca.jpg' },
+            { id: 4, name: 'Campus Paraíso', desc: 'Facultades de Economía, Empresa y Gran Vía.', img: 'img/campuses/thumbnail_paraiso.png', bg: 'img/campuses/campus_paraiso.jpg' },
+            { id: 5, name: 'Campus Veterinaria', desc: 'Facultad de Veterinaria.', img: 'img/campuses/thumbnail_veterinaria.png', bg: 'img/campuses/campus_veterinaria.jpg' },
+            { id: 6, name: 'Campus Teruel', desc: 'Ciencias Sociales y Humanas, Ingeniería.', img: 'img/campuses/thumbnail_teruel.png', bg: 'img/campuses/campus_teruel.jpg' }
         ];
 
         const upsert = db.prepare(`
-            INSERT INTO campuses (id, name, description, image_filename) 
-            VALUES (@id, @name, @desc, @img)
+            INSERT INTO campuses (id, name, description, image_filename, background_image) 
+            VALUES (@id, @name, @desc, @img, @bg)
             ON CONFLICT(id) DO UPDATE SET
                 name=excluded.name, 
                 description=excluded.description, 
-                image_filename=excluded.image_filename
+                image_filename=excluded.image_filename,
+                background_image=excluded.background_image
         `);
 
-        const insert = db.prepare('INSERT INTO campuses (name, description, image_filename) VALUES (@name, @desc, @img)');
+        const insert = db.prepare('INSERT INTO campuses (name, description, image_filename, background_image) VALUES (@name, @desc, @img, @bg)');
 
         for (const c of campuses) {
             // Check if exists

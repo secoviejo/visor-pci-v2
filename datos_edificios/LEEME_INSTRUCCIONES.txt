@@ -1,0 +1,47 @@
+# CÓMO AÑADIR NUEVOS EDIFICIOS AL VISOR PCI
+
+Esta carpeta `datos_edificios` es tu espacio de trabajo para añadir nueva información al sistema de forma fácil.
+
+## ESTRUCTURA DE CARPETAS
+
+Para añadir un nuevo edificio, crea las carpetas siguiendo este esquema:
+
+```
+datos_edificios/
+└── [NOMBRE_CAMPUS]/               (Ej: Campus_Rio_Ebro)
+    └── [NOMBRE_EDIFICIO]/         (Ej: Edificio_Ada_Byron)
+        ├── planos/                (Carpeta obligatoria)
+        │   ├── planta_baja.png    (Pon nombres claros a las imágenes)
+        │   ├── planta_1.png
+        │   └── sotano.jpg
+        │
+        └── dispositivos.csv       (Archivo opcional con los sensores/detectores)
+```
+
+-------------------------------------------------------------------------
+
+## CÓMO RELLENAR EL ARCHIVO "dispositivos.csv"
+
+Puedes usar Excel para crear este archivo y luego guardarlo como "CSV (delimitado por comas)".
+Debe tener las siguientes columnas (la primera fila son los encabezados):
+
+planta, tipo, numero, ubicacion, x, y
+
+- **planta**: El nombre EXACTO del archivo de imagen del plano correspondiente (ej: "planta_baja.png").
+- **tipo**: El tipo de dispositivo. Valores permitidos:
+    - `detector` (Detector de humo)
+    - `pulsador` (Pulsador de alarma)
+    - `sirena`   (Sirena)
+- **numero**: El número o etiqueta corta del dispositivo (ej: "32", "L1-05").
+- **ubicacion**: Descripción textual de dónde está (ej: "Pasillo Norte", "Despacho 101").
+- **x**: Posición horizontal en el plano (0 a 100). Si no la sabes, pon 50.
+- **y**: Posición vertical en el plano (0 a 100). Si no la sabes, pon 50.
+
+-------------------------------------------------------------------------
+
+## PASOS PARA IMPORTAR
+
+1. Crea las carpetas y pega tus imágenes.
+2. (Opcional) Añade el archivo `dispositivos.csv`.
+3. Pídeme: "Oye, he añadido el edificio Ada Byron, impórtalo por favor".
+4. ¡Listo! Yo me encargo del resto.

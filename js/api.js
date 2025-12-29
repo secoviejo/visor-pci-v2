@@ -180,6 +180,7 @@ export async function getEvents(filters = {}) {
     if (filters.offset) params.append('offset', filters.offset);
     if (filters.type) params.append('type', filters.type);
     if (filters.resolved !== undefined) params.append('resolved', filters.resolved);
+    if (filters.campusId) params.append('campusId', filters.campusId);
 
     if (params.toString()) url += `?${params.toString()}`;
 

@@ -47,8 +47,11 @@
         .sidebar-area {
             grid-area: sidebar;
             border-left: 1px solid #e5e7eb;
-            overflow-y: auto;
-            background: white;
+            overflow: hidden;
+            /* Allows content under scrollbar if supported, or auto */
+            background: #f8fafc;
+            scrollbar-gutter: stable;
+            /* Keeps layout stable when scrollbar appears */
         }
 
         .alerts-area {
@@ -100,21 +103,22 @@
 
         /* Scrollbar styling */
         ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+            width: 8px;
+            height: 8px;
         }
 
         ::-webkit-scrollbar-track {
-            background: transparent;
+            background: #f1f5f9;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #d1d5db;
-            border-radius: 3px;
+            background: #cbd5e1;
+            border-radius: 4px;
+            border: 2px solid #f1f5f9;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #9ca3af;
+            background: #94a3b8;
         }
 
         .alert-row {
@@ -175,15 +179,12 @@
 
         <!-- Building Sidebar Area -->
         <div class="sidebar-area flex flex-col">
-            <div class="p-4 border-b bg-gray-50/50">
-                <div class="relative">
-                    <i
-                        class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
-                    <input type="text" id="search-buildings" placeholder="Buscar edificio..."
-                        class="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-zaragoza-blue focus:border-transparent">
-                </div>
+            <div class="px-5 py-4 border-b bg-gray-50 flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-widest text-gray-500">Listado de Edificios</span>
+                <span id="building-count"
+                    class="bg-zaragoza-blue/10 text-zaragoza-blue px-2 py-0.5 rounded text-[10px] font-bold">...</span>
             </div>
-            <div id="building-list" class="flex-grow">
+            <div id="building-list" class="flex-grow overflow-y-auto">
                 <!-- Loading State -->
                 <div class="p-8 text-center text-gray-400">
                     <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i>
@@ -267,7 +268,11 @@
             try {
                 // Set User
                 const user = api.getCurrentUser();
-                if (user) document.getElementById('user-display').textContent = user.username.toUpperCase();
+                if (!user) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+                document.getElementById('user-display').textContent = user.username.toUpperCase();
 
                 // 1. Get Campus Info
                 const campuses = await api.getCampuses();
@@ -278,8 +283,10 @@
                     document.getElementById('campus-title').textContent = curCampus.name;
                     document.getElementById('campus-desc').textContent = curCampus.description;
 
-                    if (curCampus.image_filename) {
-                        document.getElementById('campus-map-container').style.backgroundImage = `url('${curCampus.image_filename}')`;
+                    // Use background_image (3D view) if available, otherwise fallback to thumbnail/generic
+                    const bgImage = curCampus.background_image || curCampus.image_filename;
+                    if (bgImage) {
+                        document.getElementById('campus-map-container').style.backgroundImage = `url('${bgImage}')`;
                     }
                 }
 
@@ -298,11 +305,20 @@
         async function refreshBuildings() {
             try {
                 buildings = await api.getBuildings(campusId);
-                const events = await api.getEvents({ resolved: 0, campusId: campusId, type: 'ALARM' });
+                let events = [];
+                try {
+                    events = await api.getEvents({ resolved: 0, campusId: campusId, type: 'ALARM' });
+                } catch (e) {
+                    console.warn("Could not fetch events for status badges:", e.message);
+                }
 
+                document.getElementById('building-count').textContent = `${buildings.length} Edificios`;
                 renderBuildings(buildings, events);
                 renderMapMarkers(buildings, events);
-            } catch (err) { console.error(err); }
+            } catch (err) {
+                console.error("Critical error in refreshBuildings:", err);
+                document.getElementById('building-list').innerHTML = `<div class="p-8 text-center text-red-500 text-sm">Error cargando edificios</div>`;
+            }
         }
 
         function renderBuildings(list, events) {
@@ -496,12 +512,6 @@
             } catch (e) { alert("Error simulando incidencia"); }
         };
 
-        // Search logic
-        document.getElementById('search-buildings').oninput = (e) => {
-            const val = e.target.value.toLowerCase();
-            const filtered = buildings.filter(b => b.name.toLowerCase().includes(val));
-            renderBuildings(filtered);
-        };
 
         init();
     </script>

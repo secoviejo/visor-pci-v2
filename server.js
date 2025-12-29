@@ -568,7 +568,7 @@ app.get('/api/campuses/stats', (req, res) => {
         // Since we are simulating, we will ensure the inserted event uses a valid device_id from DB.
 
         const query = `
-            SELECT c.id, c.name, c.description, c.image_filename, COUNT(e.id) as alarm_count 
+            SELECT c.id, c.name, c.description, c.image_filename, c.background_image, COUNT(e.id) as alarm_count 
             FROM campuses c 
             LEFT JOIN buildings b ON b.campus_id = c.id 
             LEFT JOIN floors f ON f.building_id = b.id 
@@ -603,14 +603,42 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
 
         if (!device) return res.status(404).json({ error: 'No devices found for this campus' });
 
-        // 2. Insert ALARM event
+        // 2. Insert ALERT (Active)
+        const alertData = {
+            elementId: device.device_id,
+            type: device.type || 'detector',
+            building_id: 1, // Mock for sim
+            floor_id: 1, // Mock for sim
+            location: 'Ubicación Simulada',
+            description: 'Simulacro de Incendio',
+            status: 'ACTIVA',
+            origin: 'SIMULACIÓN',
+            started_at: new Date().toISOString(),
+            ended_at: null
+        };
+
+        try {
+            const stmtAlert = db.prepare(`
+                INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
+                VALUES (@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
+            `);
+            const resAlert = stmtAlert.run(alertData);
+            alertData.db_id = resAlert.lastInsertRowid;
+
+            // Emit Alarm (Popup)
+            io.emit('pci:alarm:on', alertData);
+        } catch (e) {
+            console.error('[Sim] Error creating alert:', e);
+        }
+
+        // 3. Insert EVENT (History)
         const stmt = db.prepare(`
             INSERT INTO events (device_id, type, message, value, origin)
             VALUES (?, 'ALARM', 'Incidencia Simulada', ?, 'SIM')
         `);
         const info = stmt.run(device.device_id, JSON.stringify({ simulated: true }));
 
-        // 3. Emit event ... (same as before)
+        // 4. Emit Event (Log)
         io.emit('event:new', {
             id: info.lastInsertRowid,
             device_id: device.device_id,
@@ -622,6 +650,33 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
         });
 
         res.json({ success: true, device });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/simulation/resolve', authenticateToken, (req, res) => {
+    try {
+        // Resolve all active simulation alerts
+        const now = new Date().toISOString();
+        const stmt = db.prepare(`
+            UPDATE alerts 
+            SET status = 'RESUELTA', ended_at = ? 
+            WHERE status = 'ACTIVA' AND origin = 'SIMULACIÓN'
+        `);
+        const result = stmt.run(now);
+
+        // Also mark events as resolved if they are ALARM and SIM
+        db.prepare(`UPDATE events SET resolved = 1 WHERE type = 'ALARM' AND origin = 'SIM'`).run();
+
+        // Broadcast to all clients to stop blinking/highlighting
+        io.emit('pci:simulation:resolved');
+
+        // We also emit pci:alarm:off for specifically known elementIds if needed, 
+        // but simulation:resolved is a global "clear everything simulated" signal.
+
+        console.log(`[Sim] Resolved ${result.changes} active alerts.`);
+        res.json({ success: true, resolvedCount: result.changes });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
