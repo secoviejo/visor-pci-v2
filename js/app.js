@@ -235,7 +235,9 @@ async function loadFloorData(floorId) {
     const imageName = selectedOption.dataset.image;
 
     // Load Image
-    mapImg.src = imageName;
+    const isNewStructure = imageName.includes('/') || imageName.includes('\\');
+    mapImg.src = isNewStructure ? `/data/${imageName}` : `/${imageName}`;
+
     mapImg.onload = () => {
         emptyState.style.display = 'none';
         resetView();

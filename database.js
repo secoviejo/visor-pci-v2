@@ -35,6 +35,15 @@ function initDb() {
         db.exec("ALTER TABLE campuses ADD COLUMN background_image TEXT");
         console.log('Added background_image column to campuses.');
     }
+    if (!campusCols.some(c => c.name === 'offset_x')) {
+        db.exec("ALTER TABLE campuses ADD COLUMN offset_x REAL DEFAULT 0");
+    }
+    if (!campusCols.some(c => c.name === 'offset_y')) {
+        db.exec("ALTER TABLE campuses ADD COLUMN offset_y REAL DEFAULT 0");
+    }
+    if (!campusCols.some(c => c.name === 'scale')) {
+        db.exec("ALTER TABLE campuses ADD COLUMN scale REAL DEFAULT 0.8");
+    }
 
     // Ensure Campus 1 exists before we try to link buildings to it (Bootstrapping)
     const defaultCampus = db.prepare('SELECT id FROM campuses WHERE id = 1').get();

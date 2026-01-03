@@ -15,6 +15,16 @@ export function isLoggedIn() {
     return !!authToken;
 }
 
+function handleAuthError(res) {
+    if (res.status === 401 || res.status === 403) {
+        console.warn('Auth error detected. Logging out...');
+        logout();
+        window.location.href = 'index.html';
+        return true;
+    }
+    return false;
+}
+
 export async function login(username, password) {
     const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
@@ -40,6 +50,23 @@ export function logout() {
 export async function getCampuses() {
     const res = await fetch(`${API_URL}/campuses`);
     if (!res.ok) throw new Error('Error loading campuses');
+    return res.json();
+}
+
+export async function updateCampus(id, data) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+
+    const res = await fetch(`${API_URL}/campuses/${id}`, {
+        method: 'PATCH',
+        headers: headers,
+        body: JSON.stringify(data)
+    });
+
+    if (!res.ok) {
+        if (handleAuthError(res)) return { success: false, error: 'Auth failed' };
+        throw new Error('Error updating campus');
+    }
     return res.json();
 }
 
@@ -77,7 +104,28 @@ export async function updateBuilding(id, data) {
         headers: headers,
         body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Error updating building');
+
+    if (!res.ok) {
+        if (handleAuthError(res)) return { success: false, error: 'Auth failed' };
+        throw new Error('Error updating building');
+    }
+    return res.json();
+}
+
+export async function uploadBuildingConfig(buildingId, file) {
+    const headers = getHeaders();
+    if (headers['Content-Type']) delete headers['Content-Type'];
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${API_URL}/buildings/${buildingId}/config`, {
+        method: 'POST',
+        headers: headers,
+        body: formData
+    });
+
+    if (!res.ok) throw new Error('Error uploading config');
     return res.json();
 }
 
@@ -91,11 +139,36 @@ export async function getFloors(buildingId = null) {
     return res.json();
 }
 
+// Helper for easier usage
+export async function uploadFloor(buildingId, name, file) {
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('buildingId', buildingId);
+    formData.append('image', file);
+    return createFloor(formData);
+}
+
+export async function deleteFloor(id) {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/floors/${id}`, {
+        method: 'DELETE',
+        headers: headers
+    });
+    if (!res.ok) {
+        if (handleAuthError(res)) return { success: false, error: 'Auth failed' };
+        throw new Error('Error deleting floor');
+    }
+    return res.json();
+}
+
 export async function createFloor(formData) {
     const headers = getHeaders();
     // Fetch automatically sets Content-Type for FormData, but we need Auth
     // Headers object for FormData requests usually shouldn't have Content-Type set manually
     // So we need to be careful.
+
+    // Explicitly delete Content-Type to let browser set it with boundary
+    if (headers['Content-Type']) delete headers['Content-Type'];
 
     const res = await fetch(`${API_URL}/floors`, {
         method: 'POST',
@@ -135,9 +208,7 @@ export async function updateDevice(dbId, data) {
         body: JSON.stringify(data)
     });
     if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-            logout(); // Clear token if unauthorized or forbidden
-        }
+        if (handleAuthError(res)) return { success: false, error: 'Auth failed' };
         const errData = await res.json().catch(() => ({}));
         console.error('Update failed:', res.status, errData);
         throw new Error('Error updating device');
@@ -247,6 +318,34 @@ export async function createGateway(gateway) {
         body: JSON.stringify(gateway)
     });
     if (!res.ok) throw new Error('Error creating gateway');
+    return res.json();
+}
+
+// SIMULATOR CONTROL
+export async function getSimulatorStatus() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/admin/simulator/status`, { headers });
+    if (!res.ok) throw new Error('Error getting simulator status');
+    return res.json();
+}
+
+export async function startSimulator() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/admin/simulator/start`, {
+        method: 'POST',
+        headers
+    });
+    if (!res.ok) throw new Error('Error starting simulator');
+    return res.json();
+}
+
+export async function stopSimulator() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/admin/simulator/stop`, {
+        method: 'POST',
+        headers
+    });
+    if (!res.ok) throw new Error('Error stopping simulator');
     return res.json();
 }
 

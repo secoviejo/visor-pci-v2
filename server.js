@@ -4,14 +4,22 @@ const path = require('path');
 const db = require('./database');
 const modbusService = require('./js/services/modbusService');
 const bacnetService = require('./js/services/bacnetService'); // [NEW] BACnet Integration
+const fs = require('fs'); // Added for file deletion
 
-// Start Modbus Connection
-modbusService.connect();
+const { spawn } = require('child_process');
+let simulatorProcess = null;
+
+// Start Modbus Connection (Hardware only by default)
+modbusService.connect().then(res => {
+    if (!res.success) {
+        console.warn('[Modbus] Hardware not found at startup. Waiting for manual connect or simulation.');
+    }
+});
 
 // Listen for hardware events (Modbus)
 modbusService.on('change', (event) => {
-    console.log('[Hardware Modbus]', event);
-    // Logic handles in socket section
+    // console.log('[Modbus Event]', event);
+    // Logic handled in socket section
 });
 
 // Start BACnet Discovery
@@ -35,7 +43,12 @@ const PORT = 3000;
 const multer = require('multer');
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, './') // Save in root for simplicity
+        // Ensure directory exists
+        const dir = './uploads/temp';
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -55,7 +68,10 @@ app.use(cors());
 app.use(express.json());
 // Serve static files (HTML, CSS, JS, Images) from root (for now) and specific folders
 app.use(express.static('.'));
+app.use(express.static('.'));
 app.use(express.static('public'));
+app.use('/uploads', express.static('uploads')); // Explicitly serve uploads
+app.use('/data', express.static('datos_edificios')); // [NEW] Serve structured data
 
 // Middleware for Authentication
 function authenticateToken(req, res, next) {
@@ -151,11 +167,11 @@ app.post('/api/buildings', authenticateToken, (req, res) => {
 
 // 1.1.1 Update Building (Protected)
 app.put('/api/buildings/:id', authenticateToken, (req, res) => {
+    console.log(`[Building Update] ID: ${req.params.id}, Body:`, req.body);
     try {
         const { id } = req.params;
         const { name, campus_id, x, y } = req.body;
 
-        // Build dynamic SET clause
         const updates = [];
         const params = [];
         if (name !== undefined) { updates.push('name = ?'); params.push(name); }
@@ -166,15 +182,21 @@ app.put('/api/buildings/:id', authenticateToken, (req, res) => {
         if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
         params.push(id);
-        const stmt = db.prepare(`UPDATE buildings SET ${updates.join(', ')} WHERE id = ?`);
+        const sql = `UPDATE buildings SET ${updates.join(', ')} WHERE id = ?`;
+        console.log(`[SQL] ${sql} | Params:`, params);
+
+        const stmt = db.prepare(sql);
         const result = stmt.run(...params);
 
         if (result.changes > 0) {
+            console.log(`[Building Update] ✅ Success for ID ${id}`);
             res.json({ success: true });
         } else {
+            console.warn(`[Building Update] ⚠️ No changes made for ID ${id} (not found?)`);
             res.status(404).json({ error: 'Building not found' });
         }
     } catch (error) {
+        console.error(`[Building Update] ❌ Error: ${error.message}`);
         res.status(500).json({ error: error.message });
     }
 });
@@ -196,6 +218,36 @@ app.get('/api/campuses', (req, res) => {
             ]);
         }
         res.status(500).json({ error: error.message });
+    }
+});
+
+// 1.0.1 Update Campus (Protected) - For scale/view adjustments
+app.patch('/api/campuses/:id', authenticateToken, authorizeRole(['admin']), (req, res) => {
+    try {
+        const { id } = req.params;
+        const { offset_x, offset_y, scale, name, description } = req.body;
+        const fields = [];
+        const values = [];
+
+        if (offset_x !== undefined) { fields.push('offset_x = ?'); values.push(offset_x); }
+        if (offset_y !== undefined) { fields.push('offset_y = ?'); values.push(offset_y); }
+        if (scale !== undefined) { fields.push('scale = ?'); values.push(scale); }
+        if (name !== undefined) { fields.push('name = ?'); values.push(name); }
+        if (description !== undefined) { fields.push('description = ?'); values.push(description); }
+
+        if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+        values.push(id);
+        const sql = `UPDATE campuses SET ${fields.join(', ')} WHERE id = ?`;
+        const result = db.prepare(sql).run(...values);
+
+        if (result.changes > 0) {
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Campus not found' });
+        }
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
@@ -229,15 +281,192 @@ app.post('/api/floors', authenticateToken, upload.single('image'), (req, res) =>
             return res.status(400).json({ error: 'Name and Image are required' });
         }
 
-        // Default to building 1 if not provided (safe fallback)
         const bId = buildingId || 1;
 
-        const stmt = db.prepare('INSERT INTO floors (name, image_filename, building_id) VALUES (?, ?, ?)');
-        const result = stmt.run(name, filename, bId);
+        // [NEW] Get Building & Campus Info for Folder Structure
+        const building = db.prepare('SELECT b.name as bName, c.name as cName FROM buildings b JOIN campuses c ON b.campus_id = c.id WHERE b.id = ?').get(bId);
 
-        res.json({ success: true, id: result.lastInsertRowid, filename });
+        if (!building) return res.status(404).json({ error: 'Building not found' });
+
+        // Safe folder names (remove illegal chars for Windows)
+        const safeName = (str) => str.replace(/[<>:"/\\|?*]/g, '').trim();
+        const campusFolder = safeName(building.cName);
+        const buildingFolder = safeName(building.bName);
+
+        // Define Target Directory: datos_edificios/Campus/Building/planos
+        const targetDir = path.join(__dirname, 'datos_edificios', campusFolder, buildingFolder, 'planos');
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
+
+        // Move file
+        const sourcePath = req.file.path;
+        const targetPath = path.join(targetDir, filename);
+        fs.renameSync(sourcePath, targetPath);
+
+        // Store RELATIVE path in DB (e.g. "Campus X/Building Y/planos/file.jpg")
+        // Use forward slashes for consistency
+        const relativePath = path.join(campusFolder, buildingFolder, 'planos', filename).replace(/\\/g, '/');
+
+        const stmt = db.prepare('INSERT INTO floors (name, image_filename, building_id) VALUES (?, ?, ?)');
+        const result = stmt.run(name, relativePath, bId);
+
+        res.json({ success: true, id: result.lastInsertRowid, filename: relativePath });
     } catch (error) {
+        console.error('Error uploading floor:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// [NEW] Upload Building Configuration (CSV)
+const Papa = require('papaparse');
+
+app.post('/api/buildings/:id/config', authenticateToken, upload.single('file'), (req, res) => {
+    try {
+        const { id } = req.params;
+        const file = req.file;
+
+        if (!file) return res.status(400).json({ error: 'CSV file is required' });
+
+        // 1. Get Building Info
+        const building = db.prepare('SELECT b.name as bName, c.name as cName FROM buildings b JOIN campuses c ON b.campus_id = c.id WHERE b.id = ?').get(id);
+        if (!building) return res.status(404).json({ error: 'Building not found' });
+
+        // 2. Safe Paths
+        const safeName = (str) => str.replace(/[<>:"/\\|?*]/g, '').trim();
+        const campusFolder = safeName(building.cName);
+        const buildingFolder = safeName(building.bName);
+        const targetDir = path.join(__dirname, 'datos_edificios', campusFolder, buildingFolder);
+
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+        }
+
+        // 3. Move/Save File as 'dispositivos.csv' (forcing name as per request)
+        const targetPath = path.join(targetDir, 'dispositivos.csv');
+        // If uploaded file is temp, move/overwrite
+        fs.renameSync(file.path, targetPath);
+
+        // 4. Parse CSV Content
+        const csvContent = fs.readFileSync(targetPath, 'utf8');
+        const parsed = Papa.parse(csvContent, {
+            header: true,
+            skipEmptyLines: true,
+            dynamicTyping: true
+        });
+
+        if (parsed.errors.length > 0) {
+            console.warn('CSV Parse Warnings:', parsed.errors);
+        }
+
+        const rows = parsed.data;
+        console.log(`[CSV Import] Parsed ${rows.length} rows for Building ${id}`);
+
+        // 5. Process and Insert Devices
+        // Strategy: Delete all devices for this building first to avoid duplicates/mess (Full Sync)
+
+        // Transaction for safety
+        const importTx = db.transaction(() => {
+            // A. Find all floors for this building to clean up devices
+            const floors = db.prepare('SELECT id, image_filename FROM floors WHERE building_id = ?').all(id);
+            const floorIds = floors.map(f => f.id);
+
+            if (floorIds.length > 0) {
+                const deleteStmt = db.prepare(`DELETE FROM devices WHERE floor_id IN (${floorIds.join(',')})`);
+                deleteStmt.run();
+                console.log(`[CSV Import] Cleared existing devices for floors: ${floorIds.join(',')}`);
+            }
+
+            // B. Map filenames to floor IDs for quick lookup
+            // image_filename in DB might be "Campus/Build/planos/file.jpg" or "file.jpg"
+            // We match by basename
+            const floorMap = new Map();
+            floors.forEach(f => {
+                const base = path.basename(f.image_filename);
+                floorMap.set(base, f.id);
+            });
+
+            // C. Insert new devices
+            const insertStmt = db.prepare(`
+                INSERT INTO devices (floor_id, device_id, number, type, x, y, location)
+                VALUES (@floorId, @deviceId, @number, @type, @x, @y, @location)
+            `);
+
+            let insertedCount = 0;
+            let skippedCount = 0;
+
+            rows.forEach(row => {
+                // Expected columns: planta, tipo, numero, ubicacion, x, y
+                // map to DB: floorId, device_id, number, type, x, y, loc
+
+                const floorFilename = row.planta;
+                const floorId = floorMap.get(floorFilename);
+
+                if (floorId) {
+                    insertStmt.run({
+                        floorId: floorId,
+                        deviceId: row.numero ? String(row.numero) : `GEN-${Date.now()}-${Math.random()}`, // Fallback ID
+                        number: row.numero ? String(row.numero) : '',
+                        type: row.tipo ? row.tipo.toLowerCase() : 'detector',
+                        x: row.x || 0,
+                        y: row.y || 0,
+                        location: row.ubicacion || ''
+                    });
+                    insertedCount++;
+                } else {
+                    console.warn(`[CSV Import] Skipped row: Floor '${floorFilename}' not found in building.`);
+                    skippedCount++;
+                }
+            });
+
+            return { insertedCount, skippedCount };
+        });
+
+        const result = importTx();
+        res.json({ success: true, ...result });
+
+    } catch (e) {
+        console.error('CSV Import Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// [NEW] DELETE Floor Endpoint
+app.delete('/api/floors/:id', authenticateToken, (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.sendStatus(403);
+        const floor = db.prepare('SELECT * FROM floors WHERE id = ?').get(req.params.id);
+        if (!floor) return res.status(404).send('Floor not found');
+
+        // Delete from DB first
+        db.prepare('DELETE FROM floors WHERE id = ?').run(req.params.id);
+
+        // Delete file
+        // Check if it's a new path (in datos_edificios) or legacy (in uploads or root)
+        let filePath;
+        // Naive check: if it has a slash, it's likely a path.
+        if (floor.image_filename.includes('/') || floor.image_filename.includes('\\')) {
+            filePath = path.join(__dirname, 'datos_edificios', floor.image_filename);
+        } else {
+            // Legacy check
+            filePath = path.join(__dirname, 'uploads', floor.image_filename);
+            if (!fs.existsSync(filePath)) {
+                filePath = path.join(__dirname, floor.image_filename); // Root fallback
+            }
+        }
+
+        if (fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+            } catch (err) {
+                console.warn('Failed to delete file:', filePath, err.message);
+            }
+        }
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).send(e.message);
     }
 });
 
@@ -556,7 +785,85 @@ app.post('/api/events/:id/acknowledge', authenticateToken, (req, res) => {
 });
 
 
-// 9. Simulation & Status API (Phase 5)
+// 10. Admin Simulator Control
+app.get('/api/admin/simulator/status', authenticateToken, (req, res) => {
+    let isPortBusy = false;
+    if (process.platform === 'win32') {
+        try {
+            const { execSync } = require('child_process');
+            const output = execSync('netstat -ano | findstr :502').toString();
+            isPortBusy = output.includes('LISTENING');
+        } catch (e) {
+            isPortBusy = false;
+        }
+    }
+
+    res.json({
+        running: !!simulatorProcess || isPortBusy,
+        modbus: modbusService.getStatus()
+    });
+});
+
+app.post('/api/admin/simulator/start', authenticateToken, (req, res) => {
+    if (simulatorProcess) return res.json({ success: true, message: 'Ya en ejecución' });
+
+    console.log('[Admin] Starting terminal simulator...');
+    // Use 'node' to run the simulator script. 'shell: true' for windows compatibility.
+    simulatorProcess = spawn('node', ['scripts/simulator.js'], {
+        cwd: __dirname,
+        stdio: 'inherit', // Show output in the same terminal
+        shell: true
+    });
+
+    simulatorProcess.on('close', (code) => {
+        console.log(`[Admin] Simulator process exited with code ${code}`);
+        simulatorProcess = null;
+    });
+
+    // Automatically connect Modbus service to local simulator
+    setTimeout(() => {
+        modbusService.connect('127.0.0.1', 502);
+    }, 1500);
+
+    res.json({ success: true });
+});
+
+app.post('/api/admin/simulator/stop', authenticateToken, (req, res) => {
+    console.log('[Admin] Force Stopping simulator...');
+
+    // 1. Kill spawned process if exists
+    if (simulatorProcess) {
+        if (process.platform === 'win32') {
+            spawn("taskkill", ["/pid", simulatorProcess.pid, '/f', '/t']);
+        } else {
+            simulatorProcess.kill();
+        }
+        simulatorProcess = null;
+    }
+
+    // 2. Aggressive kill by port (Windows only) for manual terminals
+    if (process.platform === 'win32') {
+        try {
+            const { execSync } = require('child_process');
+            const netstat = execSync('netstat -ano | findstr :502').toString();
+            const lines = netstat.split('\n');
+            lines.forEach(line => {
+                if (line.includes('LISTENING')) {
+                    const pid = line.trim().split(/\s+/).pop();
+                    if (pid && pid !== '0' && pid != process.pid) {
+                        console.log(`[Admin] Killing process on port 502 with PID: ${pid}`);
+                        execSync(`taskkill /F /PID ${pid} /T`);
+                    }
+                }
+            });
+        } catch (e) {
+            // Ignore errors if no process found
+        }
+    }
+
+    modbusService.disconnect();
+    res.json({ success: true });
+});
 app.get('/api/campuses/stats', (req, res) => {
     try {
         // Count active ALARM events per campus

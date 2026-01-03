@@ -1,0 +1,4 @@
+planta,tipo,numero,ubicacion,x,y
+planta_baja.png,detector,101,Entrada Principal,50,50
+planta_baja.png,pulsador,P-01,Junto a recepción,55,50
+planta_1.png,sirena,S-01,Escaleras,20,30
