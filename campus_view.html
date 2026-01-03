@@ -128,6 +128,30 @@
         .alert-row:last-child {
             border-bottom: none;
         }
+
+        /* Alarm pulsing animation */
+        @keyframes alarm-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                box-shadow: 0 0 0 15px rgba(220, 38, 38, 0);
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+        }
+
+        .building-marker.has-alarm {
+            animation: alarm-pulse 2s infinite;
+        }
+
+        .building-marker.has-alarm .status-badge {
+            background-color: #dc2626 !important;
+            animation: pulse 1s infinite;
+        }
     </style>
 </head>
 
@@ -476,7 +500,7 @@
             list.forEach((b, idx) => {
                 const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
                 const marker = document.createElement('div');
-                marker.className = 'building-marker group';
+                marker.className = `building-marker group ${hasAlarm ? 'has-alarm' : ''}`;
                 marker.dataset.id = b.id;
 
                 const left = b.x != null ? b.x : (20 + (idx * 15) % 65);
@@ -633,14 +657,9 @@
         }
 
         // Simulation Button
-        document.getElementById('sim-incidence').onclick = async () => {
-            try {
-                await fetch(`/api/simulation/alarm?campusId=${campusId}`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
-                });
-                refreshAlerts();
-            } catch (e) { alert("Error simulando incidencia"); }
+        // Simulation Button
+        document.getElementById('sim-incidence').onclick = () => {
+            window.location.href = 'simulation.html';
         };
 
 

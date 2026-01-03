@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Campus - Visor PCI</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'zaragoza-blue': '#2E6DA4',
+                        'zaragoza-dark': '#333333',
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f4f7f6;
+        }
+
+        .campus-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .campus-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
+
+    <!-- Header -->
+    <header class="bg-white py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
+        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <div class="flex items-center gap-[15px]">
+                <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
+                <div class="border-l border-gray-300 pl-4 flex flex-col font-sans text-[#333333] leading-tight">
+                    <span class="font-bold text-lg">Universidad</span>
+                    <span class="text-lg">Zaragoza</span>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <div id="admin-controls" class="hidden">
+                    <a href="admin.html"
+                        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                        <i class="fa fa-cogs"></i> Admin Panel
+                    </a>
+                </div>
+                <button onclick="triggerSimulation()"
+                    class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-bug"></i> Simular Incidencia
+                </button>
+                <button onclick="logout()"
+                    class="flex items-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    <i class="fa fa-lock text-gray-400"></i> Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast"
+            class="fixed top-20 right-5 bg-white border-l-4 border-blue-500 shadow-lg rounded p-4 hidden transition-opacity duration-300 z-50 max-w-sm">
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <i id="toast-icon" class="fa fa-info-circle text-blue-500"></i>
+                </div>
+                <div class="ml-3">
+                    <p id="toast-message" class="text-sm text-gray-700 font-medium"></p>
+                </div>
+            </div>
+        </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto mt-8 p-4">
+        <!-- Header / Back -->
+        <div class="mb-8 flex items-center gap-4">
+            <a href="dashboard.html"
+                class="bg-gray-200 hover:bg-gray-300 text-gray-700 w-10 h-10 flex items-center justify-center rounded-full transition-colors">
+                <i class="fa fa-arrow-left"></i>
+            </a>
+            <div>
+                <h2 class="text-3xl font-bold text-red-600">Simulador de Emergencias</h2>
+                <p class="text-gray-500">Selecciona un edificio para activar una alarma general (Simulacro).</p>
+            </div>
+        </div>
+
+        <!-- Buildings Grid -->
+        <div id="buildings-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- JS Injected -->
+            <div class="animate-pulse bg-white p-6 rounded shadow h-32 flex items-center justify-center">
+                <span class="text-gray-400">Cargando edificios...</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto text-center px-4">
+            <p class="text-xs text-[#333333]">© 2025 Universidad Zaragoza. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div class="flex items-start mb-4">
+                <div class="flex-shrink-0">
+                    <i class="fa fa-exclamation-triangle text-red-500 text-3xl"></i>
+                </div>
+                <div class="ml-4">
+                    <h3 class="text-lg font-bold text-gray-900 mb-2">ATENCIÓN</h3>
+                    <p id="confirmMessage" class="text-sm text-gray-600"></p>
+                </div>
+            </div>
+            <div class="flex gap-3 justify-end mt-6">
+                <button id="confirmCancel"
+                    class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-medium transition-colors">
+                    Cancelar
+                </button>
+                <button id="confirmOk"
+                    class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium transition-colors">
+                    Aceptar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as api from './js/api.js';
+
+        // Auth Check
+        const user = api.getCurrentUser();
+        if (!user) window.location.href = 'index.html';
+
+        // Role Check (user already declared above)
+        if (user && user.role === 'admin') {
+            document.getElementById('admin-controls').classList.remove('hidden');
+        }
+
+        window.logout = function () {
+            api.logout();
+            window.location.href = 'index.html';
+        };
+
+        // Remove old triggerSimulation function if it exists in window
+        window.triggerSimulation = function () {
+            // Already on the page, maybe do nothing or reload?
+            // Hiding the button on this page might be better
+        };
+        let isProcessing = false;
+
+        async function loadBuildings() {
+            try {
+                const buildings = await api.getBuildings();
+                const container = document.getElementById('buildings-grid');
+
+                if (buildings.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500">No hay edificios registrados.</p>';
+                    return;
+                }
+
+                container.innerHTML = buildings.map(b => `
+                    <div class="building-card bg-white border-l-4 border-red-500 rounded shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer group"
+                         data-building-id="${b.id}" data-building-name="${b.name}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800 group-hover:text-red-600 transition-colors">${b.name}</h3>
+                                <p class="text-sm text-gray-500 mt-1">ID: ${b.id}</p>
+                            </div>
+                            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
+                                <i class="fa fa-fire text-xl text-red-600 group-hover:text-white"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+                            <span class="text-xs font-bold text-red-500 uppercase tracking-wide">Pulsar para activar</span>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Add event delegation for clicks (only once)
+                container.addEventListener('click', async (e) => {
+                    console.log('CLICK REGISTERED'); // Debug
+                    if (isProcessing) {
+                        console.log('Already processing, ignored');
+                        return;
+                    }
+
+                    const card = e.target.closest('.building-card');
+                    if (!card) {
+                        console.log('No building card found');
+                        return;
+                    }
+
+                    const buildingId = card.dataset.buildingId;
+                    const buildingName = card.dataset.buildingName;
+                    console.log('Starting simulation for:', buildingId, buildingName);
+
+                    isProcessing = true;
+                    try {
+                        await confirmSimulation(buildingId, buildingName);
+                    } finally {
+                        isProcessing = false;
+                        console.log('Processing complete');
+                    }
+                }, { once: false }); // Keep listener active
+
+
+            } catch (e) {
+                console.error(e);
+                alert('Error cargando edificios');
+            }
+        }
+
+        // Custom confirm function using HTML modal
+        function showConfirm(message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirmModal');
+                const messageEl = document.getElementById('confirmMessage');
+                const okBtn = document.getElementById('confirmOk');
+                const cancelBtn = document.getElementById('confirmCancel');
+
+                messageEl.textContent = message;
+                modal.classList.remove('hidden');
+
+                function cleanup() {
+                    modal.classList.add('hidden');
+                    okBtn.removeEventListener('click', handleOk);
+                    cancelBtn.removeEventListener('click', handleCancel);
+                }
+
+                function handleOk() {
+                    cleanup();
+                    resolve(true);
+                }
+
+                function handleCancel() {
+                    cleanup();
+                    resolve(false);
+                }
+
+                okBtn.addEventListener('click', handleOk);
+                cancelBtn.addEventListener('click', handleCancel);
+            });
+        }
+
+        async function confirmSimulation(id, name) {
+            console.log('confirmSimulation function called');
+
+            const userConfirmed = await showConfirm(`¿Estás seguro de que quieres activar una ALARMA GENERAL en "${name}"?\n\nEsto generará alertas en todos los dispositivos monitorizables del edificio.`);
+
+            console.log('User confirmed:', userConfirmed);
+
+            if (userConfirmed) {
+                console.log('User clicked OK, proceeding with API call');
+                try {
+                    const res = await api.simulateBuildingAlarm(id);
+                    console.log('API Response received:', res);
+
+                    if (res.success) {
+                        if (res.warning && res.count === 0) {
+                            alert(`ℹ️ Información\n\n${res.message}\n\nEdificio: ${name}`);
+                        } else {
+                            alert(`¡Simulacro Activado! ✅\n\nSe han generado ${res.count} alertas en el sistema.\n\nEdificio: ${name}`);
+                        }
+                    } else {
+                        alert('Error: ' + (res.error || 'No se pudo activar'));
+                    }
+                } catch (e) {
+                    console.error('Error calling API:', e);
+                    alert('Error en la comunicación con el servidor: ' + e.message);
+                }
+            } else {
+                console.log('User clicked Cancel, aborting');
+            }
+        }
+
+        loadBuildings();
+    </script>
+</body>
+
+</html>

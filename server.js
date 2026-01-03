@@ -1034,6 +1034,130 @@ app.post('/api/gateways', authenticateToken, authorizeRole(['admin']), (req, res
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// [NEW] Simulation Endpoints
+app.post('/api/simulation/building/:id/alarm', authenticateToken, (req, res) => {
+    try {
+        const buildingId = req.params.id;
+        console.log(`[Simulation] Triggering General Alarm for Building ID: ${buildingId}`);
+
+        // 1. Get all floors and devices for this building
+        const floors = db.prepare('SELECT id FROM floors WHERE building_id = ?').all(buildingId);
+
+        if (floors.length === 0) {
+            console.log(`[Simulation] No floors found for building ${buildingId}`);
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                message: 'Este edificio no tiene plantas configuradas aún. Es una prueba visual.',
+                warning: true
+            });
+        }
+
+        const floorIds = floors.map(f => f.id);
+        const devices = db.prepare(`SELECT * FROM devices WHERE floor_id IN (${floorIds.join(',')})`).all();
+
+        if (devices.length === 0) {
+            console.log(`[Simulation] No devices found for building ${buildingId}`);
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                message: 'Este edificio no tiene dispositivos configurados aún. Es una prueba visual.',
+                warning: true
+            });
+        }
+
+        // 2. Create Alerts (Limit to avoid flooding if building is huge, or do all?)
+        // Let's do all 'detectors' and 'pulsadors' primarily.
+        const targets = devices.filter(d => ['detector', 'pulsador', 'sirena'].includes(d.type.toLowerCase()));
+
+        if (targets.length === 0) {
+            console.log(`[Simulation] No compatible devices for building ${buildingId}`);
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                message: 'Este edificio no tiene dispositivos compatibles para alarma (detectores/pulsadores).',
+                warning: true
+            });
+        }
+
+        const now = new Date().toISOString();
+        const alertsCreated = [];
+
+        const insertAlert = db.prepare(`
+            INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'ACTIVA', 'SIMULACIÓN', ?)
+        `);
+
+        const insertEvent = db.prepare(`
+            INSERT INTO events (device_id, type, message, value, origin)
+            VALUES (?, 'ALARM', ?, ?, 'SIMULACIÓN')
+        `);
+
+        // Transaction for speed
+        db.transaction(() => {
+            targets.forEach(d => {
+                // Check if already active? (Optional, but good practice)
+                const existing = db.prepare("SELECT id FROM alerts WHERE element_id = ? AND status = 'ACTIVA'").get(d.device_id);
+                if (!existing) {
+                    // Insert into alerts table
+                    const info = insertAlert.run(
+                        d.device_id,
+                        d.type,
+                        buildingId,
+                        d.floor_id,
+                        d.location,
+                        'Simulacro de Incendio General',
+                        now
+                    );
+
+                    // Also insert into events table for dashboard/campus view
+                    insertEvent.run(
+                        d.device_id,
+                        'Simulacro de Incendio General',
+                        JSON.stringify({ building_id: buildingId, floor_id: d.floor_id, location: d.location })
+                    );
+
+                    alertsCreated.push({
+                        id: info.lastInsertRowid,
+                        device_id: d.device_id,
+                        type: 'ALARM', // Event type for frontend
+                        floor_id: d.floor_id,
+                        building_id: buildingId,
+                        message: 'Simulacro de Incendio General'
+                    });
+                }
+            });
+        })();
+
+        // 3. Emit Socket Events
+        alertsCreated.forEach(evt => {
+            io.emit('event:new', {
+                id: evt.id, // Alert ID as Event ID roughly
+                device_id: evt.device_id,
+                type: 'ALARM',
+                message: 'Simulacro General',
+                timestamp: new Date(),
+                acknowledged: false,
+                floor_id: evt.floor_id
+            });
+
+            // Also emit pci:alarm:on for map red circles
+            io.emit('pci:alarm:on', {
+                elementId: evt.device_id,
+                type: 'detector', // Simplification
+                location: 'Simulacro',
+                timestamp: now
+            });
+        });
+
+        res.json({ success: true, count: alertsCreated.length });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Start Server
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);

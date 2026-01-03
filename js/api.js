@@ -185,6 +185,10 @@ export async function getDevices(floorId) {
     return res.json();
 }
 
+// Alias for compatibility
+export const getDevicesByFloor = getDevices;
+
+
 export async function createDevice(device) {
     const headers = getHeaders();
     headers['Content-Type'] = 'application/json';
@@ -346,6 +350,16 @@ export async function stopSimulator() {
         headers
     });
     if (!res.ok) throw new Error('Error stopping simulator');
+    return res.json();
+}
+
+export async function simulateBuildingAlarm(buildingId) {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/simulation/building/${buildingId}/alarm`, {
+        method: 'POST',
+        headers
+    });
+    if (!res.ok) throw new Error('Error triggering simulation');
     return res.json();
 }
 
