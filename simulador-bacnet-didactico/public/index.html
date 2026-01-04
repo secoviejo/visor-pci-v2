@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Didáctico BACnet - Central de Incendios</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-left">
+            <span class="fire-icon">🔥</span>
+            <h1>Simulador Didáctico BACnet - Central de Incendios</h1>
+        </div>
+        <div class="header-center">
+            <div class="device-badge" id="device-status">
+                <span class="status-dot"></span>
+                Dispositivo 40001 - CONECTADO
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="tutorial-btn" id="tutorial-toggle">
+                📚 Modo Tutorial
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-container">
+        <!-- LEFT COLUMN: Fire Panel Control -->
+        <section class="panel-control">
+            <h2>Panel de Control</h2>
+
+            <div class="status-indicator" id="global-status">
+                <div class="status-circle normal">NORMAL</div>
+                <div class="alarm-counter">Alarmas Activas: <span id="alarm-count">0</span></div>
+            </div>
+
+            <div class="devices-grid">
+                <!-- Detector 01 -->
+                <div class="device-card">
+                    <div class="device-icon">💨</div>
+                    <div class="device-name">DETECTOR 01</div>
+                    <button class="trigger-btn" data-device="det01">Activar Alarma</button>
+                </div>
+
+                <!-- Detector 02 -->
+                <div class="device-card">
+                    <div class="device-icon">💨</div>
+                    <div class="device-name">DETECTOR 02</div>
+                    <button class="trigger-btn" data-device="det02">Activar Alarma</button>
+                </div>
+
+                <!-- Detector 03 -->
+                <div class="device-card">
+                    <div class="device-icon">💨</div>
+                    <div class="device-name">DETECTOR 03</div>
+                    <button class="trigger-btn" data-device="det03">Activar Alarma</button>
+                </div>
+
+                <!-- Pulsador -->
+                <div class="device-card">
+                    <div class="device-icon">🔴</div>
+                    <div class="device-name">PULSADOR 01</div>
+                    <button class="trigger-btn" data-device="mcp01">Activar Alarma</button>
+                </div>
+
+                <!-- Sirena -->
+                <div class="device-card sirena">
+                    <div class="device-icon">🔊</div>
+                    <div class="device-name">SIRENA 01</div>
+                    <div class="siren-status" id="siren-status">Apagada</div>
+                </div>
+            </div>
+
+            <button class="reset-btn" id="reset-btn">RESETEAR PANEL</button>
+        </section>
+
+        <!-- CENTER COLUMN: BACnet Network -->
+        <section class="network-view">
+            <h2>Red BACnet</h2>
+
+            <div class="network-diagram">
+                <div class="network-node device-node">
+                    <div class="node-icon">🖥️</div>
+                    <div class="node-label">Central Incendios<br>(40001)</div>
+                </div>
+
+                <div class="network-arrows" id="network-arrows">
+                    <!-- Arrows will be animated here -->
+                </div>
+
+                <div class="network-node client-node">
+                    <div class="node-icon">💻</div>
+                    <div class="node-label">Cliente BACnet<br>(SCADA)</div>
+                </div>
+            </div>
+
+            <div class="message-log">
+                <h3>Registro de Mensajes</h3>
+                <div class="log-container" id="message-log">
+                    <div class="log-entry info">
+                        <span class="log-time">--:--:--</span>
+                        <span class="log-text">Sistema iniciado. Esperando mensajes BACnet...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: BACnet Objects -->
+        <section class="objects-tree">
+            <h2>Objetos BACnet</h2>
+
+            <div class="tree-container">
+                <div class="tree-item device-item">
+                    <span class="tree-icon">📦</span>
+                    <span class="tree-label">Dispositivo 40001</span>
+                </div>
+
+                <div class="tree-children">
+                    <div class="tree-item object-item" data-object="panelState">
+                        <span class="tree-icon">🎚️</span>
+                        <span class="tree-label">ESTADO_PANEL (MSV #0)</span>
+                        <span class="tree-value" id="obj-panelState">Normal</span>
+                        <button class="info-btn" data-info="panelState">?</button>
+                    </div>
+
+                    <div class="tree-item object-item" data-object="activeAlarms">
+                        <span class="tree-icon">📊</span>
+                        <span class="tree-label">CONTADOR_ALARMAS (AV #0)</span>
+                        <span class="tree-value" id="obj-activeAlarms">0</span>
+                        <button class="info-btn" data-info="activeAlarms">?</button>
+                    </div>
+
+                    <div class="tree-item object-item" data-object="cmdReset">
+                        <span class="tree-icon">🔘</span>
+                        <span class="tree-label">CMD_RESET (BV #0)</span>
+                        <span class="tree-value" id="obj-cmdReset">0</span>
+                        <button class="info-btn" data-info="cmdReset">?</button>
+                    </div>
+
+                    <div class="tree-item object-item" data-object="det01">
+                        <span class="tree-icon">💨</span>
+                        <span class="tree-label">ALARMA_DET_01 (BI #0)</span>
+                        <span class="tree-value" id="obj-det01">0</span>
+                        <button class="info-btn" data-info="det01">?</button>
+                    </div>
+
+                    <div class="tree-item object-item" data-object="det02">
+                        <span class="tree-icon">💨</span>
+                        <span class="tree-label">ALARMA_DET_02 (BI #1)</span>
+                        <span class="tree-value" id="obj-det02">0</span>
+                        <button class="info-btn" data-info="det02">?</button>
+                    </div>
+
+                    <div class="tree-item object-item" data-object="det03">
+                        <span class="tree-icon">💨</span>
+                        <span class="tree-label">ALARMA_DET_03 (BI #2)</span>
+                        <span class="tree-value" id="obj-det03">0</span>
+                        <button class="info-btn" data-info="det03">?</button>
+                    </div>
+
+                    <div class="tree-item object-item" data-object="mcp01">
+                        <span class="tree-icon">🔴</span>
+                        <span class="tree-label">ALARMA_PULS_01 (BI #3)</span>
+                        <span class="tree-value" id="obj-mcp01">0</span>
+                        <button class="info-btn" data-info="mcp01">?</button>
+                    </div>
+
+                    <div class="tree-item object-item" data-object="siren">
+                        <span class="tree-icon">🔊</span>
+                        <span class="tree-label">SIRENA_ACTIVA (BI #4)</span>
+                        <span class="tree-value" id="obj-siren">0</span>
+                        <button class="info-btn" data-info="siren">?</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="object-details" id="object-details" style="display: none;">
+                <h3 id="detail-title">Detalles del Objeto</h3>
+                <div id="detail-content"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- DIAGNOSTICS PANEL -->
+    <footer class="diagnostics">
+        <div class="diag-section">
+            <strong>Red:</strong> <span id="diag-network">192.168.1.100:47808</span>
+        </div>
+        <div class="diag-section">
+            <strong>Instancia:</strong> <span id="diag-instance">40001</span>
+        </div>
+        <div class="diag-section">
+            <strong>Contadores:</strong>
+            <span>Who-Is: <span id="stat-whois">0</span></span>
+            <span>I-Am: <span id="stat-iam">0</span></span>
+            <span>Lecturas: <span id="stat-read">0</span></span>
+            <span>Escrituras: <span id="stat-write">0</span></span>
+            <span>COV: <span id="stat-cov">0</span></span>
+        </div>
+        <div class="diag-log" id="tech-log">
+            <strong>Registro Técnico:</strong> <span class="tech-entry">Sistema iniciado</span>
+        </div>
+    </footer>
+
+    <!-- TUTORIAL MODAL -->
+    <div class="modal" id="tutorial-modal" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" id="modal-close">&times;</span>
+            <h2>Modo Tutorial</h2>
+            <div id="tutorial-content">
+                <!-- Tutorial steps will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

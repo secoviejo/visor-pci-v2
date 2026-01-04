@@ -1,0 +1,22 @@
+{
+    "name": "simulador-bacnet-didactico",
+    "version": "1.0.0",
+    "description": "Simulador didáctico de central de incendios con BACnet/IP",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js"
+    },
+    "keywords": [
+        "bacnet",
+        "fire-panel",
+        "simulator",
+        "educational"
+    ],
+    "author": "Luis Enrique Seco",
+    "license": "MIT",
+    "dependencies": {
+        "node-bacnet": "^0.2.4",
+        "express": "^4.18.2"
+    }
+}
