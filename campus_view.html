@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html lang="es" class="h-full bg-gray-100 dark:bg-gray-900">
-<!-- ... (head) ... -->
 
-<body class="h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 transition-colors duration-200">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Campus - Visor PCI</title>
+
     <script>
         if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
@@ -10,514 +13,524 @@
             document.documentElement.classList.remove('dark');
         }
     </script>
-
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Dashboard Campus - Visor PCI</title>
-        <!-- Tailwind CSS v3 -->
-        <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-        <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-        <script>
-            tailwind.config = {
-                darkMode: 'class',
-                theme: {
-                    extend: {
-                        colors: {
-                            'zaragoza-blue': '#2E6DA4',
-                            'zaragoza-dark': '#333333',
-                        }
+    <title>Dashboard Campus - Visor PCI</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'zaragoza-blue': '#2E6DA4',
+                        'zaragoza-dark': '#333333',
                     }
                 }
             }
-        </script>
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-            body {
-                font-family: 'Inter', sans-serif;
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            grid-template-rows: 1fr 250px;
+            grid-template-areas:
+                "map sidebar"
+                "alerts alerts";
+            height: calc(100vh - 64px - 48px);
+            /* Full height - header - breadcrumbs */
+        }
+
+        .map-area {
+            grid-area: map;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar-area {
+            grid-area: sidebar;
+            border-left: 1px solid #e5e7eb;
+            overflow: hidden;
+            /* Allows content under scrollbar if supported, or auto */
+            scrollbar-gutter: stable;
+            /* Keeps layout stable when scrollbar appears */
+        }
+
+        .alerts-area {
+            grid-area: alerts;
+            border-top: 1px solid #e5e7eb;
+            background: #1f2937;
+            color: white;
+            overflow-y: auto;
+        }
+
+        .building-marker {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .building-marker:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .marker-label {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            margin-top: 6px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            color: #1f2937;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+            border: 2px solid #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .alert-row {
+            border-bottom: 1px solid #374151;
+        }
+
+        .alert-row:last-child {
+            border-bottom: none;
+        }
+
+        /* Alarm pulsing animation */
+        @keyframes alarm-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
+                transform: translate(-50%, -50%) scale(1);
             }
 
-            .layout-grid {
-                display: grid;
-                grid-template-columns: 1fr 400px;
-                grid-template-rows: 1fr 250px;
-                grid-template-areas:
-                    "map sidebar"
-                    "alerts alerts";
-                height: calc(100vh - 64px - 48px);
-                /* Full height - header - breadcrumbs */
-            }
-
-            .map-area {
-                grid-area: map;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .sidebar-area {
-                grid-area: sidebar;
-                border-left: 1px solid #e5e7eb;
-                overflow: hidden;
-                /* Allows content under scrollbar if supported, or auto */
-                scrollbar-gutter: stable;
-                /* Keeps layout stable when scrollbar appears */
-            }
-
-            .alerts-area {
-                grid-area: alerts;
-                border-top: 1px solid #e5e7eb;
-                background: #1f2937;
-                color: white;
-                overflow-y: auto;
-            }
-
-            .building-marker {
-                position: absolute;
-                transform: translate(-50%, -50%);
-                transition: all 0.3s ease;
-                cursor: pointer;
-                z-index: 10;
-            }
-
-            .building-marker:hover {
+            50% {
+                box-shadow: 0 0 0 15px rgba(220, 38, 38, 0);
                 transform: translate(-50%, -50%) scale(1.1);
             }
+        }
 
-            .status-badge {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                border: 2px solid white;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            }
+        .building-marker.has-alarm {
+            animation: alarm-pulse 2s infinite;
+        }
 
-            .marker-label {
-                position: absolute;
-                top: 100%;
-                left: 50%;
-                transform: translateX(-50%);
-                background: rgba(255, 255, 255, 0.95);
-                padding: 4px 12px;
-                border-radius: 6px;
-                font-size: 11px;
-                font-weight: 600;
-                white-space: nowrap;
-                margin-top: 6px;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                color: #1f2937;
-            }
+        .building-marker.has-alarm .status-badge {
+            background-color: #dc2626 !important;
+            animation: pulse 1s infinite;
+        }
+    </style>
+</head>
 
-            /* Scrollbar styling */
-            ::-webkit-scrollbar {
-                width: 8px;
-                height: 8px;
-            }
+<body class="h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 transition-colors duration-200">
 
-            ::-webkit-scrollbar-track {
-                background: #f1f5f9;
-            }
-
-            ::-webkit-scrollbar-thumb {
-                background: #cbd5e1;
-                border-radius: 4px;
-                border: 2px solid #f1f5f9;
-            }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: #94a3b8;
-            }
-
-            .alert-row {
-                border-bottom: 1px solid #374151;
-            }
-
-            .alert-row:last-child {
-                border-bottom: none;
-            }
-
-            /* Alarm pulsing animation */
-            @keyframes alarm-pulse {
-
-                0%,
-                100% {
-                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7);
-                    transform: translate(-50%, -50%) scale(1);
-                }
-
-                50% {
-                    box-shadow: 0 0 0 15px rgba(220, 38, 38, 0);
-                    transform: translate(-50%, -50%) scale(1.1);
-                }
-            }
-
-            .building-marker.has-alarm {
-                animation: alarm-pulse 2s infinite;
-            }
-
-            .building-marker.has-alarm .status-badge {
-                background-color: #dc2626 !important;
-                animation: pulse 1s infinite;
-            }
-        </style>
-    </head>
-
-    <body class="h-full flex flex-col overflow-hidden">
-
-        <!-- Header -->
-        <header
-            class="bg-white dark:bg-gray-800 dark:border-gray-700 py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
-            <div class="w-full flex justify-between items-center">
-                <div class="flex items-center">
-                    <img alt="Unidad de Seguridad Universidad Zaragoza" class="h-[50px] w-auto transition-all"
-                        src="logo_sec.png" />
-                </div>
-                <div class="flex gap-4">
-                    <a href="dashboard.html"
-                        class="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-gray-700 rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                        <i class="fa fa-arrow-left"></i> Volver
-                    </a>
-                    <a href="history.html"
-                        class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                        <i class="fa fa-history"></i> Histórico
-                    </a>
-                    <button onclick="triggerSimulation()"
-                        class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                        <i class="fa fa-bug"></i> Simular Incidencia
-                    </button>
-                    <div class="relative">
-                        <div id="alerts-panel"
-                            class="cursor-pointer flex items-center gap-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-2 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-                            <i class="fa fa-bell text-gray-400 dark:text-gray-300"></i>
-                            <span class="text-sm font-bold text-gray-700 dark:text-white">Alertas</span>
-                            <span id="alert-badge"
-                                class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full hidden">0</span>
-                        </div>
-                    </div>
-                    <button id="theme-toggle"
-                        class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
-                        title="Cambiar Tema">
-                        <i class="fa-solid fa-moon dark:hidden text-lg"></i>
-                        <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
-                    </button>
-                </div>
+    <!-- Header -->
+    <header
+        class="bg-white dark:bg-gray-800 dark:border-gray-700 py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
+        <div class="w-full flex justify-between items-center">
+            <div class="flex items-center">
+                <img alt="Unidad de Seguridad Universidad Zaragoza" class="h-[50px] w-auto transition-all"
+                    src="logo_sec.png" />
             </div>
-        </header>
-
-        <!-- Breadcrumbs -->
-        <nav
-            class="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 py-3 px-6 h-[48px] flex items-center shrink-0 transition-colors duration-200">
-            <div class="flex items-center text-xs text-gray-500 dark:text-gray-400 gap-2">
+            <div class="flex gap-4">
                 <a href="dashboard.html"
-                    class="hover:text-zaragoza-blue dark:hover:text-blue-400 transition-colors flex items-center gap-1.5">
-                    <i class="fa-solid fa-house"></i> Inicio
+                    class="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-gray-700 rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-arrow-left"></i> Volver
                 </a>
-                <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                <span id="campus-name-breadcrumb" class="font-semibold text-gray-800 dark:text-gray-200">Cargando
-                    Campus...</span>
+                <a href="history.html"
+                    class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-history"></i> Histórico
+                </a>
+                <button onclick="triggerSimulation()"
+                    class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-bug"></i> Simular Incidencia
+                </button>
+                <div class="relative">
+                    <div id="alerts-panel"
+                        class="cursor-pointer flex items-center gap-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-2 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                        <i class="fa fa-bell text-gray-400 dark:text-gray-300"></i>
+                        <span class="text-sm font-bold text-gray-700 dark:text-white">Alertas</span>
+                        <span id="alert-badge"
+                            class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full hidden">0</span>
+                    </div>
+                </div>
+
+                <div id="user-display" class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                    <div class="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                        <i class="fa fa-user text-gray-500 dark:text-gray-400"></i>
+                    </div>
+                    <div>
+                        <span class="font-bold" id="current-user-role">...</span>
+                    </div>
+                </div>
+
+                <button id="theme-toggle"
+                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                    title="Cambiar Tema">
+                    <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+                </button>
+                <button onclick="logout()"
+                    class="flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fa fa-lock text-gray-400"></i> Logout
+                </button>
             </div>
-        </nav>
+        </div>
+    </header>
 
-        <!-- Content Layout -->
-        <div class="layout-grid flex-grow">
-            <!-- Campus Map Area -->
-            <div class="map-area bg-[#0f172a] overflow-hidden flex items-center justify-center relative">
-                <!-- Decorative grid background -->
-                <div class="absolute inset-0 opacity-10 pointer-events-none"
-                    style="background-image: radial-gradient(#94a3b8 1px, transparent 1px); background-size: 20px 20px;">
-                </div>
+    <!-- Breadcrumbs -->
+    <nav
+        class="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 py-3 px-6 h-[48px] flex items-center shrink-0 transition-colors duration-200">
+        <div class="flex items-center text-xs text-gray-500 dark:text-gray-400 gap-2">
+            <a href="dashboard.html"
+                class="hover:text-zaragoza-blue dark:hover:text-blue-400 transition-colors flex items-center gap-1.5">
+                <i class="fa-solid fa-house"></i> Inicio
+            </a>
+            <i class="fa-solid fa-chevron-right text-[10px]"></i>
+            <span id="campus-name-breadcrumb" class="font-semibold text-gray-800 dark:text-gray-200">Cargando
+                Campus...</span>
+        </div>
+    </nav>
 
-                <div id="campus-map-container"
-                    class="w-full h-full relative bg-center bg-no-repeat bg-cover transition-transform shadow-[0_0_100px_rgba(0,0,0,0.5)] rounded-lg"
-                    style="transform-origin: 0 0;">
-                    <!-- Markers will be injected here -->
-                </div>
-
-                <!-- Map Overlay info -->
-                <div
-                    class="absolute top-8 left-8 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/30 max-w-sm">
-                    <div class="flex items-center gap-3 mb-2">
-                        <div class="w-8 h-1 bg-zaragoza-blue dark:bg-blue-500 rounded-full"></div>
-                        <span
-                            class="text-[10px] font-bold text-zaragoza-blue dark:text-blue-400 uppercase tracking-[0.2em]">Vista
-                            de
-                            Campus</span>
-                    </div>
-                    <h1 id="campus-title" class="text-2xl font-extrabold text-gray-900 dark:text-white leading-tight">
-                        Cargando...</h1>
-                    <p id="campus-desc"
-                        class="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-relaxed font-medium capitalize">
-                        Cargando
-                        descripción...</p>
-                </div>
+    <!-- Content Layout -->
+    <div class="layout-grid flex-grow">
+        <!-- Campus Map Area -->
+        <div class="map-area bg-[#0f172a] overflow-hidden flex items-center justify-center relative">
+            <!-- Decorative grid background -->
+            <div class="absolute inset-0 opacity-10 pointer-events-none"
+                style="background-image: radial-gradient(#94a3b8 1px, transparent 1px); background-size: 20px 20px;">
             </div>
 
-            <!-- Building Sidebar Area -->
-            <div class="sidebar-area flex flex-col bg-[#f8fafc] dark:bg-gray-900 border-l dark:border-gray-800">
-                <div
-                    class="px-5 py-4 border-b dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
-                    <span class="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Listado
-                        de Edificios</span>
-                    <span id="building-count"
-                        class="bg-zaragoza-blue/10 dark:bg-blue-500/20 text-zaragoza-blue dark:text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">...</span>
-                </div>
-                <div id="building-list" class="flex-grow overflow-y-auto dark:bg-gray-900">
-                    <!-- Loading State -->
-                    <div class="p-8 text-center text-gray-400">
-                        <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i>
-                        <p class="text-sm">Cargando edificios...</p>
-                    </div>
-                </div>
+            <div id="campus-map-container"
+                class="w-full h-full relative bg-center bg-no-repeat bg-cover transition-transform shadow-[0_0_100px_rgba(0,0,0,0.5)] rounded-lg"
+                style="transform-origin: 0 0;">
+                <!-- Markers will be injected here -->
             </div>
 
-            <!-- System Alerts Panel Area -->
-            <div class="alerts-area flex flex-col">
-                <div class="flex items-center justify-between px-6 py-3 bg-gray-900 sticky top-0 z-10">
-                    <div class="flex items-center gap-2">
-                        <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                        <span class="text-xs font-bold uppercase tracking-widest text-gray-300">Alertas del
-                            Sistema</span>
-                    </div>
-                    <div class="flex items-center gap-4 text-xs">
-                        <select id="filter-alerts"
-                            class="bg-gray-800 border-gray-700 text-gray-300 rounded px-2 py-1 text-[11px] focus:ring-0">
-                            <option value="all">Todas</option>
-                            <option value="ALARM">Alarmas</option>
-                            <option value="FAULT">Averías</option>
-                        </select>
-                        <button
-                            class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1 rounded transition-colors border border-gray-700">
-                            Limpiar Resueltas
-                        </button>
-                        <button id="sim-incidence"
-                            class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-1 rounded border border-red-500/30 transition-colors">
-                            Simular Incidencia
-                        </button>
-                    </div>
+            <!-- Map Overlay info -->
+            <div
+                class="absolute top-8 left-8 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/30 max-w-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-8 h-1 bg-zaragoza-blue dark:bg-blue-500 rounded-full"></div>
+                    <span
+                        class="text-[10px] font-bold text-zaragoza-blue dark:text-blue-400 uppercase tracking-[0.2em]">Vista
+                        de
+                        Campus</span>
                 </div>
+                <h1 id="campus-title" class="text-2xl font-extrabold text-gray-900 dark:text-white leading-tight">
+                    Cargando...</h1>
+                <p id="campus-desc"
+                    class="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-relaxed font-medium capitalize">
+                    Cargando
+                    descripción...</p>
+            </div>
+        </div>
 
-                <div class="flex-grow overflow-x-auto min-w-[1000px]">
-                    <table class="w-full text-left text-xs">
-                        <thead
-                            class="bg-gray-800/50 text-gray-400 font-semibold uppercase tracking-wider sticky top-[40px]">
-                            <tr>
-                                <th class="px-6 py-3">Edificio</th>
-                                <th class="px-6 py-3">Planta</th>
-                                <th class="px-6 py-3">ID</th>
-                                <th class="px-6 py-3">Tipo</th>
-                                <th class="px-6 py-3">Ubicación</th>
-                                <th class="px-6 py-3">Hora</th>
-                                <th class="px-6 py-3">Origen</th>
-                                <th class="px-6 py-3">Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody id="alerts-tbody" class="divide-y divide-gray-800">
-                            <!-- Alert rows injected here -->
-                            <tr>
-                                <td colspan="8" class="px-6 py-8 text-center text-gray-500 italic">No hay alertas
-                                    activas en
-                                    el campus</td>
-                            </tr>
-                        </tbody>
-                    </table>
+        <!-- Building Sidebar Area -->
+        <div class="sidebar-area flex flex-col bg-[#f8fafc] dark:bg-gray-900 border-l dark:border-gray-800">
+            <div
+                class="px-5 py-4 border-b dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Listado
+                    de Edificios</span>
+                <span id="building-count"
+                    class="bg-zaragoza-blue/10 dark:bg-blue-500/20 text-zaragoza-blue dark:text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">...</span>
+            </div>
+            <div id="building-list" class="flex-grow overflow-y-auto dark:bg-gray-900">
+                <!-- Loading State -->
+                <div class="p-8 text-center text-gray-400">
+                    <i class="fa-solid fa-circle-notch fa-spin text-2xl mb-2"></i>
+                    <p class="text-sm">Cargando edificios...</p>
                 </div>
             </div>
         </div>
 
-        <script type="module">
-            import * as api from './js/api.js';
-            import * as theme from './js/theme.js';
+        <!-- System Alerts Panel Area -->
+        <div class="alerts-area flex flex-col">
+            <div class="flex items-center justify-between px-6 py-3 bg-gray-900 sticky top-0 z-10">
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span class="text-xs font-bold uppercase tracking-widest text-gray-300">Alertas del
+                        Sistema</span>
+                </div>
+                <div class="flex items-center gap-4 text-xs">
+                    <select id="filter-alerts"
+                        class="bg-gray-800 border-gray-700 text-gray-300 rounded px-2 py-1 text-[11px] focus:ring-0">
+                        <option value="all">Todas</option>
+                        <option value="ALARM">Alarmas</option>
+                        <option value="FAULT">Averías</option>
+                    </select>
+                    <button
+                        class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1 rounded transition-colors border border-gray-700">
+                        Limpiar Resueltas
+                    </button>
+                    <button id="sim-incidence"
+                        class="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-1 rounded border border-red-500/30 transition-colors">
+                        Simular Incidencia
+                    </button>
+                </div>
+            </div>
 
-            window.logout = function () {
-                api.logout();
-                window.location.href = 'index.html';
+            <div class="flex-grow overflow-x-auto min-w-[1000px]">
+                <table class="w-full text-left text-xs">
+                    <thead
+                        class="bg-gray-800/50 text-gray-400 font-semibold uppercase tracking-wider sticky top-[40px]">
+                        <tr>
+                            <th class="px-6 py-3">Edificio</th>
+                            <th class="px-6 py-3">Planta</th>
+                            <th class="px-6 py-3">ID</th>
+                            <th class="px-6 py-3">Tipo</th>
+                            <th class="px-6 py-3">Ubicación</th>
+                            <th class="px-6 py-3">Hora</th>
+                            <th class="px-6 py-3">Origen</th>
+                            <th class="px-6 py-3">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alerts-tbody" class="divide-y divide-gray-800">
+                        <!-- Alert rows injected here -->
+                        <tr>
+                            <td colspan="8" class="px-6 py-8 text-center text-gray-500 italic">No hay alertas
+                                activas en
+                                el campus</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as api from './js/api.js';
+        import * as theme from './js/theme.js';
+
+        window.logout = function () {
+            api.logout();
+            window.location.href = 'index.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const campusId = urlParams.get('campusId');
+
+        let buildings = [];
+        let curCampus = null;
+
+        // View State (Zoom/Pan)
+        let scale = 0.8;
+        let pointX = 0;
+        let pointY = 0;
+        let isPanning = false;
+        let viewStartX, viewStartY;
+
+        // Building Marker Drag State
+        let isDragging = false;
+        let isLongPress = false;
+        let draggedBuildingId = null;
+        let dragMarker = null;
+        let dragTimeout = null;
+        let startX, startY; // These are for building marker dragging
+
+        async function init() {
+            if (!campusId) {
+                window.location.href = 'dashboard.html';
+                return;
             }
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const campusId = urlParams.get('campusId');
-
-            let buildings = [];
-            let curCampus = null;
-
-            // View State (Zoom/Pan)
-            let scale = 0.8;
-            let pointX = 0;
-            let pointY = 0;
-            let isPanning = false;
-            let viewStartX, viewStartY;
-
-            // Building Marker Drag State
-            let isDragging = false;
-            let isLongPress = false;
-            let draggedBuildingId = null;
-            let dragMarker = null;
-            let dragTimeout = null;
-            let startX, startY; // These are for building marker dragging
-
-            async function init() {
-                if (!campusId) {
-                    window.location.href = 'dashboard.html';
+            try {
+                // Set User
+                const user = api.getCurrentUser();
+                if (!user) {
+                    window.location.href = 'index.html';
                     return;
                 }
+                const isAdmin = user && user.role === 'admin';
+                document.getElementById('current-user-role').textContent = user.username.toUpperCase();
 
-                try {
-                    // Set User
-                    const user = api.getCurrentUser();
-                    if (!user) {
-                        window.location.href = 'index.html';
-                        return;
-                    }
-                    const isAdmin = user && user.role === 'admin';
-                    document.getElementById('user-display').textContent = user.username.toUpperCase();
-
-                    // Show Save button if admin
-                    if (isAdmin) {
-                        const overlay = document.querySelector('.map-area .absolute.top-8.left-8');
-                        const saveBtn = document.createElement('button');
-                        saveBtn.className = 'mt-4 w-full bg-zaragoza-blue hover:bg-zaragoza-blue/90 text-white text-[10px] font-bold py-2 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2';
-                        saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> GUARDAR VISTA ACTUAL';
-                        saveBtn.onclick = saveView;
-                        overlay.appendChild(saveBtn);
-                    }
-
-                    // 1. Get Campus Info
-                    const campuses = await api.getCampuses();
-                    curCampus = campuses.find(c => c.id == campusId);
-
-                    if (curCampus) {
-                        document.getElementById('campus-name-breadcrumb').textContent = curCampus.name;
-                        document.getElementById('campus-title').textContent = curCampus.name;
-                        document.getElementById('campus-desc').textContent = curCampus.description;
-
-                        // Load saved view
-                        scale = curCampus.scale || 0.8;
-                        pointX = curCampus.offset_x || 0;
-                        pointY = curCampus.offset_y || 0;
-                        updateTransform();
-
-                        // Use background_image (3D view) if available, otherwise fallback to thumbnail/generic
-                        const bgImage = curCampus.background_image || curCampus.image_filename;
-                        if (bgImage) {
-                            document.getElementById('campus-map-container').style.backgroundImage = `url('${bgImage}')`;
-                        }
-                    }
-
-                    // 2. Load Buildings
-                    await refreshBuildings();
-
-                    // 3. Load Alerts Loop
-                    refreshAlerts();
-                    setInterval(refreshAlerts, 5000);
-
-                    // 4. Setup View Events
-                    setupViewControls();
-
-                } catch (err) {
-                    console.error(err);
+                // Show Save button if admin
+                if (isAdmin) {
+                    const overlay = document.querySelector('.map-area .absolute.top-8.left-8');
+                    const saveBtn = document.createElement('button');
+                    saveBtn.className = 'mt-4 w-full bg-zaragoza-blue hover:bg-zaragoza-blue/90 text-white text-[10px] font-bold py-2 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2';
+                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> GUARDAR VISTA ACTUAL';
+                    saveBtn.onclick = saveView;
+                    overlay.appendChild(saveBtn);
                 }
-            }
 
-            function updateTransform() {
-                const container = document.getElementById('campus-map-container');
-                container.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-            }
+                // 1. Get Campus Info
+                const campuses = await api.getCampuses();
+                curCampus = campuses.find(c => c.id == campusId);
 
-            function setupViewControls() {
-                const mapArea = document.querySelector('.map-area');
-                const container = document.getElementById('campus-map-container');
+                if (curCampus) {
+                    document.getElementById('campus-name-breadcrumb').textContent = curCampus.name;
+                    document.getElementById('campus-title').textContent = curCampus.name;
+                    document.getElementById('campus-desc').textContent = curCampus.description;
 
-                mapArea.addEventListener('wheel', (e) => {
-                    e.preventDefault();
-                    const xs = (e.clientX - pointX) / scale;
-                    const ys = (e.clientY - pointY) / scale;
-                    const delta = -e.deltaY;
-                    (delta > 0) ? (scale *= 1.1) : (scale /= 1.1);
-                    if (scale < 0.1) scale = 0.1;
-                    if (scale > 5) scale = 5;
-                    pointX = e.clientX - xs * scale;
-                    pointY = e.clientY - ys * scale;
+                    // Load saved view
+                    scale = curCampus.scale || 0.8;
+                    pointX = curCampus.offset_x || 0;
+                    pointY = curCampus.offset_y || 0;
                     updateTransform();
-                }, { passive: false });
 
-                mapArea.addEventListener('mousedown', (e) => {
-                    // Only pan if middle button or if alt is pressed or if dragging map and NOT a marker
-                    // But safer: if target is NOT a marker and NOT long pressing to drag marker
-                    if (e.target.closest('.building-marker')) return;
-
-                    isPanning = true;
-                    viewStartX = e.clientX - pointX;
-                    viewStartY = e.clientY - pointY;
-                    mapArea.style.cursor = 'grabbing';
-                });
-
-                window.addEventListener('mousemove', (e) => {
-                    if (!isPanning) return;
-                    pointX = e.clientX - viewStartX;
-                    pointY = e.clientY - viewStartY;
-                    updateTransform();
-                });
-
-                window.addEventListener('mouseup', () => {
-                    isPanning = false;
-                    mapArea.style.cursor = 'default';
-                });
-            }
-
-            async function saveView() {
-                try {
-                    await api.updateCampus(campusId, {
-                        scale: parseFloat(scale.toFixed(4)),
-                        offset_x: parseFloat(pointX.toFixed(2)),
-                        offset_y: parseFloat(pointY.toFixed(2))
-                    });
-                    alert('Vista guardada correctamente');
-                } catch (err) {
-                    console.error(err);
-                    alert('Error al guardar la vista');
-                }
-            }
-
-            async function refreshBuildings() {
-                try {
-                    buildings = await api.getBuildings(campusId);
-                    let events = [];
-                    try {
-                        events = await api.getEvents({ resolved: 0, campusId: campusId, type: 'ALARM' });
-                    } catch (e) {
-                        console.warn("Could not fetch events for status badges:", e.message);
+                    // Use background_image (3D view) if available, otherwise fallback to thumbnail/generic
+                    const bgImage = curCampus.background_image || curCampus.image_filename;
+                    if (bgImage) {
+                        document.getElementById('campus-map-container').style.backgroundImage = `url('${bgImage}')`;
                     }
-
-                    document.getElementById('building-count').textContent = `${buildings.length} Edificios`;
-                    renderBuildings(buildings, events);
-                    renderMapMarkers(buildings, events);
-                } catch (err) {
-                    console.error("Critical error in refreshBuildings:", err);
-                    document.getElementById('building-list').innerHTML = `<div class="p-8 text-center text-red-500 text-sm">Error cargando edificios</div>`;
                 }
+
+                // 2. Load Buildings
+                await refreshBuildings();
+
+                // 3. Load Alerts Loop
+                refreshAlerts();
+                setInterval(refreshAlerts, 5000);
+
+                // 4. Setup View Events
+                setupViewControls();
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function updateTransform() {
+            const container = document.getElementById('campus-map-container');
+            container.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        }
+
+        function setupViewControls() {
+            const mapArea = document.querySelector('.map-area');
+            const container = document.getElementById('campus-map-container');
+
+            mapArea.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const xs = (e.clientX - pointX) / scale;
+                const ys = (e.clientY - pointY) / scale;
+                const delta = -e.deltaY;
+                (delta > 0) ? (scale *= 1.1) : (scale /= 1.1);
+                if (scale < 0.1) scale = 0.1;
+                if (scale > 5) scale = 5;
+                pointX = e.clientX - xs * scale;
+                pointY = e.clientY - ys * scale;
+                updateTransform();
+            }, { passive: false });
+
+            mapArea.addEventListener('mousedown', (e) => {
+                // Only pan if middle button or if alt is pressed or if dragging map and NOT a marker
+                // But safer: if target is NOT a marker and NOT long pressing to drag marker
+                if (e.target.closest('.building-marker')) return;
+
+                isPanning = true;
+                viewStartX = e.clientX - pointX;
+                viewStartY = e.clientY - pointY;
+                mapArea.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isPanning) return;
+                pointX = e.clientX - viewStartX;
+                pointY = e.clientY - viewStartY;
+                updateTransform();
+            });
+
+            window.addEventListener('mouseup', () => {
+                isPanning = false;
+                mapArea.style.cursor = 'default';
+            });
+        }
+
+        async function saveView() {
+            try {
+                await api.updateCampus(campusId, {
+                    scale: parseFloat(scale.toFixed(4)),
+                    offset_x: parseFloat(pointX.toFixed(2)),
+                    offset_y: parseFloat(pointY.toFixed(2))
+                });
+                alert('Vista guardada correctamente');
+            } catch (err) {
+                console.error(err);
+                alert('Error al guardar la vista');
+            }
+        }
+
+        async function refreshBuildings() {
+            try {
+                buildings = await api.getBuildings(campusId);
+                let events = [];
+                try {
+                    events = await api.getEvents({ resolved: 0, campusId: campusId, type: 'ALARM' });
+                } catch (e) {
+                    console.warn("Could not fetch events for status badges:", e.message);
+                }
+
+                document.getElementById('building-count').textContent = `${buildings.length} Edificios`;
+                renderBuildings(buildings, events);
+                renderMapMarkers(buildings, events);
+            } catch (err) {
+                console.error("Critical error in refreshBuildings:", err);
+                document.getElementById('building-list').innerHTML = `<div class="p-8 text-center text-red-500 text-sm">Error cargando edificios</div>`;
+            }
+        }
+
+        function renderBuildings(list, events) {
+            const container = document.getElementById('building-list');
+            container.innerHTML = '';
+
+            if (list.length === 0) {
+                container.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">No hay edificios registrados</div>';
+                return;
             }
 
-            function renderBuildings(list, events) {
-                const container = document.getElementById('building-list');
-                container.innerHTML = '';
+            list.forEach(b => {
+                const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
+                const card = document.createElement('div');
+                card.className = "p-4 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group flex gap-4";
+                card.onclick = () => window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
 
-                if (list.length === 0) {
-                    container.innerHTML = '<div class="p-8 text-center text-gray-500 text-sm italic">No hay edificios registrados</div>';
-                    return;
-                }
+                const statusText = hasAlarm ? 'Alerta Activa' : 'Normal';
+                const statusColor = hasAlarm ? 'text-red-600' : 'text-green-600 dark:text-green-400';
 
-                list.forEach(b => {
-                    const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
-                    const card = document.createElement('div');
-                    card.className = "p-4 border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group flex gap-4";
-                    card.onclick = () => window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
-
-                    const statusText = hasAlarm ? 'Alerta Activa' : 'Normal';
-                    const statusColor = hasAlarm ? 'text-red-600' : 'text-green-600 dark:text-green-400';
-
-                    card.innerHTML = `
+                card.innerHTML = `
                     <div class="h-20 w-28 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 relative border border-gray-100 dark:border-gray-700">
                         <div class="absolute inset-0 flex items-center justify-center text-gray-300 dark:text-gray-600">
                             <i class="fa-solid fa-building text-2xl ${hasAlarm ? 'text-red-200' : ''}"></i>
@@ -531,30 +544,30 @@
                         </div>
                     </div>
                 `;
-                    container.appendChild(card);
-                });
-            }
+                container.appendChild(card);
+            });
+        }
 
-            function renderMapMarkers(list, events) {
-                const container = document.getElementById('campus-map-container');
-                const existingMarkers = container.querySelectorAll('.building-marker');
-                existingMarkers.forEach(m => m.remove());
+        function renderMapMarkers(list, events) {
+            const container = document.getElementById('campus-map-container');
+            const existingMarkers = container.querySelectorAll('.building-marker');
+            existingMarkers.forEach(m => m.remove());
 
-                const user = api.getCurrentUser();
-                const isAdmin = user && user.role === 'admin';
+            const user = api.getCurrentUser();
+            const isAdmin = user && user.role === 'admin';
 
-                list.forEach((b, idx) => {
-                    const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
-                    const marker = document.createElement('div');
-                    marker.className = `building-marker group ${hasAlarm ? 'has-alarm' : ''}`;
-                    marker.dataset.id = b.id;
+            list.forEach((b, idx) => {
+                const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
+                const marker = document.createElement('div');
+                marker.className = `building-marker group ${hasAlarm ? 'has-alarm' : ''}`;
+                marker.dataset.id = b.id;
 
-                    const left = b.x != null ? b.x : (20 + (idx * 15) % 65);
-                    const top = b.y != null ? b.y : (20 + (idx * 23) % 65);
-                    marker.style.left = `${left}%`;
-                    marker.style.top = `${top}%`;
+                const left = b.x != null ? b.x : (20 + (idx * 15) % 65);
+                const top = b.y != null ? b.y : (20 + (idx * 23) % 65);
+                marker.style.left = `${left}%`;
+                marker.style.top = `${top}%`;
 
-                    marker.innerHTML = `
+                marker.innerHTML = `
                     <div class="status-badge ${hasAlarm ? 'bg-red-600 animate-pulse' : 'bg-green-500'} group-hover:scale-110 transition-transform">
                         <i class="fa-solid ${hasAlarm ? 'fa-triangle-exclamation' : 'fa-check'} text-white text-[10px]"></i>
                     </div>
@@ -564,119 +577,119 @@
                     </div>
                 `;
 
-                    if (isAdmin) {
-                        marker.onmousedown = (e) => {
-                            if (e.button !== 0) return;
+                if (isAdmin) {
+                    marker.onmousedown = (e) => {
+                        if (e.button !== 0) return;
 
-                            startX = e.clientX;
-                            startY = e.clientY;
-                            isLongPress = false;
+                        startX = e.clientX;
+                        startY = e.clientY;
+                        isLongPress = false;
 
-                            dragTimeout = setTimeout(() => {
-                                isDragging = true;
-                                isLongPress = true;
-                                draggedBuildingId = b.id;
-                                dragMarker = marker;
-                                marker.classList.add('z-50', 'scale-125');
-                                marker.style.transition = 'none';
-                            }, 500);
-                        };
-                    }
-
-                    marker.onclick = (e) => {
-                        if (isLongPress || isDragging) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            return;
-                        }
-                        window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
+                        dragTimeout = setTimeout(() => {
+                            isDragging = true;
+                            isLongPress = true;
+                            draggedBuildingId = b.id;
+                            dragMarker = marker;
+                            marker.classList.add('z-50', 'scale-125');
+                            marker.style.transition = 'none';
+                        }, 500);
                     };
+                }
 
-                    container.appendChild(marker);
-                });
+                marker.onclick = (e) => {
+                    if (isLongPress || isDragging) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                    window.location.href = `app.html?campusId=${campusId}&buildingId=${b.id}`;
+                };
+
+                container.appendChild(marker);
+            });
+        }
+
+        document.addEventListener('mouseup', async (e) => {
+            if (dragTimeout) {
+                clearTimeout(dragTimeout);
+                dragTimeout = null;
             }
 
-            document.addEventListener('mouseup', async (e) => {
-                if (dragTimeout) {
+            if (!isDragging || !dragMarker) {
+                // Not a drag, reset long press flag after a small delay
+                setTimeout(() => { isLongPress = false; }, 100);
+                return;
+            }
+
+            const x = parseFloat(dragMarker.style.left);
+            const y = parseFloat(dragMarker.style.top);
+            const bid = draggedBuildingId;
+
+            dragMarker.classList.remove('z-50', 'scale-125');
+            dragMarker.style.transition = '';
+
+            const savedMarker = dragMarker;
+            const savedBid = bid;
+
+            setTimeout(() => {
+                isDragging = false;
+                isLongPress = false;
+                draggedBuildingId = null;
+                dragMarker = null;
+            }, 100);
+
+            try {
+                const response = await api.updateBuilding(savedBid, { x, y });
+                if (response.success) {
+                    console.log(`Building ${savedBid} position auto-saved: ${x}, ${y}`);
+                    const building = buildings.find(b => b.id == savedBid);
+                    if (building) {
+                        building.x = x;
+                        building.y = y;
+                    }
+                }
+            } catch (err) {
+                console.error("Error saving position:", err);
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (dragTimeout && !isDragging) {
+                const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
+                if (dist > 10) {
                     clearTimeout(dragTimeout);
                     dragTimeout = null;
                 }
+            }
 
-                if (!isDragging || !dragMarker) {
-                    // Not a drag, reset long press flag after a small delay
-                    setTimeout(() => { isLongPress = false; }, 100);
-                    return;
-                }
+            if (!isDragging || !dragMarker) return;
 
-                const x = parseFloat(dragMarker.style.left);
-                const y = parseFloat(dragMarker.style.top);
-                const bid = draggedBuildingId;
+            const container = document.getElementById('campus-map-container');
+            const rect = container.getBoundingClientRect();
 
-                dragMarker.classList.remove('z-50', 'scale-125');
-                dragMarker.style.transition = '';
+            let x = ((e.clientX - rect.left) / rect.width) * 100;
+            let y = ((e.clientY - rect.top) / rect.height) * 100;
 
-                const savedMarker = dragMarker;
-                const savedBid = bid;
+            x = Math.max(0, Math.min(100, x));
+            y = Math.max(0, Math.min(100, y));
 
-                setTimeout(() => {
-                    isDragging = false;
-                    isLongPress = false;
-                    draggedBuildingId = null;
-                    dragMarker = null;
-                }, 100);
+            dragMarker.style.left = `${x.toFixed(2)}%`;
+            dragMarker.style.top = `${y.toFixed(2)}%`;
+        });
 
-                try {
-                    const response = await api.updateBuilding(savedBid, { x, y });
-                    if (response.success) {
-                        console.log(`Building ${savedBid} position auto-saved: ${x}, ${y}`);
-                        const building = buildings.find(b => b.id == savedBid);
-                        if (building) {
-                            building.x = x;
-                            building.y = y;
-                        }
-                    }
-                } catch (err) {
-                    console.error("Error saving position:", err);
-                }
-            });
+        async function refreshAlerts() {
+            try {
+                const activeEvents = await api.getEvents({ resolved: 0, campusId: campusId });
+                const tbody = document.getElementById('alerts-tbody');
 
-            document.addEventListener('mousemove', (e) => {
-                if (dragTimeout && !isDragging) {
-                    const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
-                    if (dist > 10) {
-                        clearTimeout(dragTimeout);
-                        dragTimeout = null;
-                    }
-                }
-
-                if (!isDragging || !dragMarker) return;
-
-                const container = document.getElementById('campus-map-container');
-                const rect = container.getBoundingClientRect();
-
-                let x = ((e.clientX - rect.left) / rect.width) * 100;
-                let y = ((e.clientY - rect.top) / rect.height) * 100;
-
-                x = Math.max(0, Math.min(100, x));
-                y = Math.max(0, Math.min(100, y));
-
-                dragMarker.style.left = `${x.toFixed(2)}%`;
-                dragMarker.style.top = `${y.toFixed(2)}%`;
-            });
-
-            async function refreshAlerts() {
-                try {
-                    const activeEvents = await api.getEvents({ resolved: 0, campusId: campusId });
-                    const tbody = document.getElementById('alerts-tbody');
-
-                    if (activeEvents.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-500 italic text-[11px]">No hay alertas activas en el campus</td></tr>';
-                    } else {
-                        tbody.innerHTML = activeEvents.map(e => {
-                            const time = new Date(e.timestamp).toLocaleTimeString();
-                            const isAlarm = e.type === 'ALARM';
-                            const statusClass = isAlarm ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20';
-                            return `
+                if (activeEvents.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-500 italic text-[11px]">No hay alertas activas en el campus</td></tr>';
+                } else {
+                    tbody.innerHTML = activeEvents.map(e => {
+                        const time = new Date(e.timestamp).toLocaleTimeString();
+                        const isAlarm = e.type === 'ALARM';
+                        const statusClass = isAlarm ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20';
+                        return `
                         <tr class="alert-row hover:bg-gray-800/30 transition-colors">
                             <td class="px-6 py-3 font-semibold text-gray-200">${e.building_name || 'N/A'}</td>
                             <td class="px-6 py-3 text-gray-400">${e.floor_name || 'N/A'}</td>
@@ -692,30 +705,30 @@
                             </td>
                         </tr>
                     `;
-                        }).join('');
-                    }
+                    }).join('');
+                }
 
-                    // Sync markers and building list with active events
-                    renderBuildings(buildings, activeEvents.filter(e => e.type === 'ALARM'));
-                    renderMapMarkers(buildings, activeEvents.filter(e => e.type === 'ALARM'));
+                // Sync markers and building list with active events
+                renderBuildings(buildings, activeEvents.filter(e => e.type === 'ALARM'));
+                renderMapMarkers(buildings, activeEvents.filter(e => e.type === 'ALARM'));
 
-                } catch (err) { console.error("Error refreshing alerts:", err); }
-            }
+            } catch (err) { console.error("Error refreshing alerts:", err); }
+        }
 
-            // Simulation Button
-            // Simulation Button
-            document.getElementById('sim-incidence').onclick = () => {
-                window.location.href = 'simulation.html';
-            };
+        // Simulation Button
+        // Simulation Button
+        document.getElementById('sim-incidence').onclick = () => {
+            window.location.href = 'simulation.html';
+        };
 
 
-            init();
+        init();
 
-            // Theme Toggle Handler
-            document.getElementById('theme-toggle').addEventListener('click', () => {
-                theme.toggleTheme();
-            });
-        </script>
-    </body>
+        // Theme Toggle Handler
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            theme.toggleTheme();
+        });
+    </script>
+</body>
 
 </html>
