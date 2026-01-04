@@ -21,6 +21,7 @@
                     }
                 }
             }
+        }
     </script>
     <style>
         body {
@@ -42,7 +43,7 @@
 <body
     class="flex flex-col min-h-screen font-sans text-zaragoza-dark dark:text-gray-100 bg-[#f4f7f6] dark:bg-gray-900 transition-colors duration-200">
     <script>
-        if(localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
@@ -53,13 +54,9 @@
     <header
         class="bg-white dark:bg-gray-800 dark:border-gray-700 py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
         <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
-            <div class="flex items-center gap-[15px]">
-                <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-                <div
-                    class="border-l border-gray-300 dark:border-gray-600 pl-4 flex flex-col font-sans text-[#333333] dark:text-gray-200 leading-tight">
-                    <span class="font-bold text-lg">Universidad</span>
-                    <span class="text-lg">Zaragoza</span>
-                </div>
+            <div class="flex items-center">
+                <img alt="Unidad de Seguridad Universidad Zaragoza"
+                    class="h-[50px] w-auto dark:brightness-0 dark:invert transition-all" src="logo_sec.png" />
             </div>
             <div class="flex gap-4">
                 <div id="admin-controls" class="hidden">
@@ -125,12 +122,15 @@
     </main>
 
     <!-- Footer -->
-    <!-- Footer -->
     <footer
         class="bg-white dark:bg-gray-800 dark:border-t dark:border-gray-700 border-t border-gray-200 py-4 mt-auto transition-colors duration-200">
-        <div class="max-w-7xl mx-auto text-center px-4">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <p class="text-xs text-[#333333] dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
                 reservados.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Desarrollado por Luis Enrique Seco <span class="text-gray-700 dark:text-gray-300 font-bold">UNIDAD DE
+                    SEGURIDAD</span>
+            </p>
         </div>
     </footer>
 

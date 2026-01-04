@@ -61,23 +61,22 @@
 <body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
     <div id="toast"></div>
 
+    <!-- Header -->
     <header
-        class="bg-white dark:bg-gray-800 dark:border-b dark:border-gray-700 py-4 px-8 shadow-sm relative z-20 flex-shrink-0 transition-colors duration-200">
-        <div class="max-w-7xl mx-auto w-full">
-            <div class="flex items-center gap-[10px]">
-                <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-                <div class="flex flex-col font-sans text-[#333333] dark:text-gray-100 leading-tight">
-                    <span class="font-bold text-lg">Universidad</span>
-                    <span class="text-lg">Zaragoza</span>
-                </div>
+        class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 py-4 px-8 shadow-sm relative z-20 flex-shrink-0 transition-colors duration-200">
+        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <div class="flex items-center">
+                <img alt="Unidad de Seguridad Universidad Zaragoza"
+                    class="h-[50px] w-auto dark:brightness-0 dark:invert transition-all" src="logo_sec.png" />
             </div>
-            <!-- Dark Mode Toggle Logic -->
-            <button id="theme-toggle"
-                class="absolute right-8 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
-                title="Cambiar Tema">
-                <i class="fa-solid fa-moon dark:hidden text-lg"></i>
-                <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
-            </button>
+            <div class="flex gap-4">
+                <button id="theme-toggle"
+                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                    title="Cambiar Tema">
+                    <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+                </button>
+            </div>
         </div>
     </header>
     <script>
@@ -87,44 +86,74 @@
             document.documentElement.classList.remove('dark');
         }
     </script>
-    <div class="bg-image-container h-screen w-screen flex items-center justify-center">
-        <div class="bg-overlay dark:bg-gray-900/90"></div>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex items-center justify-center p-4 relative z-10">
         <div
-            class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl relative z-10 w-96 transform transition-all hover:scale-105 duration-300 border border-gray-100 dark:border-gray-700">
+            class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-2xl max-w-sm w-full border-t-4 border-zaragoza-blue dark:border-blue-600 transition-colors duration-200">
             <div class="text-center mb-8">
-                <h2 class="text-2xl font-bold text-zaragoza-blue dark:text-gray-100">Iniciar Sesión</h2>
-                <p class="text-gray-600 dark:text-gray-400 mt-2">Introduce tus credenciales</p>
+                <div
+                    class="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fa fa-user-shield text-3xl text-zaragoza-blue dark:text-blue-400"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Iniciar Sesión</h2>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Acceso al Sistema de Control PCI</p>
             </div>
-            <form id="login-form" class="space-y-6">
+
+            <form onsubmit="handleLogin(event)" class="space-y-6">
                 <div>
-                    <label for="username"
-                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">Usuario</label>
-                    <input type="text" id="username" name="username" required
-                        class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-zaragoza-blue focus:border-zaragoza-blue text-sm dark:text-white">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Usuario</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa fa-user text-gray-400"></i>
+                        </div>
+                        <input type="text" id="username"
+                            class="pl-10 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 sm:text-sm py-2 transition-colors"
+                            placeholder="admin">
+                    </div>
                 </div>
+
                 <div>
-                    <label for="password"
-                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contraseña</label>
-                    <input type="password" id="password" name="password" required
-                        class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-zaragoza-blue focus:border-zaragoza-blue text-sm dark:text-white">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contraseña</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa fa-lock text-gray-400"></i>
+                        </div>
+                        <input type="password" id="password"
+                            class="pl-10 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 sm:text-sm py-2 transition-colors"
+                            placeholder="••••••••">
+                    </div>
                 </div>
+
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <input id="remember-me" type="checkbox"
+                            class="h-4 w-4 text-zaragoza-blue focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600">
+                        <label for="remember-me" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                            Recordarme
+                        </label>
+                    </div>
+                </div>
+
                 <div>
                     <button type="submit"
-                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-zaragoza-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zaragoza-blue transition-colors duration-200">
-                        Acceder
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-zaragoza-blue hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                        Entrar al Sistema
                     </button>
                 </div>
             </form>
         </div>
-    </div>
-    </div>
     </main>
 
+    <!-- Footer -->
     <footer
-        class="bg-white dark:bg-gray-800 dark:border-t dark:border-gray-700 relative z-20 border-t border-gray-200 flex-shrink-0 py-[10px] transition-colors duration-200">
-        <div class="max-w-7xl mx-auto text-center px-4">
-            <p class="text-xs text-[#333333] dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
-                reservados.
+        class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-4 mt-auto relative z-20 transition-colors duration-200">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p class="text-xs text-gray-500 dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
+                reservados.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Desarrollado por Luis Enrique Seco <span class="text-gray-700 dark:text-gray-300 font-bold">UNIDAD DE
+                    SEGURIDAD</span>
             </p>
         </div>
     </footer>

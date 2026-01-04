@@ -51,58 +51,50 @@
 
     <!-- Header -->
     <header
-        class="bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm py-3 px-6 mb-8 flex justify-between items-center sticky top-0 z-10">
-        <div class="flex items-center gap-[15px]">
-            <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-            <div class="border-l border-gray-300 pl-4">
-                <div class="flex flex-col leading-none">
-                    <span
-                        class="font-bold text-gray-800 dark:text-white text-lg uppercase tracking-tight">Universidad</span>
-                    <span class="text-gray-600 dark:text-gray-400 text-sm">Zaragoza</span>
+        class="bg-white dark:bg-gray-800 dark:border-gray-700 py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
+        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <div class="flex items-center">
+                <img alt="Unidad de Seguridad Universidad Zaragoza"
+                    class="h-[50px] w-auto dark:brightness-0 dark:invert transition-all" src="logo_sec.png" />
+            </div>
+            <div class="flex gap-4">
+                <div class="relative">
+                    <input type="text" placeholder="Buscar campus o edificio..."
+                        class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 dark:text-white dark:placeholder-gray-400 transition-colors">
+                    <i class="fa fa-search absolute left-3 top-3 text-gray-400"></i>
                 </div>
             </div>
-        </div>
-        <div class="flex items-center gap-6">
-            <div class="relative hidden md:block">
-                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                    <i class="fa fa-search text-sm"></i>
-                </span>
-                <input
-                    class="pl-9 pr-4 py-1.5 rounded-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm focus:outline-none focus:border-zaragoza-blue dark:text-white transition-all w-64 shadow-inner"
-                    placeholder="Buscar campus o edificio..." type="text" oninput="filterCampuses(this.value)" />
-            </div>
-            <div class="flex items-center gap-4 border-l pl-6 border-gray-200 dark:border-gray-700">
-                <div class="text-right hidden sm:block">
-                    <p id="user-display"
-                        class="text-sm font-bold text-gray-800 dark:text-white uppercase tracking-wide">ADMIN</p>
-                    <p class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Oficina Técnica</p>
+            <div class="flex gap-4">
+                <div id="admin-controls" class="hidden">
+                    <a href="admin.html"
+                        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                        <i class="fa fa-cogs"></i> Oficina Técnica
+                    </a>
                 </div>
-            </div>
-            <div id="admin-controls" class="hidden">
+                <!-- Link to Admin Panel -->
                 <a href="admin.html"
-                    class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
                     <i class="fa fa-cogs"></i> Admin Panel
                 </a>
+                <a href="history.html"
+                    class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-history"></i> Histórico
+                </a>
+                <button onclick="window.location.href='simulation.html'"
+                    class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-bug"></i> Simular Incidencia
+                </button>
+                <button id="theme-toggle"
+                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                    title="Cambiar Tema">
+                    <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+                </button>
+                <button onclick="logout()"
+                    class="flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fa fa-lock text-gray-400"></i> Logout
+                </button>
             </div>
-            <button onclick="window.location.href='history.html'"
-                class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                <i class="fa fa-history"></i> Histórico
-            </button>
-            <button onclick="window.location.href='simulation.html'"
-                class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                <i class="fa fa-bug"></i> Simular Incidencia
-            </button>
-            <button id="theme-toggle"
-                class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
-                title="Cambiar Tema">
-                <i class="fa-solid fa-moon dark:hidden text-lg"></i>
-                <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
-            </button>
-            <button onclick="logout()"
-                class="flex items-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                <i class="fa fa-lock text-gray-400"></i> Logout
-            </button>
-        </div>
         </div>
 
         <!-- Toast Notification -->
@@ -117,30 +109,106 @@
                 </div>
             </div>
         </div>
-        </div>
     </header>
 
     <!-- Main Content -->
-    <main class="flex-grow p-8">
-        <div class="max-w-7xl mx-auto">
-            <h1 class="text-3xl font-normal text-gray-900 mb-8 mt-4">Sistema de Alarma de Incendios - Selección de
-                Campus</h1>
-            <!-- <p class="text-gray-600 mb-8">Seleccione un campus para ver sus edificios e instalaciones.</p> REMOVED TO MATCH DESIGN -->
-
-            <div id="campus-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Loading State -->
-                <div class="bg-white rounded-lg p-6 shadow animate-pulse">
-                    <div class="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
-                    <div class="h-32 bg-gray-200 rounded mb-4"></div>
+    <main class="max-w-7xl mx-auto mt-8 mb-8 flex-grow w-full px-4">
+        <!-- Welcome Section -->
+        <div class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-zaragoza-blue dark:text-white">Panel de Control General</h1>
+                <p class="text-gray-500 dark:text-gray-400 mt-1">Monitorización en tiempo real de los sistemas de
+                    protección contra incendios.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full">
+                    <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-sm font-medium text-green-700 dark:text-green-400">Sistema Operativo</span>
+                </div>
+                <div id="user-display" class="ml-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                    <div class="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                        <i class="fa fa-user text-gray-500 dark:text-gray-400"></i>
+                    </div>
+                    <span><span id="current-user-role" class="font-bold">Admin</span></span>
                 </div>
             </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div
+                class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Campus</p>
+                        <p class="text-2xl font-bold text-gray-800 dark:text-white" id="stat-campus">3</p>
+                    </div>
+                    <div class="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                        <i class="fa fa-map-marked-alt text-blue-500"></i>
+                    </div>
+                </div>
+            </div>
+            <div
+                class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Edificios Monitorizados</p>
+                        <p class="text-2xl font-bold text-gray-800 dark:text-white" id="stat-buildings">12</p>
+                    </div>
+                    <div
+                        class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center">
+                        <i class="fa fa-building text-indigo-500"></i>
+                    </div>
+                </div>
+            </div>
+            <div
+                class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Alertas Activas</p>
+                        <p class="text-2xl font-bold text-red-600 animate-pulse" id="stat-alerts">0</p>
+                    </div>
+                    <div class="w-10 h-10 bg-red-50 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                        <i class="fa fa-bell text-red-500"></i>
+                    </div>
+                </div>
+            </div>
+            <div
+                class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Estado Dispositivos</p>
+                        <p class="text-2xl font-bold text-green-600" id="stat-devices">98% OK</p>
+                    </div>
+                    <div
+                        class="w-10 h-10 bg-green-50 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                        <i class="fa fa-check-circle text-green-500"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campus Grid -->
+        <h2 class="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+            <i class="fa fa-layer-group text-zaragoza-blue dark:text-blue-400"></i> Selecciona un Campus
+        </h2>
+        <div id="campus-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- JS will populate cards here -->
+            <p class="text-gray-500 dark:text-gray-400 text-center col-span-3 py-12">Cargando información de
+                campus...</p>
         </div>
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
-        <div class="max-w-7xl mx-auto text-center px-4">
-            <p class="text-xs text-[#333333]">© 2025 Universidad Zaragoza. Todos los derechos reservados.</p>
+    <footer
+        class="bg-white dark:bg-gray-800 dark:border-gray-700 border-t border-gray-200 py-4 mt-auto transition-colors duration-200">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p class="text-xs text-[#333333] dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
+                reservados.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Desarrollado por Luis Enrique Seco <span class="text-gray-700 dark:text-gray-300 font-bold">UNIDAD DE
+                    SEGURIDAD</span>
+            </p>
         </div>
     </footer>
 

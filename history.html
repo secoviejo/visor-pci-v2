@@ -87,16 +87,9 @@
     <header
         class="bg-white dark:bg-gray-900 py-4 px-8 border-b border-gray-200 dark:border-gray-700 shadow-sm relative z-20 flex-shrink-0 transition-colors duration-200">
         <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
-            <div class="flex items-center gap-[15px]">
-                <!-- Logo: Invert brightness for dark mode if it's black, or verify logic. Original logic says keys: brightness-0 invert (makes it white). 
-                     For light mode we want original. -->
-                <img alt="Icono Universidad" class="h-[40px] w-auto dark:brightness-0 dark:invert transition-all"
-                    src="logo_unizar.png" />
-                <div
-                    class="border-l border-gray-300 dark:border-gray-600 pl-4 flex flex-col font-sans text-gray-800 dark:text-white leading-tight">
-                    <span class="font-bold text-lg">Universidad</span>
-                    <span class="text-lg">Zaragoza</span>
-                </div>
+            <div class="flex items-center">
+                <img alt="Unidad de Seguridad Universidad Zaragoza"
+                    class="h-[50px] w-auto dark:brightness-0 dark:invert transition-all" src="logo_sec.png" />
             </div>
             <div class="flex gap-4">
                 <button onclick="window.location.href='dashboard.html'"
@@ -180,6 +173,19 @@
             </div>
         </div>
     </main>
+
+    <!-- Footer -->
+    <footer
+        class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-4 mt-auto relative z-20 transition-colors duration-200">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <p class="text-xs text-gray-500 dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
+                reservados.</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Desarrollado por Luis Enrique Seco <span class="text-gray-700 dark:text-gray-300 font-bold">UNIDAD DE
+                    SEGURIDAD</span>
+            </p>
+        </div>
+    </footer>
 
     <script type="module" src="js/history.js"></script>
     <script type="module">
