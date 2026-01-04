@@ -1158,6 +1158,84 @@ app.post('/api/simulation/building/:id/alarm', authenticateToken, (req, res) => 
     }
 });
 
+// [NEW] Stop Simulation for Specific Building
+app.post('/api/simulation/building/:id/resolve', authenticateToken, (req, res) => {
+    try {
+        const buildingId = req.params.id;
+        console.log(`[Simulation] Stopping simulation for Building ID: ${buildingId}`);
+
+        // 1. Get all floors for this building
+        const floors = db.prepare('SELECT id FROM floors WHERE building_id = ?').all(buildingId);
+
+        if (floors.length === 0) {
+            console.log(`[Simulation] No floors found for building ${buildingId}`);
+            return res.json({
+                success: true,
+                resolvedCount: 0,
+                message: 'Este edificio no tiene plantas configuradas.'
+            });
+        }
+
+        const floorIds = floors.map(f => f.id);
+
+        // 2. Get all devices for these floors
+        const devices = db.prepare(`SELECT device_id FROM devices WHERE floor_id IN (${floorIds.join(',')})`).all();
+
+        if (devices.length === 0) {
+            console.log(`[Simulation] No devices found for building ${buildingId}`);
+            return res.json({
+                success: true,
+                resolvedCount: 0,
+                message: 'Este edificio no tiene dispositivos configurados.'
+            });
+        }
+
+        const deviceIds = devices.map(d => d.device_id);
+
+        // 3. Resolve alerts for these devices (only SIMULACIÓN origin)
+        const now = new Date().toISOString();
+        const placeholders = deviceIds.map(() => '?').join(',');
+
+        const stmt = db.prepare(`
+            UPDATE alerts 
+            SET status = 'RESUELTA', ended_at = ? 
+            WHERE element_id IN (${placeholders}) 
+            AND status = 'ACTIVA' 
+            AND origin = 'SIMULACIÓN'
+        `);
+
+        const result = stmt.run(now, ...deviceIds);
+
+        // 4. Also mark events as resolved
+        const eventStmt = db.prepare(`
+            UPDATE events 
+            SET resolved = 1 
+            WHERE device_id IN (${placeholders}) 
+            AND type = 'ALARM' 
+            AND origin = 'SIMULACIÓN'
+        `);
+        eventStmt.run(...deviceIds);
+
+        // 5. Emit socket events for each resolved device
+        deviceIds.forEach(deviceId => {
+            io.emit('pci:alarm:off', {
+                elementId: deviceId,
+                type: 'detector',
+                status: 'RESUELTA',
+                ended_at: now,
+                building_id: buildingId
+            });
+        });
+
+        console.log(`[Simulation] Resolved ${result.changes} alerts for building ${buildingId}`);
+        res.json({ success: true, resolvedCount: result.changes });
+
+    } catch (e) {
+        console.error('[Simulation] Error stopping building simulation:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Start Server
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);

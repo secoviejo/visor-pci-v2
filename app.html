@@ -8,6 +8,20 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/simulator.css">
     <link rel="stylesheet" href="css/alerts.css">
+    <link rel="stylesheet" href="css/dark-mode.css">
+    <script type="module">
+        import { initTheme } from './js/theme.js';
+        // Init theme immediately to avoid flash if possible (though module is deferred)
+        // We can also double check with inline script if needed, but css/overrides might load fast enough.
+    </script>
+    <script>
+        // Inline early check for app.html to apply class before body renders fully
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
 </head>
 
 <body>
@@ -20,6 +34,10 @@
             <h1>Instalación PCI - CIRCE</h1>
         </div>
         <div class="controls">
+            <button id="theme-toggle" class="btn btn-outline" style="min-width: 40px; padding: 5px 10px;"
+                title="Cambiar Tema">
+                <i class="fa-solid fa-moon"></i>
+            </button>
             <button id="btn-login" class="btn btn-outline" onclick="window.location.href='index.html'">🔑 Login</button>
             <button id="btn-logout" class="btn btn-outline" onclick="performLogout()" style="display: none;">🔒
                 Logout</button>
@@ -340,6 +358,30 @@
     <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="js/realtime.js"></script>
     <script type="module" src="js/app.js"></script>
+    <script type="module">
+        import * as theme from './js/theme.js';
+
+        // Theme Toggle Handler
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            theme.toggleTheme();
+            updateAppCheck();
+        });
+
+        function updateAppCheck() {
+            const isDark = theme.isDark();
+            const icon = document.querySelector('#theme-toggle i');
+            if (isDark) {
+                icon.className = 'fa-solid fa-sun';
+                icon.style.color = '#fbbf24'; // yellow
+            } else {
+                icon.className = 'fa-solid fa-moon';
+                icon.style.color = '';
+            }
+        }
+
+        // Init icon
+        updateAppCheck();
+    </script>
 </body>
 
 </html>

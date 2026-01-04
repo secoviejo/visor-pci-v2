@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Histórico de Alarmas - Visor PCI</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'zaragoza-blue': '#2E6DA4',
+                        'zaragoza-dark': '#333333',
+                    },
+                }
+            }
+        }
+    </script>
+    <script>
+        // Use global theme logic
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    /* Scrollbar styles preserved */
+    ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+    background: #2d3748;
+    }
+
+    /* Light mode scrollbar track override via CSS variable or just generic */
+    html:not(.dark) ::-webkit-scrollbar-track {
+    background: #edf2f7;
+    }
+
+    ::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 4px;
+    }
+
+    html:not(.dark) ::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+    background: #718096;
+    }
+
+    .sort-icon {
+    margin-left: 5px;
+    font-size: 0.8em;
+    color: #a0aec0;
+    }
+
+    th {
+    cursor: pointer;
+    user-select: none;
+    }
+
+    th:hover {
+    background-color: rgba(0,0,0,0.1);
+    }
+
+    .dark th:hover {
+    background-color: #2d3748;
+    }
+    </style>
+</head>
+
+<body
+    class="flex flex-col min-h-screen font-sans bg-gray-100 dark:bg-[#1a202c] text-gray-900 dark:text-e2e8f0 transition-colors duration-200">
+
+    <!-- Header (Darkened for this page) -->
+    <!-- Header -->
+    <header
+        class="bg-white dark:bg-gray-900 py-4 px-8 border-b border-gray-200 dark:border-gray-700 shadow-sm relative z-20 flex-shrink-0 transition-colors duration-200">
+        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
+            <div class="flex items-center gap-[15px]">
+                <!-- Logo: Invert brightness for dark mode if it's black, or verify logic. Original logic says keys: brightness-0 invert (makes it white). 
+                     For light mode we want original. -->
+                <img alt="Icono Universidad" class="h-[40px] w-auto dark:brightness-0 dark:invert transition-all"
+                    src="logo_unizar.png" />
+                <div
+                    class="border-l border-gray-300 dark:border-gray-600 pl-4 flex flex-col font-sans text-gray-800 dark:text-white leading-tight">
+                    <span class="font-bold text-lg">Universidad</span>
+                    <span class="text-lg">Zaragoza</span>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="window.location.href='dashboard.html'"
+                    class="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-arrow-left"></i> Volver al Dashboard
+                </button>
+                <button id="theme-toggle"
+                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                    title="Cambiar Tema">
+                    <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+                </button>
+                <button onclick="logout()"
+                    class="flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <i class="fa fa-lock text-gray-400"></i> Logout
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow p-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                    <h1 class="text-xl font-bold text-gray-100 uppercase tracking-wider">Histórico de Alertas</h1>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="loadHistory()"
+                        class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded text-gray-200 border border-gray-600">
+                        <i class="fa fa-sync"></i> Refrescar
+                    </button>
+                    <!-- Future filters could go here -->
+                </div>
+            </div>
+
+            <div
+                class="bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700 transition-colors">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-xs" id="history-table">
+                        <thead
+                            class="bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400 uppercase font-medium border-b dark:border-gray-700">
+                            <tr>
+                                <th class="px-6 py-4 text-left" data-sort="day">Dia <i class="fa fa-sort sort-icon"></i>
+                                </th>
+                                <th class="px-6 py-4 text-left" data-sort="building">Edificio <i
+                                        class="fa fa-sort sort-icon"></i></th>
+                                <th class="px-6 py-4 text-left" data-sort="floor">Planta <i
+                                        class="fa fa-sort sort-icon"></i></th>
+                                <th class="px-6 py-4 text-left" data-sort="id">ID <i class="fa fa-sort sort-icon"></i>
+                                </th>
+                                <th class="px-6 py-4 text-left" data-sort="type">Tipo <i
+                                        class="fa fa-sort sort-icon"></i></th>
+                                <th class="px-6 py-4 text-left" data-sort="location">Ubicación <i
+                                        class="fa fa-sort sort-icon"></i></th>
+                                <th class="px-6 py-4 text-left" data-sort="time">Hora <i
+                                        class="fa fa-sort sort-icon"></i></th>
+                                <th class="px-6 py-4 text-left" data-sort="origin">Origen <i
+                                        class="fa fa-sort sort-icon"></i></th>
+                                <th class="px-6 py-4 text-left" data-sort="status">Estado <i
+                                        class="fa fa-sort sort-icon"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody
+                            class="divide-y divide-gray-200 dark:divide-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800"
+                            id="table-body">
+                            <tr>
+                                <td colspan="9" class="px-6 py-8 text-center text-gray-500 italic">Cargando datos...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination or Status bar -->
+                <div
+                    class="bg-gray-900 px-6 py-3 border-t border-gray-700 text-xs text-gray-500 flex justify-between items-center">
+                    <span id="record-count">0 registros encontrados</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="js/history.js"></script>
+    <script type="module">
+        import * as api from './js/api.js';
+        import * as theme from './js/theme.js';
+
+        // Theme Toggle Handler
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            theme.toggleTheme();
+        });
+
+        window.logout = function () {
+            api.logout();
+            window.location.href = 'index.html';
+        }
+
+        // Auth Check
+        if (!api.isLoggedIn()) {
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+
+</html>

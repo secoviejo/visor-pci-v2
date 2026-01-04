@@ -7,22 +7,52 @@
     <title>Admin Panel - Visor PCI</title>
     <!-- Tailwind CSS v3 -->
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { 'zaragoza-blue': '#2E6DA4' }
+                }
+            }
+        }
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <style>
         .active-tab {
             border-bottom: 2px solid #2563EB;
             color: #2563EB;
         }
+
+        /* Override Chrome/Edge Autofill background */
+        .dark input:-webkit-autofill,
+        .dark input:-webkit-autofill:hover,
+        .dark input:-webkit-autofill:focus,
+        .dark input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #374151 inset !important;
+            -webkit-text-fill-color: white !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
     </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800 font-sans">
-    <header class="bg-white shadow px-8 py-4 flex justify-between items-center">
+<body class="bg-gray-50 text-gray-800 font-sans dark:bg-gray-900 dark:text-gray-100">
+    <header
+        class="bg-white shadow px-8 py-4 flex justify-between items-center dark:bg-gray-800 dark:border-b dark:border-gray-700">
         <h1 class="text-xl font-bold flex items-center gap-2">
             <i class="fa fa-cogs text-blue-600"></i> Administración del Sistema
         </h1>
         <div class="flex gap-4">
             <a href="dashboard.html" class="text-gray-600 hover:text-blue-600 font-medium">Volver al Dashboard</a>
+
+            <!-- Dark Mode Toggle -->
+            <button id="theme-toggle"
+                class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none"
+                title="Cambiar Tema">
+                <i class="fa-solid fa-moon text-gray-600 dark:hidden text-lg"></i>
+                <i class="fa-solid fa-sun text-yellow-400 hidden dark:block text-lg"></i>
+            </button>
+
             <button onclick="logout()" class="text-red-500 hover:text-red-700 font-medium">Logout</button>
         </div>
     </header>
@@ -40,26 +70,36 @@
 
         <!-- Users Section -->
         <div id="section-users" class="block">
+            <!-- (Existing Users Content remains...) -->
             <div class="flex justify-between mb-4">
-                <h2 class="text-lg font-semibold">Gestión de Usuarios</h2>
+                <h2 class="text-lg font-semibold dark:text-white">Gestión de Usuarios</h2>
                 <button onclick="document.getElementById('modal-user').classList.remove('hidden')"
                     class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
                     + Nuevo Usuario
                 </button>
             </div>
-            <div class="bg-white rounded shadow overflow-hidden">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+            <!-- ... table content ... (will update styling separately or rely on tailwind defaults for now, focusing on structure first) -->
+            <!-- Actually, let's keep the user block minimal here as I can't replace the whole block efficiently without big context. 
+                 Wait, I should only target the tabs and then ADD the new section. 
+                 Let's split this into modifying tabs and then appending the new section. -->
+
+            <div class="bg-white dark:bg-gray-800 rounded shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Usuario</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Rol</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th
+                                class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="users-table" class="bg-white divide-y divide-gray-200">
+                    <tbody id="users-table"
+                        class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         <!-- JS Injected -->
                     </tbody>
                 </table>
@@ -70,22 +110,24 @@
         <div id="section-gateways" class="hidden">
             <!-- Simulator Control Card -->
             <div
-                class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded shadow-sm flex items-center justify-between">
+                class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 p-4 mb-6 rounded shadow-sm flex items-center justify-between transition-colors">
                 <div>
-                    <h3 class="text-blue-800 font-bold flex items-center gap-2">
+                    <h3 class="text-blue-800 dark:text-blue-300 font-bold flex items-center gap-2">
                         <i class="fa fa-terminal"></i> Simulador Local Modbus
                     </h3>
-                    <p class="text-xs text-blue-600">Simula una central de incendios para pruebas sin hardware real.</p>
+                    <p class="text-xs text-blue-600 dark:text-blue-400">Simula una central de incendios para pruebas sin
+                        hardware real.</p>
                 </div>
                 <div class="flex items-center gap-4">
-                    <div id="sim-status-badge" class="px-2 py-1 rounded text-xs font-bold bg-gray-200 text-gray-500">
+                    <div id="sim-status-badge"
+                        class="px-2 py-1 rounded text-xs font-bold bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300">
                         OFFLINE
                     </div>
                     <div class="flex gap-2">
                         <button id="btn-start-sim" onclick="handleStartSim()"
-                            class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors">Habilitar</button>
+                            class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors dark:bg-blue-700 dark:hover:bg-blue-600">Habilitar</button>
                         <button id="btn-stop-sim" onclick="handleStopSim()"
-                            class="bg-white border text-red-500 px-3 py-1 rounded text-sm hover:bg-red-50 transition-colors">Paro
+                            class="bg-white dark:bg-gray-700 border dark:border-gray-600 text-red-500 dark:text-red-400 px-3 py-1 rounded text-sm hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">Paro
                             Forzado</button>
                     </div>
                 </div>
@@ -98,21 +140,26 @@
                     + Nueva Pasarela
                 </button>
             </div>
-            <div class="bg-white rounded shadow overflow-hidden">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+            <div class="bg-white dark:bg-gray-800 rounded shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Nombre</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Tipo</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 IP / Puerto</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th
+                                class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                 Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="gateways-table" class="bg-white divide-y divide-gray-200">
+                    <tbody id="gateways-table"
+                        class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         <!-- JS Injected -->
                     </tbody>
                 </table>
@@ -123,41 +170,46 @@
             <h2 class="text-lg font-semibold mb-4">Gestión de Planos de Edificios</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- List -->
-                <div class="bg-white rounded shadow p-4">
-                    <h3 class="font-bold text-gray-700 mb-2">Seleccionar Edificio</h3>
+                <div class="bg-white dark:bg-gray-800 rounded shadow p-4 transition-colors">
+                    <h3 class="font-bold text-gray-700 dark:text-gray-200 mb-2">Seleccionar Edificio</h3>
                     <ul id="buildings-list" class="space-y-2">
                         <!-- JS Injected -->
-                        <li class="text-sm text-gray-500 italic">Cargando...</li>
+                        <li class="text-sm text-gray-500 dark:text-gray-400 italic">Cargando...</li>
                     </ul>
                 </div>
 
                 <!-- Detail / Drop Zone -->
-                <div class="bg-white rounded shadow p-4 md:col-span-2">
-                    <div id="plan-detail-placeholder" class="text-center py-12 text-gray-400">
+                <div class="bg-white dark:bg-gray-800 rounded shadow p-4 md:col-span-2 transition-colors">
+                    <div id="plan-detail-placeholder" class="text-center py-12 text-gray-400 dark:text-gray-500">
                         <i class="fa fa-building text-4xl mb-2"></i>
                         <p>Selecciona un edificio para gestionar sus planos</p>
                     </div>
 
                     <div id="plan-detail-content" class="hidden space-y-4">
-                        <div class="flex justify-between items-center border-b pb-2">
-                            <h3 id="selected-building-name" class="font-bold text-xl text-blue-800">Nombre Edificio</h3>
-                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">ID: <span
-                                    id="selected-building-id"></span></span>
+                        <div class="flex justify-between items-center border-b dark:border-gray-700 pb-2">
+                            <h3 id="selected-building-name" class="font-bold text-xl text-blue-800 dark:text-blue-300">
+                                Nombre Edificio</h3>
+                            <span
+                                class="text-xs bg-blue-100/50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded">ID:
+                                <span id="selected-building-id"></span></span>
                         </div>
 
                         <!-- Drop Zone -->
                         <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">Nombre de la Planta
+                            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Nombre de la
+                                Planta
                                 (Opcional)</label>
-                            <input type="text" id="new-floor-name" class="w-full border rounded p-2"
+                            <input type="text" id="new-floor-name"
+                                class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 transition-colors"
                                 placeholder="Ej: Planta 1 (Si se deja vacío se usará el nombre del archivo)">
                         </div>
 
                         <input type="file" id="file-input" class="hidden" accept="image/*">
                         <div id="drop-zone"
-                            class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:bg-blue-50 transition-colors cursor-pointer relative">
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors cursor-pointer relative dark:bg-gray-800">
                             <i class="fa fa-cloud-upload-alt text-4xl text-blue-400 mb-2"></i>
-                            <p class="font-medium text-gray-600">Arrastra aquí el plano de la nueva planta</p>
+                            <p class="font-medium text-gray-600 dark:text-gray-300">Arrastra aquí el plano de la nueva
+                                planta</p>
                             <p class="text-xs text-gray-400 mt-1">o haz click para seleccionar (JPG, PNG)</p>
                         </div>
 
@@ -175,24 +227,32 @@
             </div>
         </div>
 
+
+
     </main>
 
+    <!-- (Modals remain...) -->
     <!-- Modal Create User -->
     <div id="modal-user" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-        <div class="bg-white p-6 rounded shadow-lg w-96">
-            <h3 class="text-lg font-bold mb-4">Crear Usuario</h3>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded shadow-lg w-96">
+            <h3 class="text-lg font-bold mb-4 dark:text-white">Crear Usuario</h3>
             <form onsubmit="handleCreateUser(event)">
                 <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Username</label>
-                    <input type="text" id="new-user-name" class="w-full border rounded p-2" required>
+                    <label class="block text-sm font-bold mb-1 dark:text-gray-200">Username</label>
+                    <input type="text" id="new-user-name"
+                        class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white"
+                        required>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Password</label>
-                    <input type="password" id="new-user-pass" class="w-full border rounded p-2" required>
+                    <label class="block text-sm font-bold mb-1 dark:text-gray-200">Password</label>
+                    <input type="password" id="new-user-pass"
+                        class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white"
+                        required>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Rol</label>
-                    <select id="new-user-role" class="w-full border rounded p-2">
+                    <label class="block text-sm font-bold mb-1 dark:text-gray-200">Rol</label>
+                    <select id="new-user-role"
+                        class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white">
                         <option value="viewer">Viewer</option>
                         <option value="operator">Operator</option>
                         <option value="admin">Admin</option>
@@ -200,7 +260,7 @@
                 </div>
                 <div class="flex justify-end gap-2">
                     <button type="button" onclick="document.getElementById('modal-user').classList.add('hidden')"
-                        class="text-gray-500 hover:text-gray-700">Cancelar</button>
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Cancelar</button>
                     <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Crear</button>
                 </div>
             </form>
@@ -209,33 +269,40 @@
 
     <!-- Modal Create Gateway -->
     <div id="modal-gateway" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-        <div class="bg-white p-6 rounded shadow-lg w-96">
-            <h3 class="text-lg font-bold mb-4">Nueva Pasarela</h3>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded shadow-lg w-96">
+            <h3 class="text-lg font-bold mb-4 dark:text-white">Nueva Pasarela</h3>
             <form onsubmit="handleCreateGateway(event)">
                 <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Nombre</label>
-                    <input type="text" id="gw-name" class="w-full border rounded p-2" required>
+                    <label class="block text-sm font-bold mb-1 dark:text-gray-200">Nombre</label>
+                    <input type="text" id="gw-name"
+                        class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white"
+                        required>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Tipo</label>
-                    <select id="gw-type" class="w-full border rounded p-2">
+                    <label class="block text-sm font-bold mb-1 dark:text-gray-200">Tipo</label>
+                    <select id="gw-type"
+                        class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white">
                         <option value="MODBUS">MODBUS TCP</option>
                         <option value="BACNET">BACNET IP</option>
                     </select>
                 </div>
                 <div class="flex gap-2">
                     <div class="mb-4 flex-1">
-                        <label class="block text-sm font-bold mb-1">IP</label>
-                        <input type="text" id="gw-ip" class="w-full border rounded p-2" placeholder="192.168.1.10">
+                        <label class="block text-sm font-bold mb-1 dark:text-gray-200">IP</label>
+                        <input type="text" id="gw-ip"
+                            class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white"
+                            placeholder="192.168.1.10">
                     </div>
                     <div class="mb-4 w-24">
-                        <label class="block text-sm font-bold mb-1">Puerto</label>
-                        <input type="number" id="gw-port" class="w-full border rounded p-2" placeholder="502">
+                        <label class="block text-sm font-bold mb-1 dark:text-gray-200">Puerto</label>
+                        <input type="number" id="gw-port"
+                            class="w-full border dark:border-gray-600 rounded p-2 dark:bg-gray-700 dark:text-white"
+                            placeholder="502">
                     </div>
                 </div>
                 <div class="flex justify-end gap-2">
                     <button type="button" onclick="document.getElementById('modal-gateway').classList.add('hidden')"
-                        class="text-gray-500 hover:text-gray-700">Cancelar</button>
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Cancelar</button>
                     <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded">Guardar</button>
                 </div>
             </form>
@@ -245,6 +312,7 @@
 
     <script type="module">
         import * as api from './js/api.js';
+        import * as theme from './js/theme.js';
 
         // Check Auth & Role
         const user = api.getCurrentUser();
@@ -252,6 +320,11 @@
             alert('Acceso Denegado. Se requiere rol de Administrador.');
             window.location.href = 'index.html';
         }
+
+        // Toggle Logic with simple header button
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            theme.toggleTheme();
+        });
 
         window.logout = function () {
             api.logout();
@@ -265,11 +338,13 @@
             document.getElementById('section-users').classList.add('hidden');
             document.getElementById('section-gateways').classList.add('hidden');
             document.getElementById('section-plans').classList.add('hidden');
+            // config removed
             document.getElementById(`section-${tab}`).classList.remove('hidden');
 
             if (tab === 'users') loadUsers();
             if (tab === 'gateways') { loadGateways(); refreshSimStatus(); }
             if (tab === 'plans') loadBuildingsForPlans();
+            // config needs no load
         };
 
         // --- USERS ---
@@ -415,8 +490,8 @@
                 const list = document.getElementById('buildings-list');
                 list.innerHTML = buildings.map(b => `
                     <li onclick="selectBuilding(${b.id}, '${b.name}')" 
-                        class="p-2 hover:bg-blue-50 rounded cursor-pointer flex justify-between items-center group transition-colors ${currentBuildingId === b.id ? 'bg-blue-100 ring-1 ring-blue-300' : 'bg-gray-50'}">
-                        <span class="font-medium group-hover:text-blue-700">${b.name}</span>
+                        class="p-2 hover:bg-blue-50 dark:hover:bg-gray-700 rounded cursor-pointer flex justify-between items-center group transition-colors ${currentBuildingId === b.id ? 'bg-blue-100 dark:bg-blue-900/50 ring-1 ring-blue-300 dark:ring-blue-700' : 'bg-gray-50 dark:bg-gray-700/50'}">
+                        <span class="font-medium group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-400">${b.name}</span>
                         <i class="fa fa-chevron-right text-xs text-gray-300 group-hover:text-blue-500"></i>
                     </li>
                 `).join('');

@@ -8,8 +8,10 @@
     <!-- Tailwind CSS v3 -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -37,34 +39,70 @@
     </style>
 </head>
 
-<body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
+<body
+    class="bg-[#f4f7f6] dark:bg-gray-900 transition-colors duration-200 flex flex-col min-h-screen font-sans text-zaragoza-dark">
+    <script>
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
 
     <!-- Header -->
-    <header class="bg-white py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
-        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
-            <div class="flex items-center gap-[15px]">
-                <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-                <div class="border-l border-gray-300 pl-4 flex flex-col font-sans text-[#333333] leading-tight">
-                    <span class="font-bold text-lg">Universidad</span>
-                    <span class="text-lg">Zaragoza</span>
+    <header
+        class="bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm py-3 px-6 mb-8 flex justify-between items-center sticky top-0 z-10">
+        <div class="flex items-center gap-[15px]">
+            <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
+            <div class="border-l border-gray-300 pl-4">
+                <div class="flex flex-col leading-none">
+                    <span
+                        class="font-bold text-gray-800 dark:text-white text-lg uppercase tracking-tight">Universidad</span>
+                    <span class="text-gray-600 dark:text-gray-400 text-sm">Zaragoza</span>
                 </div>
             </div>
-            <div class="flex gap-4">
-                <div id="admin-controls" class="hidden">
-                    <a href="admin.html"
-                        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                        <i class="fa fa-cogs"></i> Admin Panel
-                    </a>
-                </div>
-                <button onclick="window.location.href='simulation.html'"
-                    class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                    <i class="fa fa-bug"></i> Simular Incidencia
-                </button>
-                <button onclick="logout()"
-                    class="flex items-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                    <i class="fa fa-lock text-gray-400"></i> Logout
-                </button>
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="relative hidden md:block">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                    <i class="fa fa-search text-sm"></i>
+                </span>
+                <input
+                    class="pl-9 pr-4 py-1.5 rounded-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm focus:outline-none focus:border-zaragoza-blue dark:text-white transition-all w-64 shadow-inner"
+                    placeholder="Buscar campus o edificio..." type="text" oninput="filterCampuses(this.value)" />
             </div>
+            <div class="flex items-center gap-4 border-l pl-6 border-gray-200 dark:border-gray-700">
+                <div class="text-right hidden sm:block">
+                    <p id="user-display"
+                        class="text-sm font-bold text-gray-800 dark:text-white uppercase tracking-wide">ADMIN</p>
+                    <p class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Oficina Técnica</p>
+                </div>
+            </div>
+            <div id="admin-controls" class="hidden">
+                <a href="admin.html"
+                    class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    <i class="fa fa-cogs"></i> Admin Panel
+                </a>
+            </div>
+            <button onclick="window.location.href='history.html'"
+                class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                <i class="fa fa-history"></i> Histórico
+            </button>
+            <button onclick="window.location.href='simulation.html'"
+                class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                <i class="fa fa-bug"></i> Simular Incidencia
+            </button>
+            <button id="theme-toggle"
+                class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                title="Cambiar Tema">
+                <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+            </button>
+            <button onclick="logout()"
+                class="flex items-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                <i class="fa fa-lock text-gray-400"></i> Logout
+            </button>
+        </div>
         </div>
 
         <!-- Toast Notification -->
@@ -108,6 +146,7 @@
 
     <script type="module">
         import * as api from './js/api.js';
+        import * as theme from './js/theme.js';
 
         window.logout = function () {
             api.logout();
@@ -138,41 +177,35 @@
                     } catch (e) { };
 
                     const card = document.createElement('div');
-                    // Style change if alarm active
-                    const isAlarm = c.alarm_count > 0;
-                    const borderClass = isAlarm ? 'border-red-500 border-2 shadow-red-100' : 'border-gray-100 shadow';
+                    // Added dark mode classes: dark:bg-gray-800 dark:border-gray-700
+                    card.className = "bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group border border-gray-100 dark:border-gray-700 flex flex-col cursor-pointer hover:-translate-y-1";
+                    card.onclick = () => window.location.href = `campus_view.html?campusId=${c.id}`;
 
-                    card.className = `campus-card bg-white rounded-lg overflow-hidden ${borderClass}`;
-                    card.onclick = () => {
-                        window.location.href = `campus_view.html?campusId=${c.id}`;
-                    };
-
-                    const imgSrc = c.image_filename ? c.image_filename : 'https://placehold.co/600x400/e2e8f0/64748b?text=Sin+Imagen';
-
-                    // Mock Status
-                    // const status = buildingsCount > 0 ?
-                    //     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Normal</span>' :
-                    //     '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Sin Datos</span>';
+                    const imgSrc = c.image_filename ? c.image_filename : 'https://via.placeholder.com/400x200?text=Campus';
 
                     card.innerHTML = `
-                        <div class="h-48 bg-gray-200 relative">
-                            <img src="${imgSrc}" class="w-full h-full object-cover" alt="${c.name}">
-                            ${isAlarm ? '<div class="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded shadow animate-bounce">🔥 ALARMA ACTIVA</div>' : ''}
+                <div class="h-40 bg-gray-200 relative overflow-hidden">
+                    <div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110" style="background-image: url('${imgSrc}'); filter: brightness(0.95);"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60"></div>
+                     <div class="absolute top-3 right-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold shadow-sm uppercase tracking-wider text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
+                        Campus
+                    </div>
+                </div>
+                <div class="p-5 flex-grow flex flex-col relative">
+                    <h3 class="font-bold text-lg text-gray-800 dark:text-white mb-1 group-hover:text-zaragoza-blue transition-colors leading-tight">${c.name}</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 leading-relaxed">${c.description || 'Sin descripción'}</p>
+                    
+                    <div class="mt-auto flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
+                         <div class="flex items-center gap-2">
+                             <span class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs shadow-sm">
+                                <i class="fa fa-building"></i>
+                             </span>
+                             <span class="text-xs font-semibold text-gray-600 dark:text-gray-300">Acceder</span>
                         </div>
-                        <div class="p-6">
-                            <h3 class="text-xl font-bold text-gray-900 mb-2">${c.name}</h3>
-                            <p class="text-gray-600 text-sm mb-4 h-12 overflow-hidden text-ellipsis">
-                                ${c.description || 'Descripción no disponible.'} 
-                                <br>
-                                <span class="font-semibold">${buildingsCount} Edificios.</span>
-                                ${isAlarm ? `<span class="text-red-600 font-bold ml-2">${c.alarm_count} Incidencias.</span>` : ''}
-                            </p>
-                            <button onclick="window.location.href = 'campus_view.html?campusId=${c.id}'" 
-                                class="w-full ${isAlarm ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0056b3] hover:bg-[#004494]'} text-white font-medium py-2 px-4 rounded transition-colors">
-                                ${isAlarm ? 'Ver Incidencias' : 'Ver Edificios'}
-                            </button>
-                        </div>
-                    `;
+                        <i class="fa-solid fa-arrow-right text-gray-300 dark:text-gray-600 group-hover:text-zaragoza-blue group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                </div>
+            `;
                     grid.appendChild(card);
                 }
 
@@ -229,8 +262,47 @@
             document.getElementById('admin-controls').classList.remove('hidden');
         }
 
+        // Socket.IO Connection for Real-time Updates
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('[Dashboard] Socket connected');
+        });
+
+        // Listen for alarm events
+        socket.on('pci:alarm:on', (data) => {
+            console.log('[Dashboard] Alarm activated:', data);
+            showToast('🔥 Nueva alarma detectada', 'alarm');
+            loadCampuses(); // Refresh to show updated counts
+        });
+
+        socket.on('pci:alarm:off', (data) => {
+            console.log('[Dashboard] Alarm deactivated:', data);
+            showToast('✅ Alarma resuelta', 'info');
+            loadCampuses(); // Refresh to show updated counts
+        });
+
+        socket.on('event:new', (data) => {
+            console.log('[Dashboard] New event:', data);
+            if (data.type === 'ALARM') {
+                loadCampuses(); // Refresh on new alarm events
+            }
+        });
+
+        socket.on('pci:simulation:resolved', () => {
+            console.log('[Dashboard] All simulations resolved');
+            showToast('✅ Todas las simulaciones han sido detenidas', 'info');
+            loadCampuses(); // Refresh to clear alarm indicators
+        });
+
         loadCampuses();
+
+        // Theme Toggle Handler
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            theme.toggleTheme();
+        });
     </script>
 </body>
 
 </html>
+```

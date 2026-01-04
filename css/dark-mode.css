@@ -1,0 +1,144 @@
+/* Dark Mode Overrides for app.html */
+
+/* Global Dark Base */
+html.dark body {
+    background-color: #1a1a1a;
+    color: #e5e5e5;
+}
+
+/* Header */
+html.dark header {
+    background-color: #2d2d2d;
+    border-bottom: 1px solid #404040;
+    color: #fff;
+}
+
+html.dark header h1 {
+    color: #fff;
+}
+
+html.dark header .header-logo img {
+    filter: brightness(0.9);
+}
+
+/* Controls & Buttons */
+html.dark .btn-outline {
+    background-color: transparent;
+    color: #ccc;
+    border: 1px solid #666;
+}
+
+html.dark .btn-outline:hover {
+    background-color: #404040;
+    color: #fff;
+    border-color: #888;
+}
+
+html.dark .form-control {
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #555;
+}
+
+/* Map Viewport */
+html.dark #viewport {
+    background-color: #121212 !important; /* Force darker background for map area */
+}
+
+/* Simulator Panel (Explorer) */
+html.dark #simulator-panel {
+    background-color: #262626;
+    border-left: 1px solid #404040;
+    color: #ddd;
+}
+
+html.dark .sim-header {
+    background-color: #333;
+    border-bottom: 1px solid #404040;
+}
+
+html.dark .sim-footer {
+    background-color: #333;
+    border-top: 1px solid #404040;
+    color: #bbb;
+}
+
+html.dark .sim-item {
+    background-color: #2a2a2a;
+    border-bottom: 1px solid #383838;
+}
+
+html.dark .sim-item:hover {
+    background-color: #333;
+}
+
+html.dark .sim-item strong {
+    color: #fff;
+}
+
+html.dark .sim-item small {
+    color: #999;
+}
+
+/* Modals */
+html.dark .modal {
+    background-color: #2a2a2a;
+    color: #fff;
+    border: 1px solid #444;
+}
+
+html.dark .modal-header {
+    border-bottom: 1px solid #444;
+}
+
+html.dark .close-modal {
+    color: #ccc;
+}
+
+html.dark label {
+    color: #bbb !important;
+}
+
+/* Breadcrumbs */
+html.dark #breadcrumbs {
+    background-color: #222 !important;
+    border-bottom: 1px solid #333 !important;
+    color: #aaa;
+}
+
+html.dark #breadcrumbs a {
+    color: #3b82f6 !important; /* Blue-400 equivalent */
+}
+
+html.dark #breadcrumbs span {
+    color: #bbb !important;
+}
+html.dark #bc-building {
+    color: #fff !important;
+}
+
+/* Alerts Panel */
+html.dark #events-panel {
+    background-color: #262626 !important;
+    border: 1px solid #444 !important;
+    color: #ddd;
+}
+
+html.dark #events-panel > div:first-child {
+    background-color: #333 !important; /* Header */
+    border-bottom: 1px solid #444 !important;
+}
+
+html.dark .event-item {
+    border-bottom: 1px solid #444;
+}
+
+/* Legend */
+html.dark .legend {
+    background-color: rgba(40, 40, 40, 0.9);
+    border: 1px solid #555;
+    color: #ccc;
+}
+html.dark .legend-item {
+    color: #ccc !important;
+}

@@ -363,6 +363,26 @@ export async function simulateBuildingAlarm(buildingId) {
     return res.json();
 }
 
+export async function resolveAllSimulations() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/simulation/resolve`, {
+        method: 'POST',
+        headers
+    });
+    if (!res.ok) throw new Error('Error resolving simulations');
+    return res.json();
+}
+
+export async function stopBuildingSimulation(buildingId) {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/simulation/building/${buildingId}/resolve`, {
+        method: 'POST',
+        headers
+    });
+    if (!res.ok) throw new Error('Error stopping building simulation');
+    return res.json();
+}
+
 export function getCurrentUser() {
     if (!authToken) return null;
     try {

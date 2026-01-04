@@ -10,15 +10,17 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        'zaragoza-blue': '#2E6DA4',
-                        'zaragoza-dark': '#333333',
-                    },
+                        colors: {
+                            'zaragoza-blue': '#2E6DA4',
+                            'zaragoza-dark': '#333333',
+                        },
+                    }
                 }
             }
-        }
     </script>
     <style>
         body {
@@ -37,14 +39,24 @@
     </style>
 </head>
 
-<body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
+<body
+    class="flex flex-col min-h-screen font-sans text-zaragoza-dark dark:text-gray-100 bg-[#f4f7f6] dark:bg-gray-900 transition-colors duration-200">
+    <script>
+        if(localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
 
     <!-- Header -->
-    <header class="bg-white py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
+    <header
+        class="bg-white dark:bg-gray-800 dark:border-gray-700 py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
         <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
             <div class="flex items-center gap-[15px]">
                 <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-                <div class="border-l border-gray-300 pl-4 flex flex-col font-sans text-[#333333] leading-tight">
+                <div
+                    class="border-l border-gray-300 dark:border-gray-600 pl-4 flex flex-col font-sans text-[#333333] dark:text-gray-200 leading-tight">
                     <span class="font-bold text-lg">Universidad</span>
                     <span class="text-lg">Zaragoza</span>
                 </div>
@@ -52,7 +64,7 @@
             <div class="flex gap-4">
                 <div id="admin-controls" class="hidden">
                     <a href="admin.html"
-                        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
                         <i class="fa fa-cogs"></i> Admin Panel
                     </a>
                 </div>
@@ -60,8 +72,14 @@
                     class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
                     <i class="fa fa-bug"></i> Simular Incidencia
                 </button>
+                <button id="theme-toggle"
+                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                    title="Cambiar Tema">
+                    <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+                </button>
                 <button onclick="logout()"
-                    class="flex items-center gap-2 border border-gray-300 rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    class="flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <i class="fa fa-lock text-gray-400"></i> Logout
                 </button>
             </div>
@@ -91,8 +109,9 @@
                 <i class="fa fa-arrow-left"></i>
             </a>
             <div>
-                <h2 class="text-3xl font-bold text-red-600">Simulador de Emergencias</h2>
-                <p class="text-gray-500">Selecciona un edificio para activar una alarma general (Simulacro).</p>
+                <h2 class="text-3xl font-bold text-red-600 dark:text-red-500">Simulador de Emergencias</h2>
+                <p class="text-gray-500 dark:text-gray-400">Selecciona un edificio para activar una alarma general
+                    (Simulacro).</p>
             </div>
         </div>
 
@@ -106,27 +125,31 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
+    <!-- Footer -->
+    <footer
+        class="bg-white dark:bg-gray-800 dark:border-t dark:border-gray-700 border-t border-gray-200 py-4 mt-auto transition-colors duration-200">
         <div class="max-w-7xl mx-auto text-center px-4">
-            <p class="text-xs text-[#333333]">© 2025 Universidad Zaragoza. Todos los derechos reservados.</p>
+            <p class="text-xs text-[#333333] dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
+                reservados.</p>
         </div>
     </footer>
 
     <!-- Custom Confirmation Modal -->
     <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+        <div
+            class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border dark:border-gray-700">
             <div class="flex items-start mb-4">
                 <div class="flex-shrink-0">
                     <i class="fa fa-exclamation-triangle text-red-500 text-3xl"></i>
                 </div>
                 <div class="ml-4">
-                    <h3 class="text-lg font-bold text-gray-900 mb-2">ATENCIÓN</h3>
-                    <p id="confirmMessage" class="text-sm text-gray-600"></p>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">ATENCIÓN</h3>
+                    <p id="confirmMessage" class="text-sm text-gray-600 dark:text-gray-300"></p>
                 </div>
             </div>
             <div class="flex gap-3 justify-end mt-6">
                 <button id="confirmCancel"
-                    class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded font-medium transition-colors">
+                    class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded font-medium transition-colors">
                     Cancelar
                 </button>
                 <button id="confirmOk"
@@ -139,6 +162,7 @@
 
     <script type="module">
         import * as api from './js/api.js';
+        import * as theme from './js/theme.js';
 
         // Auth Check
         const user = api.getCurrentUser();
@@ -159,6 +183,27 @@
             // Already on the page, maybe do nothing or reload?
             // Hiding the button on this page might be better
         };
+
+        // NEW: Stop All Simulations
+        window.stopAllSimulations = async function () {
+            try {
+                const confirmed = await showConfirm('¿Deseas detener TODAS las simulaciones activas?\\n\\nEsto resolverá todas las alertas de simulación en el sistema.');
+
+                if (!confirmed) return;
+
+                const result = await api.resolveAllSimulations();
+
+                if (result.success) {
+                    alert(`✅ Simulaciones Detenidas\\n\\nSe han resuelto ${result.resolvedCount} alertas de simulación.`);
+                } else {
+                    alert('❌ Error al detener simulaciones: ' + (result.error || 'Desconocido'));
+                }
+            } catch (e) {
+                console.error('Error stopping simulations:', e);
+                alert('❌ Error de comunicación: ' + e.message);
+            }
+        };
+
         let isProcessing = false;
 
         async function loadBuildings() {
@@ -172,49 +217,80 @@
                 }
 
                 container.innerHTML = buildings.map(b => `
-                    <div class="building-card bg-white border-l-4 border-red-500 rounded shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer group"
+                    <div class="building-card bg-white dark:bg-gray-800 border-l-4 border-red-500 rounded shadow-lg dark:shadow-none p-6 hover:shadow-xl transition-shadow dark:border-gray-700"
                          data-building-id="${b.id}" data-building-name="${b.name}">
                         <div class="flex justify-between items-start">
                             <div>
-                                <h3 class="text-xl font-bold text-gray-800 group-hover:text-red-600 transition-colors">${b.name}</h3>
-                                <p class="text-sm text-gray-500 mt-1">ID: ${b.id}</p>
+                                <h3 class="text-xl font-bold text-gray-800 dark:text-white">${b.name}</h3>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">ID: ${b.id}</p>
                             </div>
-                            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
-                                <i class="fa fa-fire text-xl text-red-600 group-hover:text-white"></i>
+                            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                                <i class="fa fa-fire text-xl text-red-600 dark:text-red-400"></i>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-                            <span class="text-xs font-bold text-red-500 uppercase tracking-wide">Pulsar para activar</span>
+                        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex gap-2">
+                            <button 
+                                class="activate-btn flex-1 bg-red-500 hover:bg-red-600 text-white rounded-md px-4 py-2 text-sm font-bold transition-colors shadow-sm"
+                                data-building-id="${b.id}" data-building-name="${b.name}">
+                                <i class="fa fa-fire mr-1"></i> Activar Alarma
+                            </button>
+                            <button 
+                                class="stop-btn flex-1 bg-green-600 hover:bg-green-700 text-white rounded-md px-4 py-2 text-sm font-bold transition-colors shadow-sm"
+                                data-building-id="${b.id}" data-building-name="${b.name}">
+                                <i class="fa fa-stop-circle mr-1"></i> Detener Simulación
+                            </button>
                         </div>
                     </div>
                 `).join('');
 
-                // Add event delegation for clicks (only once)
+                // Add event delegation for activate buttons
                 container.addEventListener('click', async (e) => {
-                    console.log('CLICK REGISTERED'); // Debug
-                    if (isProcessing) {
-                        console.log('Already processing, ignored');
+                    // Check if clicked on activate button
+                    const activateBtn = e.target.closest('.activate-btn');
+                    if (activateBtn) {
+                        console.log('ACTIVATE CLICKED');
+                        if (isProcessing) {
+                            console.log('Already processing, ignored');
+                            return;
+                        }
+
+                        const buildingId = activateBtn.dataset.buildingId;
+                        const buildingName = activateBtn.dataset.buildingName;
+                        console.log('Starting simulation for:', buildingId, buildingName);
+
+                        isProcessing = true;
+                        try {
+                            await confirmSimulation(buildingId, buildingName);
+                        } finally {
+                            isProcessing = false;
+                            console.log('Processing complete');
+                        }
                         return;
                     }
 
-                    const card = e.target.closest('.building-card');
-                    if (!card) {
-                        console.log('No building card found');
+                    // Check if clicked on stop button
+                    const stopBtn = e.target.closest('.stop-btn');
+                    if (stopBtn) {
+                        console.log('STOP CLICKED');
+                        if (isProcessing) {
+                            console.log('Already processing, ignored');
+                            return;
+                        }
+
+                        const buildingId = stopBtn.dataset.buildingId;
+                        const buildingName = stopBtn.dataset.buildingName;
+                        console.log('Stopping simulation for:', buildingId, buildingName);
+
+                        isProcessing = true;
+                        try {
+                            await stopBuildingSimulation(buildingId, buildingName);
+                        } finally {
+                            isProcessing = false;
+                            console.log('Stop processing complete');
+                        }
                         return;
                     }
-
-                    const buildingId = card.dataset.buildingId;
-                    const buildingName = card.dataset.buildingName;
-                    console.log('Starting simulation for:', buildingId, buildingName);
-
-                    isProcessing = true;
-                    try {
-                        await confirmSimulation(buildingId, buildingName);
-                    } finally {
-                        isProcessing = false;
-                        console.log('Processing complete');
-                    }
-                }, { once: false }); // Keep listener active
+                });
 
 
             } catch (e) {
@@ -286,7 +362,43 @@
             }
         }
 
+        async function stopBuildingSimulation(id, name) {
+            console.log('stopBuildingSimulation function called');
+
+            const userConfirmed = await showConfirm(`¿Deseas detener la simulación activa en "${name}"?\n\nEsto resolverá todas las alertas de simulación de este edificio.`);
+
+            console.log('User confirmed stop:', userConfirmed);
+
+            if (userConfirmed) {
+                console.log('User clicked OK, proceeding with stop API call');
+                try {
+                    const res = await api.stopBuildingSimulation(id);
+                    console.log('API Response received:', res);
+
+                    if (res.success) {
+                        if (res.resolvedCount === 0) {
+                            alert(`ℹ️ Información\n\nNo hay alertas activas de simulación en "${name}".`);
+                        } else {
+                            alert(`✅ Simulación Detenida\n\nSe han resuelto ${res.resolvedCount} alertas en "${name}".`);
+                        }
+                    } else {
+                        alert('Error: ' + (res.error || 'No se pudo detener'));
+                    }
+                } catch (e) {
+                    console.error('Error calling stop API:', e);
+                    alert('Error en la comunicación con el servidor: ' + e.message);
+                }
+            } else {
+                console.log('User clicked Cancel, aborting stop');
+            }
+        }
+
         loadBuildings();
+
+        // Theme Toggle Handler
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            theme.toggleTheme();
+        });
     </script>
 </body>
 

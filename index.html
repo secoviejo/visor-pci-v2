@@ -12,6 +12,7 @@
     <!-- Tailwind Configuration -->
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -60,78 +61,82 @@
 <body class="flex flex-col min-h-screen font-sans text-zaragoza-dark">
     <div id="toast"></div>
 
-    <header class="bg-white py-4 px-8 shadow-sm relative z-20 flex-shrink-0">
+    <header
+        class="bg-white dark:bg-gray-800 dark:border-b dark:border-gray-700 py-4 px-8 shadow-sm relative z-20 flex-shrink-0 transition-colors duration-200">
         <div class="max-w-7xl mx-auto w-full">
             <div class="flex items-center gap-[10px]">
                 <img alt="Icono Universidad" class="h-[40px] w-auto" src="logo_unizar.png" />
-                <div class="flex flex-col font-sans text-[#333333] leading-tight">
+                <div class="flex flex-col font-sans text-[#333333] dark:text-gray-100 leading-tight">
                     <span class="font-bold text-lg">Universidad</span>
                     <span class="text-lg">Zaragoza</span>
                 </div>
             </div>
+            <!-- Dark Mode Toggle Logic -->
+            <button id="theme-toggle"
+                class="absolute right-8 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                title="Cambiar Tema">
+                <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+            </button>
         </div>
     </header>
-
-    <main class="flex-grow flex flex-col items-center justify-center bg-image-container relative">
-        <div class="bg-overlay"></div>
-        <div class="relative z-10 w-full max-w-md px-4 flex flex-col items-center">
+    <script>
+        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <div class="bg-image-container h-screen w-screen flex items-center justify-center">
+        <div class="bg-overlay dark:bg-gray-900/90"></div>
+        <div
+            class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl relative z-10 w-96 transform transition-all hover:scale-105 duration-300 border border-gray-100 dark:border-gray-700">
             <div class="text-center mb-8">
-                <h1 class="text-[28px] font-bold text-black mb-1">Instalación PCI</h1>
-                <p class="text-[18px] font-normal text-gray-700">Fire Alarm SCADA System</p>
+                <h2 class="text-2xl font-bold text-zaragoza-blue dark:text-gray-100">Iniciar Sesión</h2>
+                <p class="text-gray-600 dark:text-gray-400 mt-2">Introduce tus credenciales</p>
             </div>
-
-            <div class="w-full bg-white shadow-xl rounded-sm overflow-hidden">
-                <div class="py-4 text-center bg-[#245d8f]">
-                    <h2 class="text-white font-medium text-[1.25rem]">Iniciar Sesión</h2>
+            <form id="login-form" class="space-y-6">
+                <div>
+                    <label for="username"
+                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">Usuario</label>
+                    <input type="text" id="username" name="username" required
+                        class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-zaragoza-blue focus:border-zaragoza-blue text-sm dark:text-white">
                 </div>
-                <div class="p-8">
-                    <form id="login-form" class="space-y-6">
-                        <div class="relative">
-                            <div
-                                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                                <i class="fa fa-user"></i>
-                            </div>
-                            <input
-                                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-zaragoza-blue focus:border-zaragoza-blue sm:text-sm placeholder-gray-500"
-                                id="username" name="username" placeholder="Usuario" type="text" required />
-                        </div>
-                        <div class="relative">
-                            <div
-                                class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                                <i class="fa fa-lock"></i>
-                            </div>
-                            <input
-                                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-sm focus:outline-none focus:ring-1 focus:ring-zaragoza-blue focus:border-zaragoza-blue sm:text-sm placeholder-gray-500"
-                                id="password" name="password" placeholder="Contraseña" type="password" required />
-                        </div>
-                        <div>
-                            <button type="submit"
-                                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-sm shadow-sm text-sm font-medium text-white bg-[#245d8f] hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#245d8f]">
-                                Iniciar Sesión
-                            </button>
-                        </div>
-                        <div class="flex flex-col gap-2 text-center">
-                            <a class="text-xs text-gray-600 hover:text-zaragoza-blue" href="#">
-                                ¿Olvidaste tu contraseña?
-                            </a>
-                            <a class="text-sm font-bold text-zaragoza-blue hover:underline mt-2" href="dashboard.html">
-                                Acceder como Invitado (Modo Público)
-                            </a>
-                        </div>
-                    </form>
+                <div>
+                    <label for="password"
+                        class="block text-sm font-medium text-gray-700 dark:text-gray-300">Contraseña</label>
+                    <input type="password" id="password" name="password" required
+                        class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-zaragoza-blue focus:border-zaragoza-blue text-sm dark:text-white">
                 </div>
-            </div>
+                <div>
+                    <button type="submit"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-zaragoza-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zaragoza-blue transition-colors duration-200">
+                        Acceder
+                    </button>
+                </div>
+            </form>
         </div>
+    </div>
+    </div>
     </main>
 
-    <footer class="bg-white relative z-20 border-t border-gray-200 flex-shrink-0 py-[10px]">
+    <footer
+        class="bg-white dark:bg-gray-800 dark:border-t dark:border-gray-700 relative z-20 border-t border-gray-200 flex-shrink-0 py-[10px] transition-colors duration-200">
         <div class="max-w-7xl mx-auto text-center px-4">
-            <p class="text-xs text-[#333333]">© 2025 Universidad Zaragoza. Todos los derechos reservados.</p>
+            <p class="text-xs text-[#333333] dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
+                reservados.
+            </p>
         </div>
     </footer>
 
     <script type="module">
         import * as api from './js/api.js';
+        import * as theme from './js/theme.js';
+
+        // Theme Toggle Handler
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            theme.toggleTheme();
+        });
 
         // Check if already logged in
         if (api.isLoggedIn()) {
