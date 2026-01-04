@@ -203,7 +203,7 @@ function seedData() {
         // Better strategy: Update existing by ID 1, 2, 3 and Insert 4, 5, 6.
 
         const campuses = [
-            { id: 1, name: 'Campus Plaza San Francisco', desc: 'Campus principal. Ciencias, Derecho, Educación.', img: 'img/campuses/campus_sf.jpg', bg: 'img/campuses/campus_sf_3d.png' },
+            { id: 1, name: 'Campus Plaza San Francisco', desc: 'Campus principal. Ciencias, Derecho, Educación.', img: 'img/campuses/campus_sf.jpg', bg: 'img/campuses/campus_sf_dark.png' },
             { id: 2, name: 'Campus Río Ebro', desc: 'Ingeniería (EINA) y Arquitectura.', img: 'img/campuses/campus_rio_ebro_real.jpg', bg: 'img/campuses/rio_ebro_3d.png' },
             { id: 3, name: 'Campus Huesca y Jaca', desc: 'Salud, Deporte y Gestión Pública.', img: 'img/campuses/campus_huesca_real.jpg', bg: 'img/campuses/campus_huesca.jpg' },
             { id: 4, name: 'Campus Paraíso', desc: 'Facultades de Economía, Empresa y Gran Vía.', img: 'img/campuses/campus_paraiso.jpg', bg: 'img/campuses/campus_paraiso.jpg' },

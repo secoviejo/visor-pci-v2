@@ -409,14 +409,11 @@
                     scale = curCampus.scale || 0.8;
                     pointX = curCampus.offset_x || 0;
                     pointY = curCampus.offset_y || 0;
-                    updateTransform();
 
-                    // Use background_image (3D view) if available, otherwise fallback to thumbnail/generic
-                    const bgImage = curCampus.background_image || curCampus.image_filename;
-                    if (bgImage) {
-                        document.getElementById('campus-map-container').style.backgroundImage = `url('${bgImage}')`;
-                    }
+                    // Background image is handled in updateTransform()
+                    updateTransform();
                 }
+
 
                 // 2. Load Buildings
                 await refreshBuildings();
@@ -436,6 +433,23 @@
         function updateTransform() {
             const container = document.getElementById('campus-map-container');
             container.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+
+            // Dynamic background based on theme
+            if (curCampus) {
+                const isDark = document.documentElement.classList.contains('dark');
+                const darkBg = curCampus.background_image;
+                const lightBg = curCampus.background_image_light;
+
+                let bg = isDark ? darkBg : (lightBg || darkBg);
+                if (!bg) bg = curCampus.image_filename;
+
+                if (bg) {
+                    const bgUrl = `url('${bg}')`;
+                    if (container.style.backgroundImage !== bgUrl) {
+                        container.style.backgroundImage = bgUrl;
+                    }
+                }
+            }
         }
 
         function setupViewControls() {
@@ -727,7 +741,19 @@
         // Theme Toggle Handler
         document.getElementById('theme-toggle').addEventListener('click', () => {
             theme.toggleTheme();
+            // Brief delay to ensure class is applied before updating background
+            setTimeout(updateTransform, 50);
         });
+
+        // Monitor class changes on documentElement (for theme updates)
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    updateTransform();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
     </script>
 </body>
 
