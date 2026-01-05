@@ -64,6 +64,10 @@ function initDb() {
     if (!buildingCols.some(c => c.name === 'y')) {
         db.exec("ALTER TABLE buildings ADD COLUMN y REAL");
     }
+    if (!buildingCols.some(c => c.name === 'thumbnail')) {
+        db.exec("ALTER TABLE buildings ADD COLUMN thumbnail TEXT");
+        console.log('Added thumbnail column to buildings.');
+    }
 
     // Check if we need to migrate floors (add building_id)
     // We can't easily ALTER COLUMN to add FK in SQLite, so we check if table exists and has column.

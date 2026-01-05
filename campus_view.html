@@ -74,13 +74,33 @@
         .building-marker {
             position: absolute;
             transform: translate(-50%, -50%);
-            transition: all 0.3s ease;
+            /* Only transition transform and opacity. NEVER left/top to avoid drag lag. */
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, filter 0.2s ease;
             cursor: pointer;
             z-index: 10;
+            will-change: transform, left, top;
+            user-select: none;
+            touch-action: none;
         }
 
         .building-marker:hover {
-            transform: translate(-50%, -50%) scale(1.1);
+            transform: translate(-50%, -50%) scale(1.05);
+            z-index: 20;
+        }
+
+        .building-marker.is-pressing {
+            transform: translate(-50%, -50%) scale(0.95);
+            opacity: 0.8;
+        }
+
+        .building-marker.is-dragging {
+            transition: opacity 0.1s ease !important;
+            /* Keep only opacity for smooth start */
+            transform: translate(-50%, -50%) scale(1.2);
+            -webkit-filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.4));
+            filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.4));
+            z-index: 100;
+            opacity: 0.85;
         }
 
         .status-badge {
@@ -410,7 +430,8 @@
                     pointX = curCampus.offset_x || 0;
                     pointY = curCampus.offset_y || 0;
 
-                    // Background image is handled in updateTransform()
+                    // Set initial background and transform
+                    updateBackgroundImage();
                     updateTransform();
                 }
 
@@ -433,8 +454,10 @@
         function updateTransform() {
             const container = document.getElementById('campus-map-container');
             container.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        }
 
-            // Dynamic background based on theme
+        function updateBackgroundImage() {
+            const container = document.getElementById('campus-map-container');
             if (curCampus) {
                 const isDark = document.documentElement.classList.contains('dark');
                 const darkBg = curCampus.background_image;
@@ -480,11 +503,20 @@
                 mapArea.style.cursor = 'grabbing';
             });
 
+            let panningRAFBusy = false;
             window.addEventListener('mousemove', (e) => {
-                if (!isPanning) return;
-                pointX = e.clientX - viewStartX;
-                pointY = e.clientY - viewStartY;
-                updateTransform();
+                if (!isPanning || panningRAFBusy) return;
+                panningRAFBusy = true;
+                requestAnimationFrame(() => {
+                    if (!isPanning) {
+                        panningRAFBusy = false;
+                        return;
+                    }
+                    pointX = e.clientX - viewStartX;
+                    pointY = e.clientY - viewStartY;
+                    updateTransform();
+                    panningRAFBusy = false;
+                });
             });
 
             window.addEventListener('mouseup', () => {
@@ -544,11 +576,15 @@
                 const statusText = hasAlarm ? 'Alerta Activa' : 'Normal';
                 const statusColor = hasAlarm ? 'text-red-600' : 'text-green-600 dark:text-green-400';
 
+                const thumbnailHtml = b.thumbnail
+                    ? `<img src="/data/${b.thumbnail}" class="w-full h-full object-cover transition-transform group-hover:scale-110" />`
+                    : `<div class="absolute inset-0 flex items-center justify-center text-gray-300 dark:text-gray-600">
+                        <i class="fa-solid fa-building text-2xl ${hasAlarm ? 'text-red-200' : ''}"></i>
+                       </div>`;
+
                 card.innerHTML = `
                     <div class="h-20 w-28 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden flex-shrink-0 relative border border-gray-100 dark:border-gray-700">
-                        <div class="absolute inset-0 flex items-center justify-center text-gray-300 dark:text-gray-600">
-                            <i class="fa-solid fa-building text-2xl ${hasAlarm ? 'text-red-200' : ''}"></i>
-                        </div>
+                        ${thumbnailHtml}
                     </div>
                     <div class="flex-grow py-1">
                         <h4 class="font-bold text-gray-900 dark:text-gray-100 group-hover:text-zaragoza-blue dark:group-hover:text-blue-400 transition-colors">${b.name}</h4>
@@ -564,6 +600,10 @@
 
         function renderMapMarkers(list, events) {
             const container = document.getElementById('campus-map-container');
+
+            // If dragging, don't re-render markers to avoid breaking the drag session
+            if (isDragging) return;
+
             const existingMarkers = container.querySelectorAll('.building-marker');
             existingMarkers.forEach(m => m.remove());
 
@@ -580,14 +620,15 @@
                 const top = b.y != null ? b.y : (20 + (idx * 23) % 65);
                 marker.style.left = `${left}%`;
                 marker.style.top = `${top}%`;
+                marker.style.transform = "translate(-50%, -50%)"; // Ensure base transform is set
 
                 marker.innerHTML = `
                     <div class="status-badge ${hasAlarm ? 'bg-red-600 animate-pulse' : 'bg-green-500'} group-hover:scale-110 transition-transform">
                         <i class="fa-solid ${hasAlarm ? 'fa-triangle-exclamation' : 'fa-check'} text-white text-[10px]"></i>
                     </div>
                     <div class="marker-label flex items-center gap-2 pointer-events-none select-none">
-                         <span>${b.name}</span>
-                         <span class="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] font-bold text-gray-400 group-hover:bg-zaragoza-blue group-hover:text-white transition-colors">Ver Planos</span>
+                        <span>${b.name}</span>
+                        <span class="px-1.5 py-0.5 bg-gray-100 rounded text-[9px] font-bold text-gray-400 group-hover:bg-zaragoza-blue group-hover:text-white transition-colors">Ver Planos</span>
                     </div>
                 `;
 
@@ -598,15 +639,16 @@
                         startX = e.clientX;
                         startY = e.clientY;
                         isLongPress = false;
+                        marker.classList.add('is-pressing');
 
                         dragTimeout = setTimeout(() => {
                             isDragging = true;
                             isLongPress = true;
                             draggedBuildingId = b.id;
                             dragMarker = marker;
-                            marker.classList.add('z-50', 'scale-125');
-                            marker.style.transition = 'none';
-                        }, 500);
+                            marker.classList.remove('is-pressing');
+                            marker.classList.add('is-dragging');
+                        }, 300); // 300ms feels more snappy
                     };
                 }
 
@@ -628,6 +670,8 @@
                 clearTimeout(dragTimeout);
                 dragTimeout = null;
             }
+            // Remove pressing state from any marker
+            document.querySelectorAll('.building-marker.is-pressing').forEach(m => m.classList.remove('is-pressing'));
 
             if (!isDragging || !dragMarker) {
                 // Not a drag, reset long press flag after a small delay
@@ -639,8 +683,7 @@
             const y = parseFloat(dragMarker.style.top);
             const bid = draggedBuildingId;
 
-            dragMarker.classList.remove('z-50', 'scale-125');
-            dragMarker.style.transition = '';
+            dragMarker.classList.remove('is-dragging');
 
             const savedMarker = dragMarker;
             const savedBid = bid;
@@ -667,6 +710,7 @@
             }
         });
 
+        let rAFBusy = false;
         document.addEventListener('mousemove', (e) => {
             if (dragTimeout && !isDragging) {
                 const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
@@ -676,19 +720,28 @@
                 }
             }
 
-            if (!isDragging || !dragMarker) return;
+            if (!isDragging || !dragMarker || rAFBusy) return;
 
-            const container = document.getElementById('campus-map-container');
-            const rect = container.getBoundingClientRect();
+            rAFBusy = true;
+            requestAnimationFrame(() => {
+                if (!isDragging || !dragMarker) {
+                    rAFBusy = false;
+                    return;
+                }
 
-            let x = ((e.clientX - rect.left) / rect.width) * 100;
-            let y = ((e.clientY - rect.top) / rect.height) * 100;
+                const container = document.getElementById('campus-map-container');
+                const rect = container.getBoundingClientRect();
 
-            x = Math.max(0, Math.min(100, x));
-            y = Math.max(0, Math.min(100, y));
+                let x = ((e.clientX - rect.left) / rect.width) * 100;
+                let y = ((e.clientY - rect.top) / rect.height) * 100;
 
-            dragMarker.style.left = `${x.toFixed(2)}%`;
-            dragMarker.style.top = `${y.toFixed(2)}%`;
+                x = Math.max(0, Math.min(100, x));
+                y = Math.max(0, Math.min(100, y));
+
+                dragMarker.style.left = `${x.toFixed(2)}%`;
+                dragMarker.style.top = `${y.toFixed(2)}%`;
+                rAFBusy = false;
+            });
         });
 
         async function refreshAlerts() {
@@ -742,14 +795,14 @@
         document.getElementById('theme-toggle').addEventListener('click', () => {
             theme.toggleTheme();
             // Brief delay to ensure class is applied before updating background
-            setTimeout(updateTransform, 50);
+            setTimeout(updateBackgroundImage, 50);
         });
 
         // Monitor class changes on documentElement (for theme updates)
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.attributeName === 'class') {
-                    updateTransform();
+                    updateBackgroundImage();
                 }
             });
         });
