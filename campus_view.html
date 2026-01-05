@@ -194,6 +194,20 @@
                 <img alt="Unidad de Seguridad Universidad Zaragoza" class="h-[50px] w-auto transition-all"
                     src="logo_sec.png" />
             </div>
+
+            <!-- Campus Info Center -->
+            <div id="campus-info-header"
+                class="flex-grow flex flex-col items-center justify-center px-4 overflow-hidden">
+                <h1 id="campus-title"
+                    class="text-lg font-extrabold text-gray-900 dark:text-white leading-tight truncate w-full text-center">
+                    Cargando...
+                </h1>
+                <p id="campus-desc"
+                    class="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed font-medium capitalize truncate w-full text-center">
+                    Cargando descripción...
+                </p>
+            </div>
+
             <div class="flex gap-4">
                 <a href="dashboard.html"
                     class="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-gray-700 rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
@@ -269,23 +283,7 @@
                 <!-- Markers will be injected here -->
             </div>
 
-            <!-- Map Overlay info -->
-            <div
-                class="absolute top-8 left-8 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-white/20 dark:border-gray-700/30 max-w-sm">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-8 h-1 bg-zaragoza-blue dark:bg-blue-500 rounded-full"></div>
-                    <span
-                        class="text-[10px] font-bold text-zaragoza-blue dark:text-blue-400 uppercase tracking-[0.2em]">Vista
-                        de
-                        Campus</span>
-                </div>
-                <h1 id="campus-title" class="text-2xl font-extrabold text-gray-900 dark:text-white leading-tight">
-                    Cargando...</h1>
-                <p id="campus-desc"
-                    class="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-relaxed font-medium capitalize">
-                    Cargando
-                    descripción...</p>
-            </div>
+
         </div>
 
         <!-- Building Sidebar Area -->
@@ -408,12 +406,12 @@
 
                 // Show Save button if admin
                 if (isAdmin) {
-                    const overlay = document.querySelector('.map-area .absolute.top-8.left-8');
+                    const headerInfo = document.getElementById('campus-info-header');
                     const saveBtn = document.createElement('button');
-                    saveBtn.className = 'mt-4 w-full bg-zaragoza-blue hover:bg-zaragoza-blue/90 text-white text-[10px] font-bold py-2 px-4 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2';
-                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> GUARDAR VISTA ACTUAL';
+                    saveBtn.className = 'mt-1 bg-zaragoza-blue hover:bg-zaragoza-blue/90 text-white text-[9px] font-bold py-1 px-3 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2';
+                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> GUARDAR VISTA';
                     saveBtn.onclick = saveView;
-                    overlay.appendChild(saveBtn);
+                    headerInfo.appendChild(saveBtn);
                 }
 
                 // 1. Get Campus Info
