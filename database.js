@@ -17,23 +17,31 @@ function initDb() {
         )
     `);
 
-    // Campuses table
+    // Campuses table (Updated with all columns for fresh install)
     db.exec(`
         CREATE TABLE IF NOT EXISTS campuses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL
+            name TEXT NOT NULL,
+            description TEXT,
+            image_filename TEXT,
+            background_image TEXT,
+            offset_x REAL DEFAULT 0,
+            offset_y REAL DEFAULT 0,
+            scale REAL DEFAULT 0.8
         )
     `);
 
-    // Migration: Add description and image_filename if missing
+    // Migration: Add columns if missing (for legacy updates)
     const campusCols = db.prepare("PRAGMA table_info(campuses)").all();
+
     if (!campusCols.some(c => c.name === 'description')) {
         db.exec("ALTER TABLE campuses ADD COLUMN description TEXT");
-        console.log('Added description column to campuses.');
+    }
+    if (!campusCols.some(c => c.name === 'image_filename')) {
+        db.exec("ALTER TABLE campuses ADD COLUMN image_filename TEXT");
     }
     if (!campusCols.some(c => c.name === 'background_image')) {
         db.exec("ALTER TABLE campuses ADD COLUMN background_image TEXT");
-        console.log('Added background_image column to campuses.');
     }
     if (!campusCols.some(c => c.name === 'offset_x')) {
         db.exec("ALTER TABLE campuses ADD COLUMN offset_x REAL DEFAULT 0");
