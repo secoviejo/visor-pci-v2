@@ -387,6 +387,17 @@ export function getCurrentUser() {
     if (!authToken) return null;
     try {
         const payload = JSON.parse(atob(authToken.split('.')[1]));
+
+        // Check Expiration
+        if (payload.exp) {
+            const now = Math.floor(Date.now() / 1000);
+            if (payload.exp < now) {
+                console.warn('Token expired');
+                logout();
+                return null;
+            }
+        }
+
         return payload;
     } catch (e) { return null; }
 }
