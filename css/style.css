@@ -207,6 +207,8 @@ select.form-control {
 
 .type-central {
     background-image: url('../img/central.svg');
+    width: 32px;
+    height: 32px;
 }
 
 /* TOOLTIP */

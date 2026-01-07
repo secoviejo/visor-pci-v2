@@ -655,6 +655,17 @@ modbusService.on('change', (event) => {
             ended_at: null
         };
 
+        // Check if alarm already exists for this element_id
+        const existingAlarm = db.prepare(`
+            SELECT id FROM alerts 
+            WHERE element_id = ? AND status = 'ACTIVA'
+        `).get(alertData.elementId);
+
+        if (existingAlarm) {
+            console.log(`[Modbus] Alarm already active for ${alertData.elementId}, skipping duplicate`);
+            return; // Don't create duplicate
+        }
+
         // Persist
         try {
             const stmt = db.prepare(`
@@ -898,14 +909,22 @@ app.get('/api/campuses/stats', (req, res) => {
 
         const query = `
             SELECT c.id, c.name, c.description, c.image_filename, c.background_image, 
-                   (COUNT(DISTINCT e.id) + COUNT(DISTINCT a.id)) as alarm_count 
-            FROM campuses c 
-            LEFT JOIN buildings b ON b.campus_id = c.id 
-            LEFT JOIN floors f ON f.building_id = b.id 
-            LEFT JOIN devices d ON d.floor_id = f.id 
-            LEFT JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
-            LEFT JOIN alerts a ON (a.building_id = b.id AND a.status = 'ACTIVA' AND a.origin = 'REAL')
-            GROUP BY c.id
+                   (
+                       SELECT COUNT(DISTINCT uid) FROM (
+                           SELECT d.device_id as uid
+                           FROM devices d
+                           JOIN floors f ON d.floor_id = f.id
+                           JOIN buildings b2 ON f.building_id = b2.id
+                           JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
+                           WHERE b2.campus_id = c.id
+                           UNION
+                           SELECT a.element_id as uid
+                           FROM alerts a
+                           JOIN buildings b3 ON a.building_id = b3.id
+                           WHERE a.status = 'ACTIVA' AND b3.campus_id = c.id
+                       )
+                   ) as alarm_count 
+            FROM campuses c
         `;
         const stats = db.prepare(query).all();
         res.json(stats);
