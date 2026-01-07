@@ -4,124 +4,123 @@ const EventEmitter = require('events');
 class ModbusService extends EventEmitter {
     constructor() {
         super();
-        this.client = new ModbusRTU();
-        this.host = process.env.CIE_HOST || '192.168.0.200';
-        this.port = parseInt(process.env.CIE_PORT) || 502;
-        this.pollingInterval = parseInt(process.env.CIE_POLL_MS) || 500;
-
-        this.isConnected = false;
-        this.isLocalSimulator = false;
-        this.intervalHandle = null;
-        this.reconnectTimeout = null;
-
-        this.inputs = {
-            di0: false,
-            di1: false
-        };
+        this.clients = new Map(); // Map<buildingId, { client: ModbusRTU, ip: string, port: number, connected: boolean, interval: any, inputs: { di0:bool, di1:bool } }>
+        this.pollingInterval = parseInt(process.env.CIE_POLL_MS) || 1000;
     }
 
-    async connect(targetHost = null, targetPort = null) {
-        // Clear any pending reconnects
-        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+    async connectBuilding(buildingId, ip, port = 502) {
+        // Disconnect if already exists
+        if (this.clients.has(buildingId)) {
+            await this.disconnectBuilding(buildingId);
+        }
 
-        const host = targetHost || this.host;
-        const port = targetPort || this.port;
+        const clientObj = {
+            client: new ModbusRTU(),
+            ip: ip,
+            port: port,
+            connected: false,
+            interval: null,
+            inputs: { di0: false, di1: false },
+            isSimulator: (ip === '127.0.0.1' || ip === 'localhost')
+        };
+
+        this.clients.set(buildingId, clientObj);
 
         try {
-            console.log(`[Modbus] Connecting to ${host}:${port}...`);
-            await this.client.connectTCP(host, { port: port });
-            console.log(`[Modbus] ✅ Connected to ${host}.`);
+            console.log(`[Modbus] Connecting to Building ${buildingId} (${ip}:${port})...`);
+            await clientObj.client.connectTCP(ip, { port: port });
+            clientObj.client.setID(1);
+            clientObj.client.setTimeout(2000);
 
-            this.isLocalSimulator = (host === '127.0.0.1' || host === 'localhost');
-            this.finalizeConnection();
+            clientObj.connected = true;
+            console.log(`[Modbus] ✅ Connected to Building ${buildingId} (${ip}).`);
+
+            this.emit('connected', { buildingId });
+            this.startPolling(buildingId);
             return { success: true };
+
         } catch (e) {
-            console.warn(`[Modbus] ⚠️ Connection failed to ${host}: ${e.message}`);
-            this.isConnected = false;
-            this.scheduleReconnect(host, port);
+            console.warn(`[Modbus] ⚠️ Connection failed to Building ${buildingId} (${ip}): ${e.message}`);
+            clientObj.connected = false;
+            // Schedule reconnect? For now, we rely on the main server to maybe retry or just let it be fail until config update.
+            // Actually, auto-reconnect logic per client is good.
+            this.scheduleReconnect(buildingId);
             return { success: false, error: e.message };
         }
     }
 
-    async disconnect() {
-        console.log('[Modbus] Disconnecting...');
-        this.isConnected = false;
-        if (this.intervalHandle) clearInterval(this.intervalHandle);
-        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+    async disconnectBuilding(buildingId) {
+        const clientObj = this.clients.get(buildingId);
+        if (!clientObj) return;
+
+        console.log(`[Modbus] Disconnecting Building ${buildingId}...`);
+        if (clientObj.interval) clearInterval(clientObj.interval);
+        if (clientObj.reconnectTimeout) clearTimeout(clientObj.reconnectTimeout);
+
         try {
-            await this.client.close();
+            await clientObj.client.close();
         } catch (e) { }
-        this.emit('disconnected');
+
+        this.clients.delete(buildingId);
+        this.emit('disconnected', { buildingId });
     }
 
-    finalizeConnection() {
-        this.client.setID(1);
-        this.client.setTimeout(2000);
-        this.isConnected = true;
-        this.emit('connected');
-        this.startPolling();
+    scheduleReconnect(buildingId) {
+        const clientObj = this.clients.get(buildingId);
+        if (!clientObj) return;
+
+        if (clientObj.reconnectTimeout) clearTimeout(clientObj.reconnectTimeout);
+        clientObj.reconnectTimeout = setTimeout(() => {
+            console.log(`[Modbus] Retrying connection for Building ${buildingId}...`);
+            this.connectBuilding(buildingId, clientObj.ip, clientObj.port);
+        }, 10000);
     }
 
-    scheduleReconnect(host, port) {
-        if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = setTimeout(() => this.connect(host, port), 5000);
-    }
+    startPolling(buildingId) {
+        const clientObj = this.clients.get(buildingId);
+        if (!clientObj || !clientObj.connected) return;
 
-    startPolling() {
-        if (this.intervalHandle) clearInterval(this.intervalHandle);
+        if (clientObj.interval) clearInterval(clientObj.interval);
 
-        this.intervalHandle = setInterval(async () => {
-            if (!this.isConnected) return;
+        clientObj.interval = setInterval(async () => {
+            if (!clientObj.connected) return;
 
             try {
-                let data;
-                if (this.isLocalSimulator) {
-                    // For the simulator, we might use Holding Registers as a test
-                    // But our simulator.js uses getDiscreteInput.
-                    // Actually, simulator.js code:
-                    // getDiscreteInput: function (addr, unitID) { return inputs[addr] || false; }
-                    // So we should use readDiscreteInputs.
-                    const response = await this.client.readDiscreteInputs(0, 2);
-                    data = response.data;
-                } else {
-                    const response = await this.client.readDiscreteInputs(0, 2);
-                    data = response.data;
+                // Read 2 discrete inputs from address 0, FC02
+                const response = await clientObj.client.readDiscreteInputs(0, 2);
+                const [di0, di1] = response.data;
+
+                if (di0 !== clientObj.inputs.di0) {
+                    clientObj.inputs.di0 = di0;
+                    this.emit('change', { buildingId, port: 0, distinct: 'di0', value: di0, source: 'REAL' });
                 }
 
-                const [di0, di1] = data;
-
-                if (di0 !== this.inputs.di0) {
-                    this.inputs.di0 = di0;
-                    this.emit('change', { port: 0, distinct: 'di0', value: di0, source: this.isLocalSimulator ? 'SIM' : 'REAL' });
-                }
-
-                if (di1 !== this.inputs.di1) {
-                    this.inputs.di1 = di1;
-                    this.emit('change', { port: 1, distinct: 'di1', value: di1, source: this.isLocalSimulator ? 'SIM' : 'REAL' });
+                if (di1 !== clientObj.inputs.di1) {
+                    clientObj.inputs.di1 = di1;
+                    this.emit('change', { buildingId, port: 1, distinct: 'di1', value: di1, source: 'REAL' });
                 }
 
             } catch (e) {
-                console.error(`[Modbus] Polling error: ${e.message}`);
-                this.isConnected = false;
-                this.emit('disconnected');
-                this.scheduleReconnect();
+                console.error(`[Modbus] Polling error on Building ${buildingId}: ${e.message}`);
+                // If error is strictly connection lost, trigger reconnect
+                clientObj.connected = false;
+                this.scheduleReconnect(buildingId);
             }
         }, this.pollingInterval);
     }
 
+    // Helper for Admin UI status
     getStatus() {
-        return {
-            connected: this.isConnected,
-            isSimulator: this.isLocalSimulator,
-            host: this.host,
-            inputs: this.inputs
-        };
-    }
-
-    async writeOutput(port, value) {
-        if (!this.isConnected) throw new Error('Not connected');
-        // Address 0 usually for DO0
-        await this.client.writeCoil(port, value);
+        // Return array/object of all connections
+        const status = {};
+        for (const [id, obj] of this.clients) {
+            status[id] = {
+                ip: obj.ip,
+                connected: obj.connected,
+                inputs: obj.inputs
+            };
+        }
+        return status;
     }
 }
 

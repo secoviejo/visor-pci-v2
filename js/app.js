@@ -48,10 +48,12 @@ window.addEventListener('load', async () => {
     // Listen for Alerts
     window.addEventListener('pci:alarm:on', (e) => {
         alertSystem.raiseAlert(e.detail);
+        updateMapVisuals();
     });
 
     window.addEventListener('pci:alarm:off', (e) => {
         alertSystem.resolveAlert(e.detail.elementId, e.detail.type);
+        updateMapVisuals();
     });
 
     window.addEventListener('pci:alert:click', (e) => {
@@ -272,6 +274,7 @@ function renderDevices() {
         dot.textContent = d.n;
         dot.setAttribute('data-tooltip', d.loc);
         dot.dataset.dbId = d.db_id;
+        dot.dataset.deviceId = d.id; // Store string ID for matching
         dot.classList.add('device-marker'); // Class for querySelector
         dot.setAttribute('data-dbid', d.db_id); // Attribute for selector
 
@@ -288,14 +291,60 @@ function renderDevices() {
     // Re-apply filters just in case state was saved but we re-rendered
     applyFilters();
 
-    // Re-apply simulator visuals (blinking)
-    // Re-apply simulator visuals (blinking)
-    if (window.simulator) window.simulator.updateVisuals();
+    // Re-apply visuals (Sim + Real)
+    updateMapVisuals();
 
     // Update global reference for explorer
     currentDevices = devices;
     // Update Sidebar
     if (window.renderSidebarDevices) window.renderSidebarDevices(document.getElementById('sim-filter-input')?.value || '');
+}
+
+// Global Visual Update Function
+window.updateMapVisuals = function () {
+    const activeAlerts = window.alerts ? window.alerts.alerts.filter(a => a.status === 'ACTIVA') : [];
+
+    // Simulator Active Set
+    const simActiveIds = window.simulator ? window.simulator.activeDeviceIds : new Set();
+    const isSimActive = window.simulator ? window.simulator.isActive : false;
+
+    document.querySelectorAll('.hotspot').forEach(dot => {
+        let isBlinking = false;
+        const dbId = String(dot.dataset.dbId);
+        const devId = dot.dataset.deviceId; // "CIE-27", "1627..."
+        const isCentral = dot.classList.contains('type-central');
+
+        // 1. Check Simulator
+        if (isSimActive && simActiveIds.has(dbId)) {
+            isBlinking = true;
+        }
+
+        // 2. Check Real Alerts
+        if (!isBlinking) {
+            const hasAlert = activeAlerts.some(alert => {
+                // Exact Match (DB ID or Device ID)
+                if (alert.elementId == dbId || alert.elementId == devId) return true;
+
+                // Central Fallback Logic:
+                // If it's a "Central" icon, and the alert is Modbus (starts with CIE-) 
+                // and belongs to the SAME building.
+                if (isCentral && alert.elementId.startsWith('CIE-') && alert.buildingId == currentBuildingId) {
+                    return true;
+                }
+                return false;
+            });
+            if (hasAlert) isBlinking = true;
+        }
+
+        if (isBlinking) {
+            dot.classList.add('blinking');
+        } else {
+            dot.classList.remove('blinking');
+        }
+    });
+
+    // Sync Simulator UI if needed (optional)
+    if (window.simulator) window.simulator.updateVisuals();
 }
 
 // ===========================================

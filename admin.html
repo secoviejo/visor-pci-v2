@@ -167,6 +167,37 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- New Section: Buildings Modbus Config -->
+            <div class="mt-8 mb-4">
+                <h2 class="text-lg font-semibold">Configuración de Centrales por Edificio</h2>
+                <p class="text-sm text-gray-500 mb-2">Asigna la IP de la central (SOLAE) correspondiente a cada
+                    edificio.</p>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                Edificio</th>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                Tipo</th>
+                            <th
+                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                IP / Puerto</th>
+                            <th
+                                class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="buildings-modbus-table"
+                        class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- JS Injected -->
+                    </tbody>
+                </table>
+            </div>
         </div>
         <!-- Plans Section -->
         <div id="section-plans" class="hidden">
@@ -345,7 +376,7 @@
             document.getElementById(`section-${tab}`).classList.remove('hidden');
 
             if (tab === 'users') loadUsers();
-            if (tab === 'gateways') { loadGateways(); refreshSimStatus(); }
+            if (tab === 'gateways') { loadGateways(); loadBuildingGateways(); refreshSimStatus(); }
             if (tab === 'plans') loadBuildingsForPlans();
             // config needs no load
         };
@@ -480,6 +511,66 @@
                 btn.innerText = originalText;
                 btn.classList.remove('bg-blue-600', 'text-white');
                 btn.classList.add('text-red-500');
+            }
+        };
+
+        // --- BUILDING MODBUS CONFIG ---
+        async function loadBuildingGateways() {
+            try {
+                const buildings = await api.getBuildings();
+                const tbody = document.getElementById('buildings-modbus-table');
+
+                tbody.innerHTML = buildings.map(b => `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap font-medium dark:text-gray-200">${b.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-gray-500">SOLAE / Modbus</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex gap-2">
+                                <input type="text" id="bm-ip-${b.id}" value="${b.modbus_ip || ''}" class="border rounded p-1 text-sm w-32 dark:bg-gray-700 dark:text-white" placeholder="IP">
+                                <input type="number" id="bm-port-${b.id}" value="${b.modbus_port || 502}" class="border rounded p-1 text-sm w-20 dark:bg-gray-700 dark:text-white" placeholder="502">
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            <button onclick="saveBuildingModbus(${b.id})" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors">Guardar</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) { console.error('Error loading building modbus:', e); }
+        }
+
+        window.saveBuildingModbus = async function (id) {
+            const ip = document.getElementById(`bm-ip-${id}`).value;
+            const port = document.getElementById(`bm-port-${id}`).value;
+            const btn = event.target;
+            const originalText = btn.innerText;
+
+            btn.innerText = '...';
+
+            try {
+                const res = await fetch(`/api/buildings/${id}/modbus`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    },
+                    body: JSON.stringify({ ip, port })
+                });
+
+                if (res.ok) {
+                    btn.innerText = '¡Guardado!';
+                    btn.classList.replace('bg-blue-600', 'bg-green-600');
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                        btn.classList.replace('bg-green-600', 'bg-blue-600');
+                    }, 2000);
+                } else {
+                    alert('Error guardando configuración');
+                    btn.innerText = originalText;
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Error de conexión');
+                btn.innerText = originalText;
             }
         };
 

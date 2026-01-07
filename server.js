@@ -10,24 +10,23 @@ const { spawn } = require('child_process');
 let simulatorProcess = null;
 
 // Start Modbus Connection (Hardware only by default)
-modbusService.connect().then(res => {
-    if (!res.success) {
-        console.warn('[Modbus] Hardware not found at startup. Waiting for manual connect or simulation.');
+
+
+// Listen for hardware events// --- Initialize Modbus Connections ---
+const buildingsWithModbus = db.prepare('SELECT id, modbus_ip, modbus_port FROM buildings WHERE modbus_ip IS NOT NULL').all();
+buildingsWithModbus.forEach(b => {
+    if (b.modbus_ip && b.modbus_ip.trim() !== '') {
+        const port = b.modbus_port || 502;
+        modbusService.connectBuilding(b.id, b.modbus_ip, port);
     }
 });
 
-// Listen for hardware events (Modbus)
-modbusService.on('change', (event) => {
-    // console.log('[Modbus Event]', event);
-    // Logic handled in socket section
-});
-
-// Start BACnet Discovery
+// [BACnet] Start Discovery
 try {
     bacnetService.discover();
-    console.log('[BACnet] Discovery started on port ' + bacnetService.localPort);
-} catch (e) {
-    console.warn('[BACnet] Startup error:', e.message);
+    console.log('[BACnet] Discovery started on port 47809');
+} catch (err) {
+    console.error('[BACnet] Failed to start:', err.message);
 }
 
 // Listen for BACnet devices
@@ -162,6 +161,28 @@ app.post('/api/buildings', authenticateToken, (req, res) => {
         res.json({ success: true, id: result.lastInsertRowid, name, campus_id: cId });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+// 1.1.1 Update Building Modbus Config
+app.put('/api/buildings/:id/modbus', (req, res) => {
+    const { id } = req.params;
+    const { ip, port } = req.body;
+
+    try {
+        const stmt = db.prepare('UPDATE buildings SET modbus_ip = ?, modbus_port = ? WHERE id = ?');
+        stmt.run(ip, port, id);
+
+        // Reconnect logic
+        if (ip && ip.trim() !== '') {
+            modbusService.connectBuilding(parseInt(id), ip, parseInt(port) || 502);
+        } else {
+            modbusService.disconnectBuilding(parseInt(id));
+        }
+
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -617,13 +638,17 @@ modbusService.on('change', (event) => {
     // Only process "ON" events (value=true) as alarms for now
     // Logic: DI0 = 1 -> ALARM
     if (event.value === true) {
+        // Fetch building name for better description
+        const building = db.prepare('SELECT name FROM buildings WHERE id = ?').get(event.buildingId);
+        const bName = building ? building.name : `Edificio ${event.buildingId}`;
+
         const alertData = {
-            elementId: `CIE-${event.port}`, // Virtual ID
-            type: 'detector', // Default assumption
-            building_id: 1, // Default
-            floor_id: 1, // Default (needs config map later)
-            location: event.distinct === 'di0' ? 'Zona 1 (Hardware)' : 'Zona 2 (Hardware)',
-            description: 'Alarma de Fuego (Sensor Real)',
+            elementId: `CIE-H12-${event.buildingId}-${event.port}`, // Unique ID per building/port
+            type: 'detector',
+            building_id: event.buildingId,
+            floor_id: 1, // Default to floor 1 if unknown mapping
+            location: `${bName} - Entrada Digital ${event.port} (SOLAE)`,
+            description: `Alarma de Fuego en ${bName}`,
             status: 'ACTIVA',
             origin: 'REAL',
             started_at: new Date().toISOString(),
@@ -655,12 +680,12 @@ modbusService.on('change', (event) => {
                 INSERT INTO events (device_id, type, message, value)
                 VALUES (?, ?, 'Dispositivo Activado', ?)
             `);
-            const info = stmt.run(elementId, eventType, JSON.stringify(event.value));
+            const info = stmt.run(alertData.elementId, eventType, JSON.stringify(event.value));
 
             // Emit Event Update
             io.emit('event:new', {
                 id: info.lastInsertRowid,
-                device_id: elementId,
+                device_id: alertData.elementId,
                 type: eventType,
                 message: 'Dispositivo Activado',
                 timestamp: new Date(),
@@ -867,24 +892,77 @@ app.post('/api/admin/simulator/stop', authenticateToken, (req, res) => {
 app.get('/api/campuses/stats', (req, res) => {
     try {
         // Count active ALARM events per campus
-        // We link events -> devices -> floors -> buildings -> campuses
-        // Note: events.device_id relates to devices.device_id (which is external ID)
-        // AND devices.device_id is stored in 'devices' table.
-        // But server.js uses 'elementId' for event insertion. elementId for hardware is 'CIE-XX'.
-        // For this query to work, we need to hope events.device_id matches devices.device_id OR devices.id
-        // Since we are simulating, we will ensure the inserted event uses a valid device_id from DB.
+        // UPDATED: Now includes both:
+        // 1. Device-linked alarms from 'events' table
+        // 2. Building-linked Modbus alarms from 'alerts' table
 
         const query = `
-            SELECT c.id, c.name, c.description, c.image_filename, c.background_image, COUNT(e.id) as alarm_count 
+            SELECT c.id, c.name, c.description, c.image_filename, c.background_image, 
+                   (COUNT(DISTINCT e.id) + COUNT(DISTINCT a.id)) as alarm_count 
             FROM campuses c 
             LEFT JOIN buildings b ON b.campus_id = c.id 
             LEFT JOIN floors f ON f.building_id = b.id 
             LEFT JOIN devices d ON d.floor_id = f.id 
             LEFT JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
+            LEFT JOIN alerts a ON (a.building_id = b.id AND a.status = 'ACTIVA' AND a.origin = 'REAL')
             GROUP BY c.id
         `;
         const stats = db.prepare(query).all();
         res.json(stats);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// NEW: Get active alarms per building for campus view markers
+app.get('/api/buildings/alarms', (req, res) => {
+    try {
+        const { campusId } = req.query;
+
+        // Get all active alarms from alerts table (Modbus alarms)
+        let query = `
+            SELECT DISTINCT a.building_id, b.name as building_name, b.id
+            FROM alerts a
+            JOIN buildings b ON a.building_id = b.id
+            WHERE a.status = 'ACTIVA'
+        `;
+
+        const params = [];
+        if (campusId) {
+            query += ' AND b.campus_id = ?';
+            params.push(parseInt(campusId));
+        }
+
+        const alertAlarms = db.prepare(query).all(...params);
+
+        // Get all active alarms from events table (device alarms)
+        let eventQuery = `
+            SELECT DISTINCT b.id as building_id, b.name as building_name, b.id
+            FROM events e
+            JOIN devices d ON e.device_id = d.device_id
+            JOIN floors f ON d.floor_id = f.id
+            JOIN buildings b ON f.building_id = b.id
+            WHERE e.type = 'ALARM' AND e.resolved = 0
+        `;
+
+        const eventParams = [];
+        if (campusId) {
+            eventQuery += ' AND b.campus_id = ?';
+            eventParams.push(parseInt(campusId));
+        }
+
+        const eventAlarms = db.prepare(eventQuery).all(...eventParams);
+
+        // Merge and deduplicate by building_id
+        const allAlarms = [...alertAlarms, ...eventAlarms];
+        const uniqueAlarms = allAlarms.reduce((acc, alarm) => {
+            if (!acc.find(a => a.building_id === alarm.building_id)) {
+                acc.push(alarm);
+            }
+            return acc;
+        }, []);
+
+        res.json(uniqueAlarms);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -1018,6 +1096,15 @@ app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), (req, 
 });
 
 // GATEWAYS
+app.get('/api/buildings', (req, res) => {
+    try {
+        const rows = db.prepare('SELECT id, name, campus_id, x, y, modbus_ip, modbus_port FROM buildings').all();
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.get('/api/gateways', authenticateToken, authorizeRole(['admin']), (req, res) => {
     try {
         const gateways = db.prepare('SELECT * FROM gateways').all();

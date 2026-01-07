@@ -773,9 +773,12 @@
                     }).join('');
                 }
 
-                // Sync markers and building list with active events
-                renderBuildings(buildings, activeEvents.filter(e => e.type === 'ALARM'));
-                renderMapMarkers(buildings, activeEvents.filter(e => e.type === 'ALARM'));
+                // Fetch building alarms for markers (includes both events and alerts)
+                const buildingAlarms = await fetch(`/api/buildings/alarms?campusId=${campusId}`).then(r => r.json());
+
+                // Sync markers and building list with active alarms
+                renderBuildings(buildings, buildingAlarms);
+                renderMapMarkers(buildings, buildingAlarms);
 
             } catch (err) { console.error("Error refreshing alerts:", err); }
         }
