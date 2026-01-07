@@ -1,0 +1,69 @@
+RENDER AUTO-DEPLOY Y PERSISTENCIA DE DATOS
+===========================================
+
+1. ¿SE ACTUALIZA AUTOMÁTICAMENTE?
+---------------------------------
+En una configuración estándar de Render conectada a GitHub, la respuesta es: SÍ, por defecto.
+
+El flujo es el siguiente:
+1. Subes cambios a GitHub (`git push origin main`).
+2. Render detecta el nuevo "commit" en tu repositorio.
+3. Render inicia automáticamente un nuevo "Deploy" (construye y lanza la nueva versión).
+
+2. ¿CÓMO VERIFICARLO O CAMBIARLO?
+---------------------------------
+Si quieres comprobarlo o prefieres hacerlo manual (por ejemplo, para no gastar minutos de construcción por cada pequeño cambio):
+
+1. Ve a tu Dashboard de Render (https://dashboard.render.com/).
+2. Entra en tu servicio web (visor-pci).
+3. Ve a la pestaña "Settings".
+4. Busca la sección "Auto-Deploy".
+   - Si dice "Yes", se actualizará solo con cada push.
+   - Si dice "No", tendrás que pulsar el botón azul "Manual Deploy" en el dashboard cada vez que quieras actualizar.
+
+3. ⚠️ NOTA CRÍTICA SOBRE SQLITE (pci.db)
+----------------------------------------
+Dado que estás usando una base de datos basada en archivos (`pci.db`), debes tener mucho cuidado:
+
+Cada vez que Render hace un deploy (sea automático o manual), el sistema:
+1. Borra el disco del servidor virtual actual.
+2. Descarga una copia limpia de tu código desde GitHub.
+3. Inicia la aplicación.
+
+CONSECUENCIA:
+- Si has creado datos nuevos (usuarios, incidencias, etc.) usando la aplicación en la nube, esos datos SE PERDERÁN en el siguiente deploy.
+- La aplicación siempre "volverá al pasado", al estado exacto que tenga el archivo `pci.db` que está subido en tu repositorio de GitHub.
+
+SOLUCIÓN PARA PERSISTENCIA (Opcional):
+Para evitar esto en producción con SQLite en Render, se necesitaría configurar un "Persistent Disk" (disco persistente) y guardar allí la DB, o migrar a una base de datos externa como PostgreSQL.
+
+4. CONFIGURACIÓN DE DISCO PERSISTENTE EN RENDER (PARA SQLite)
+=============================================================
+Si deseas mantener tus datos entre despliegues usando SQLite, sigue estos pasos:
+
+PASO 1: Adaptar el código (database.js)
+---------------------------------------
+Debemos permitir que la aplicación busque la base de datos en una ruta flexible.
+Edita `database.js` y cambia la línea de conexión:
+
+  const dbPath = process.env.DB_PATH || 'pci.db';
+  const db = new Database(dbPath, { verbose: console.log });
+
+PASO 2: Configurar Render
+-------------------------
+1. En el Dashboard de tu servicio (Web Service):
+2. Ve a la sección **"Disks"**.
+3. Haz clic en **"Add Disk"**.
+   - **Name**: `sqlite-data` (o lo que prefieras)
+   - **Mount Path**: `/opt/render/project/src/data`
+   - **Size**: 1 GB (suficiente para empezar)
+4. Ve a la sección **"Environment"**.
+5. Añade una **Variable de Entorno**:
+   - **Key**: `DB_PATH`
+   - **Value**: `/opt/render/project/src/data/pci.db`
+
+PASO 3: Consideraciones
+-----------------------
+- La carpeta `data` (o la que elijas) será persistente.
+- Render NO hace backups automáticos de estos discos, así que eres responsable de tus datos.
+- Si subes un `pci.db` nuevo en tu repo de GitHub, NO sobrescribirá el del disco. La aplicación usará el del disco. Si quieres "resetear", tendrás que borrar el archivo del disco manualmente (por SSH o código).
