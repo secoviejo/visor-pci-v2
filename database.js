@@ -175,10 +175,21 @@ function initDb() {
             acknowledged BOOLEAN DEFAULT 0,
             acknowledged_by TEXT,
             resolved BOOLEAN DEFAULT 0,
+            building_id INTEGER,
+            floor_id INTEGER,
             value TEXT, -- Raw value or JSON
             origin TEXT -- REAL, SIM
         )
     `);
+
+    // Migration for events table (adding building_id, floor_id)
+    const eventCols = db.prepare("PRAGMA table_info(events)").all();
+    if (!eventCols.some(c => c.name === 'building_id')) {
+        db.exec("ALTER TABLE events ADD COLUMN building_id INTEGER");
+    }
+    if (!eventCols.some(c => c.name === 'floor_id')) {
+        db.exec("ALTER TABLE events ADD COLUMN floor_id INTEGER");
+    }
 
     console.log('Database schema initialized.');
     seedData();

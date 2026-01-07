@@ -30,52 +30,53 @@
             document.documentElement.classList.remove('dark');
         }
     </script>
-    /* Scrollbar styles preserved */
-    ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-    }
+    <style>
+        /* Scrollbar styles preserved */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
 
-    ::-webkit-scrollbar-track {
-    background: #2d3748;
-    }
+        ::-webkit-scrollbar-track {
+            background: #2d3748;
+        }
 
-    /* Light mode scrollbar track override via CSS variable or just generic */
-    html:not(.dark) ::-webkit-scrollbar-track {
-    background: #edf2f7;
-    }
+        /* Light mode scrollbar track override via CSS variable or just generic */
+        html:not(.dark) ::-webkit-scrollbar-track {
+            background: #edf2f7;
+        }
 
-    ::-webkit-scrollbar-thumb {
-    background: #4a5568;
-    border-radius: 4px;
-    }
+        ::-webkit-scrollbar-thumb {
+            background: #4a5568;
+            border-radius: 4px;
+        }
 
-    html:not(.dark) ::-webkit-scrollbar-thumb {
-    background: #cbd5e0;
-    }
+        html:not(.dark) ::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+        }
 
-    ::-webkit-scrollbar-thumb:hover {
-    background: #718096;
-    }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #718096;
+        }
 
-    .sort-icon {
-    margin-left: 5px;
-    font-size: 0.8em;
-    color: #a0aec0;
-    }
+        .sort-icon {
+            margin-left: 5px;
+            font-size: 0.8em;
+            color: #a0aec0;
+        }
 
-    th {
-    cursor: pointer;
-    user-select: none;
-    }
+        th {
+            cursor: pointer;
+            user-select: none;
+        }
 
-    th:hover {
-    background-color: rgba(0,0,0,0.1);
-    }
+        th:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
 
-    .dark th:hover {
-    background-color: #2d3748;
-    }
+        .dark th:hover {
+            background-color: #2d3748;
+        }
     </style>
 </head>
 

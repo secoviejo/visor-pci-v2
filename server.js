@@ -688,15 +688,17 @@ modbusService.on('change', (event) => {
 
         try {
             const stmt = db.prepare(`
-                INSERT INTO events (device_id, type, message, value)
-                VALUES (?, ?, 'Dispositivo Activado', ?)
+                INSERT INTO events (device_id, type, message, value, building_id, floor_id)
+                VALUES (?, ?, 'Dispositivo Activado', ?, ?, ?)
             `);
-            const info = stmt.run(alertData.elementId, eventType, JSON.stringify(event.value));
+            const info = stmt.run(alertData.elementId, eventType, JSON.stringify(event.value), alertData.building_id, alertData.floor_id);
 
             // Emit Event Update
             io.emit('event:new', {
                 id: info.lastInsertRowid,
                 device_id: alertData.elementId,
+                building_id: alertData.building_id,
+                floor_id: alertData.floor_id,
                 type: eventType,
                 message: 'Dispositivo Activado',
                 timestamp: new Date(),
@@ -765,12 +767,20 @@ app.get('/api/events', authenticateToken, (req, res) => {
         const { limit = 50, offset = 0, type, resolved, campusId } = req.query;
 
         let query = `
-            SELECT e.*, d.number as device_number, d.type as device_type, d.location as device_location, 
-                   f.name as floor_name, b.name as building_name, b.id as building_id, b.campus_id
+            SELECT e.*, 
+                   COALESCE(d.number, '') as device_number, 
+                   COALESCE(d.type, e.type) as device_type, 
+                   COALESCE(d.location, '') as device_location, 
+                   COALESCE(e_f.name, d_f.name) as floor_name, 
+                   COALESCE(e_b.name, d_b.name) as building_name, 
+                   COALESCE(e.building_id, d_b.id) as building_id, 
+                   COALESCE(e_b.campus_id, d_b.campus_id) as campus_id
             FROM events e
             LEFT JOIN devices d ON e.device_id = d.device_id
-            LEFT JOIN floors f ON d.floor_id = f.id
-            LEFT JOIN buildings b ON f.building_id = b.id
+            LEFT JOIN floors d_f ON d.floor_id = d_f.id
+            LEFT JOIN buildings d_b ON d_f.building_id = d_b.id
+            LEFT JOIN buildings e_b ON e.building_id = e_b.id
+            LEFT JOIN floors e_f ON e.floor_id = e_f.id
         `;
 
         const params = [];
@@ -785,7 +795,7 @@ app.get('/api/events', authenticateToken, (req, res) => {
             params.push(resolved === 'true' ? 1 : 0);
         }
         if (campusId) {
-            conditions.push('b.campus_id = ?');
+            conditions.push('COALESCE(e_b.campus_id, d_b.campus_id) = ?');
             params.push(parseInt(campusId));
         }
 
@@ -994,7 +1004,7 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
 
         if (campusId) {
             device = db.prepare(`
-                SELECT d.device_id, d.type 
+                SELECT d.device_id, d.type, d.floor_id, f.building_id
                 FROM devices d
                 JOIN floors f ON d.floor_id = f.id
                 JOIN buildings b ON f.building_id = b.id
@@ -1002,7 +1012,7 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
                 ORDER BY RANDOM() LIMIT 1
             `).get(campusId);
         } else {
-            device = db.prepare("SELECT device_id, type FROM devices ORDER BY RANDOM() LIMIT 1").get();
+            device = db.prepare("SELECT d.device_id, d.type, d.floor_id, f.building_id FROM devices d JOIN floors f ON d.floor_id = f.id ORDER BY RANDOM() LIMIT 1").get();
         }
 
         if (!device) return res.status(404).json({ error: 'No devices found for this campus' });
@@ -1011,8 +1021,8 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
         const alertData = {
             elementId: device.device_id,
             type: device.type || 'detector',
-            building_id: 1, // Mock for sim
-            floor_id: 1, // Mock for sim
+            building_id: device.building_id,
+            floor_id: device.floor_id,
             location: 'Ubicación Simulada',
             description: 'Simulacro de Incendio',
             status: 'ACTIVA',
@@ -1037,10 +1047,10 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
 
         // 3. Insert EVENT (History)
         const stmt = db.prepare(`
-            INSERT INTO events (device_id, type, message, value, origin)
-            VALUES (?, 'ALARM', 'Incidencia Simulada', ?, 'SIM')
+            INSERT INTO events (device_id, type, message, value, origin, building_id, floor_id)
+            VALUES (?, 'ALARM', 'Incidencia Simulada', ?, 'SIM', ?, ?)
         `);
-        const info = stmt.run(device.device_id, JSON.stringify({ simulated: true }));
+        const info = stmt.run(device.device_id, JSON.stringify({ simulated: true }), device.building_id, device.floor_id);
 
         // 4. Emit Event (Log)
         io.emit('event:new', {
@@ -1050,7 +1060,9 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
             message: 'Incidencia Simulada',
             timestamp: new Date(),
             origin: 'SIM',
-            acknowledged: false
+            acknowledged: false,
+            building_id: device.building_id,
+            floor_id: device.floor_id
         });
 
         res.json({ success: true, device });
@@ -1195,8 +1207,8 @@ app.post('/api/simulation/building/:id/alarm', authenticateToken, (req, res) => 
         `);
 
         const insertEvent = db.prepare(`
-            INSERT INTO events (device_id, type, message, value, origin)
-            VALUES (?, 'ALARM', ?, ?, 'SIMULACIÓN')
+            INSERT INTO events (device_id, type, message, value, origin, building_id, floor_id)
+            VALUES (?, 'ALARM', ?, ?, 'SIM', ?, ?)
         `);
 
         // Transaction for speed
@@ -1220,7 +1232,9 @@ app.post('/api/simulation/building/:id/alarm', authenticateToken, (req, res) => 
                     insertEvent.run(
                         d.device_id,
                         'Simulacro de Incendio General',
-                        JSON.stringify({ building_id: buildingId, floor_id: d.floor_id, location: d.location })
+                        JSON.stringify({ building_id: buildingId, floor_id: d.floor_id, location: d.location }),
+                        buildingId,
+                        d.floor_id
                     );
 
                     alertsCreated.push({
