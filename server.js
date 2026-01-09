@@ -1108,7 +1108,7 @@ app.post('/api/simulation/resolve', authenticateToken, (req, res) => {
         const stmt = db.prepare(`
             UPDATE alerts 
             SET status = 'RESUELTA', ended_at = ? 
-            WHERE status = 'ACTIVA' AND origin = 'SIMULACIÓN'
+            WHERE status = 'ACTIVA' AND origin = 'SIM'
         `);
         const result = stmt.run(now);
 
@@ -1355,7 +1355,7 @@ app.post('/api/simulation/building/:id/resolve', authenticateToken, (req, res) =
             SET status = 'RESUELTA', ended_at = ? 
             WHERE element_id IN (${placeholders}) 
             AND status = 'ACTIVA' 
-            AND origin = 'SIMULACIÓN'
+            AND origin = 'SIM'
         `);
 
         const result = stmt.run(now, ...deviceIds);
@@ -1366,7 +1366,7 @@ app.post('/api/simulation/building/:id/resolve', authenticateToken, (req, res) =
             SET resolved = 1 
             WHERE device_id IN (${placeholders}) 
             AND type = 'ALARM' 
-            AND origin = 'SIMULACIÓN'
+            AND origin = 'SIM'
         `);
         eventStmt.run(...deviceIds);
 
