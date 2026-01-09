@@ -212,6 +212,7 @@
         // Auth Check
         const user = api.getCurrentUser();
         if (!user) window.location.href = 'index.html';
+        if (user.role !== 'admin') window.location.href = 'dashboard.html';
 
         // Role Check (user already declared above)
         if (user && user.role === 'admin') {
