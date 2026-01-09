@@ -1050,7 +1050,7 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
         // 2. Insert ALERT (Active)
         const alertData = {
             elementId: device.device_id,
-            type: device.type || 'detector',
+            type: 'ALARM', // Event type, not device type
             building_id: device.building_id,
             floor_id: device.floor_id,
             location: 'Ubicación Simulada',
@@ -1250,7 +1250,7 @@ app.post('/api/simulation/building/:id/alarm', authenticateToken, (req, res) => 
                     // Insert into alerts table
                     const info = insertAlert.run(
                         d.device_id,
-                        d.type,
+                        'ALARM', // Event type, not device type
                         buildingId,
                         d.floor_id,
                         d.location,
@@ -1294,8 +1294,12 @@ app.post('/api/simulation/building/:id/alarm', authenticateToken, (req, res) => 
             // Also emit pci:alarm:on for map red circles
             io.emit('pci:alarm:on', {
                 elementId: evt.device_id,
-                type: 'detector', // Simplification
+                type: 'ALARM', // Event type, not device type
+                buildingId: evt.building_id, // Added for floor plan CIE blinking
+                floorId: evt.floor_id, // Added for context
                 location: 'Simulacro',
+                description: 'Simulacro de Incendio General', // Added for alerts panel
+                origin: 'SIMULACIÓN', // Added to distinguish from real alarms
                 timestamp: now
             });
         });

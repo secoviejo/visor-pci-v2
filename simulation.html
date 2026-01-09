@@ -37,6 +37,27 @@
             transform: translateY(-5px);
             box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
         }
+
+        @keyframes blink-red {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(1.1);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .blink-red {
+            animation: blink-red 1s infinite ease-in-out;
+        }
     </style>
 </head>
 
@@ -216,7 +237,21 @@
                     return;
                 }
 
-                container.innerHTML = buildings.map(b => `
+                // Fetch active events to determine status
+                const activeEvents = await api.getEvents({ resolved: 0, type: 'ALARM' });
+                // We consider an alarm active if there's any unresolved alarm event for the building
+                const buildingAlarmMap = new Map();
+                activeEvents.forEach(e => {
+                    // The API returns building_id in the event object
+                    if (e.building_id) buildingAlarmMap.set(e.building_id, true);
+                });
+
+
+                container.innerHTML = buildings.map(b => {
+                    const isAlarmActive = buildingAlarmMap.get(b.id);
+                    const blinkClass = isAlarmActive ? 'blink-red' : '';
+
+                    return `
                     <div class="building-card bg-white dark:bg-gray-800 border-l-4 border-red-500 rounded shadow-lg dark:shadow-none p-6 hover:shadow-xl transition-shadow dark:border-gray-700"
                          data-building-id="${b.id}" data-building-name="${b.name}">
                         <div class="flex justify-between items-start">
@@ -225,7 +260,7 @@
                                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">ID: ${b.id}</p>
                             </div>
                             <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                                <i class="fa fa-fire text-xl text-red-600 dark:text-red-400"></i>
+                                <i class="fa fa-fire text-xl text-red-600 dark:text-red-400 ${blinkClass}"></i>
                             </div>
                         </div>
                         <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex gap-2">
@@ -241,7 +276,7 @@
                             </button>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
 
                 // Add event delegation for activate buttons
                 container.addEventListener('click', async (e) => {

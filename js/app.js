@@ -308,32 +308,42 @@ window.updateMapVisuals = function () {
     const simActiveIds = window.simulator ? window.simulator.activeDeviceIds : new Set();
     const isSimActive = window.simulator ? window.simulator.isActive : false;
 
+    // Check if there are ANY active alarms for the CURRENT building (Real or Simulated)
+    const hasAnyBuildingAlarm = activeAlerts.some(a =>
+        (a.type === 'ALARM' && String(a.buildingId) === String(currentBuildingId)) ||
+        (a.type === 'ALARM' && a.building_name === document.getElementById('bc-building')?.textContent) // Fallback by name if ID missing
+    );
+
+    // We also check simulation status derived from activeEvents via API which might not be fully synced in `activeAlerts`
+    // locally if they come from different sources, but `window.alerts` should be the truth.
+    // However, `simActiveIds` tracks specific simulated devices.
+
+    // Check if any simulated device belongs to current floor/building? 
+    // Actually, `activeAlerts` includes simulated alerts as well (origin: 'SIMULACIÓN').
+    // So `hasAnyBuildingAlarm` covers both real and simulated if they are in the alerts list.
+
     document.querySelectorAll('.hotspot').forEach(dot => {
         let isBlinking = false;
         const dbId = String(dot.dataset.dbId);
         const devId = dot.dataset.deviceId; // "CIE-27", "1627..."
         const isCentral = dot.classList.contains('type-central');
 
-        // 1. Check Simulator
+        // 1. Check Simulator (Direct Device hit)
         if (isSimActive && simActiveIds.has(dbId)) {
             isBlinking = true;
         }
 
-        // 2. Check Real Alerts
+        // 2. Check Real/Simulated Alerts (Direct Device hit)
         if (!isBlinking) {
-            const hasAlert = activeAlerts.some(alert => {
-                // Exact Match (DB ID or Device ID)
-                if (alert.elementId == dbId || alert.elementId == devId) return true;
-
-                // Central Fallback Logic:
-                // If it's a "Central" icon, and the alert is Modbus (starts with CIE-) 
-                // and belongs to the SAME building.
-                if (isCentral && alert.elementId.startsWith('CIE-') && alert.buildingId == currentBuildingId) {
-                    return true;
-                }
-                return false;
-            });
+            const hasAlert = activeAlerts.some(alert =>
+                (alert.elementId == dbId || alert.elementId == devId) && alert.type === 'ALARM'
+            );
             if (hasAlert) isBlinking = true;
+        }
+
+        // 3. Central Logic: If I am a Central, and there is ANY active alarm in this building, I blink.
+        if (isCentral && hasAnyBuildingAlarm) {
+            isBlinking = true;
         }
 
         if (isBlinking) {
@@ -499,7 +509,33 @@ function setTransform() {
 
 // Exposed to window for HTML onclick handlers
 window.resetView = function () {
-    scale = 1; pointX = 0; pointY = 0; setTransform();
+    const img = document.getElementById('plano-img');
+    const container = document.getElementById('viewport');
+
+    if (!img || !img.naturalWidth) {
+        // Fallback
+        scale = 1; pointX = 0; pointY = 0; setTransform();
+        return;
+    }
+
+    const vw = container.clientWidth;
+    const vh = container.clientHeight;
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+
+    // Calculate fit scale (90% of viewport)
+    const scaleX = vw / iw;
+    const scaleY = vh / ih;
+    const fitScale = Math.min(scaleX, scaleY) * 0.90;
+
+    // Apply logic: zoom to fit even if it means zooming in
+    scale = fitScale;
+
+    // Reset panning to center (viewport flex centers content)
+    pointX = 0;
+    pointY = 0;
+
+    setTransform();
 };
 
 // ===========================================

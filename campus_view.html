@@ -65,9 +65,6 @@
 
         .alerts-area {
             grid-area: alerts;
-            border-top: 1px solid #e5e7eb;
-            background: #1f2937;
-            color: white;
             overflow-y: auto;
         }
 
@@ -150,9 +147,7 @@
             background: #94a3b8;
         }
 
-        .alert-row {
-            border-bottom: 1px solid #374151;
-        }
+        /* Alert row borders handled by Tailwind */
 
         .alert-row:last-child {
             border-bottom: none;
@@ -180,6 +175,27 @@
         .building-marker.has-alarm .status-badge {
             background-color: #dc2626 !important;
             animation: pulse 1s infinite;
+        }
+
+        @keyframes blink-red {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(1.1);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .blink-red {
+            animation: blink-red 1s infinite ease-in-out;
         }
     </style>
 </head>
@@ -271,7 +287,7 @@
     <!-- Content Layout -->
     <div class="layout-grid flex-grow">
         <!-- Campus Map Area -->
-        <div class="map-area bg-[#0f172a] overflow-hidden flex items-center justify-center relative">
+        <div class="map-area bg-gray-100 dark:bg-[#0f172a] overflow-hidden flex items-center justify-center relative">
             <!-- Decorative grid background -->
             <div class="absolute inset-0 opacity-10 pointer-events-none"
                 style="background-image: radial-gradient(#94a3b8 1px, transparent 1px); background-size: 20px 20px;">
@@ -305,22 +321,24 @@
         </div>
 
         <!-- System Alerts Panel Area -->
-        <div class="alerts-area flex flex-col">
-            <div class="flex items-center justify-between px-6 py-3 bg-gray-900 sticky top-0 z-10">
+        <div class="alerts-area flex flex-col bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+            <div
+                class="flex items-center justify-between px-6 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-10">
                 <div class="flex items-center gap-2">
                     <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                    <span class="text-xs font-bold uppercase tracking-widest text-gray-300">Alertas del
+                    <span class="text-xs font-bold uppercase tracking-widest text-gray-700 dark:text-gray-300">Alertas
+                        del
                         Sistema</span>
                 </div>
                 <div class="flex items-center gap-4 text-xs">
                     <select id="filter-alerts"
-                        class="bg-gray-800 border-gray-700 text-gray-300 rounded px-2 py-1 text-[11px] focus:ring-0">
+                        class="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded px-2 py-1 text-[11px] focus:ring-0">
                         <option value="all">Todas</option>
                         <option value="ALARM">Alarmas</option>
                         <option value="FAULT">Averías</option>
                     </select>
                     <button
-                        class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1 rounded transition-colors border border-gray-700">
+                        class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1 rounded transition-colors border border-gray-300 dark:border-gray-700">
                         Limpiar Resueltas
                     </button>
                     <button id="sim-incidence"
@@ -333,7 +351,7 @@
             <div class="flex-grow overflow-x-auto min-w-[1000px]">
                 <table class="w-full text-left text-xs">
                     <thead
-                        class="bg-gray-800/50 text-gray-400 font-semibold uppercase tracking-wider sticky top-[40px]">
+                        class="bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 font-semibold uppercase tracking-wider sticky top-[40px]">
                         <tr>
                             <th class="px-6 py-3">Edificio</th>
                             <th class="px-6 py-3">Planta</th>
@@ -345,7 +363,7 @@
                             <th class="px-6 py-3">Estado</th>
                         </tr>
                     </thead>
-                    <tbody id="alerts-tbody" class="divide-y divide-gray-800">
+                    <tbody id="alerts-tbody" class="divide-y divide-gray-200 dark:divide-gray-800">
                         <!-- Alert rows injected here -->
                         <tr>
                             <td colspan="8" class="px-6 py-8 text-center text-gray-500 italic">No hay alertas
@@ -755,14 +773,14 @@
                         const isAlarm = e.type === 'ALARM';
                         const statusClass = isAlarm ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20';
                         return `
-                        <tr class="alert-row hover:bg-gray-800/30 transition-colors">
-                            <td class="px-6 py-3 font-semibold text-gray-200">${e.building_name || 'N/A'}</td>
-                            <td class="px-6 py-3 text-gray-400">${e.floor_name || 'N/A'}</td>
-                            <td class="px-6 py-3 font-mono text-gray-500 uppercase">${e.device_id || 'SYS'}</td>
-                            <td class="px-6 py-3 uppercase text-gray-400 font-medium">${e.device_type || 'N/A'}</td>
-                            <td class="px-6 py-3 text-gray-400">${e.device_location || 'N/A'}</td>
-                            <td class="px-6 py-3 text-gray-500">${time}</td>
-                            <td class="px-6 py-3 text-gray-400 tracking-wider">${e.origin || 'REAL'}</td>
+                        <tr class="alert-row hover:bg-gray-100 dark:hover:bg-gray-800/30 transition-colors">
+                            <td class="px-6 py-3 font-semibold text-gray-800 dark:text-gray-200">${e.building_name || 'N/A'}</td>
+                            <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${e.floor_name || 'N/A'}</td>
+                            <td class="px-6 py-3 font-mono text-gray-500 dark:text-gray-500 uppercase">${e.device_id || 'SYS'}</td>
+                            <td class="px-6 py-3 uppercase text-gray-600 dark:text-gray-400 font-medium">${e.device_type || 'N/A'}</td>
+                            <td class="px-6 py-3 text-gray-600 dark:text-gray-400">${e.device_location || 'N/A'}</td>
+                            <td class="px-6 py-3 text-gray-500 dark:text-gray-500">${time}</td>
+                            <td class="px-6 py-3 text-gray-600 dark:text-gray-400 tracking-wider">${e.origin || 'REAL'}</td>
                             <td class="px-6 py-3">
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusClass}">
                                     ${e.type}
@@ -774,7 +792,18 @@
                 }
 
                 // Fetch building alarms for markers (includes both events and alerts)
-                const buildingAlarms = await fetch(`/api/buildings/alarms?campusId=${campusId}`).then(r => r.json());
+                // We reuse the activeEvents list which already contains simulated alarms if they have type='ALARM'
+                // However, to be safe and match the simulation page logic, we can rely on the events returned by existing API
+                // or fetch specific building statuses if needed. The current `activeEvents` should suffice if simulated events are ALARM type.
+
+                // Construct a list of buildings with active alarms from the events
+                const buildingsWithAlarms = activeEvents
+                    .filter(e => e.type === 'ALARM' && e.resolved === 0)
+                    .map(e => ({ building_id: e.building_id, building_name: e.building_name }));
+
+                // Sync markers and building list with active alarms
+                renderBuildings(buildings, activeEvents);
+                renderMapMarkers(buildings, activeEvents);
 
                 // Sync markers and building list with active alarms
                 renderBuildings(buildings, buildingAlarms);
