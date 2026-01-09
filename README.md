@@ -1,74 +1,67 @@
-# Visor PCI - Gestión e Integración IoT
+# Visor PCI - Fire Alarm Monitoring System
 
-Sistema de visualización y gestión para elementos de Protección Contra Incendios (PCI), desarrollado para la gestión de las instalaciones de NAES (Diciembre 2025).
+Sistema de monitorización de alarmas contra incendios para la Universidad de Zaragoza.
 
-El proyecto ha evolucionado para incluir integración hardware real con controladores **Sollae CIE-H12**.
+## Variables de Entorno
 
-## 🚀 Funcionalidades Principales
+### ENABLE_HARDWARE
+- **Descripción:** Habilita/deshabilita las conexiones a dispositivos físicos (Modbus/BACnet)
+- **Valores:** `true` | `false`
+- **Por defecto:** `false`
+- **Uso:**
+  - `true`: Para desarrollo local con acceso a dispositivos reales
+  - `false`: Para despliegues en cloud (Render, Heroku, etc.) donde no hay dispositivos
 
-### 1. Gestión de Planos y Dispositivos
-- Carga de planos por plantas.
-- Posicionamiento visual (Drag & Drop) de sensores.
-- CRUD completo de dispositivos (Detectores, Pulsadores, Sirenas).
+### PORT
+- **Descripción:** Puerto en el que escucha el servidor
+- **Por defecto:** `3000`
+- **Uso:** Configurado automáticamente por servicios como Render
 
-### 2. Sistema de Alertas Híbrido
-Soporta dos fuentes de eventos simultáneas:
-- **Simulador Web:** Para pruebas y demostraciones sin hardware.
-- **Hardware Real (CIE-H12):** Integración vía Modbus/TCP.
+## Despliegue en Render
 
-### 3. Integración Sollae CIE-H12 (Nuevo)
-Implementación completa del controlador de E/S remoto:
-- **Conectividad:** Protocolo Modbus/TCP sobre Ethernet.
-- **Monitoreo:** Polling automático de entradas digitales (DI0/DI1) para detección de incendios reales.
-- **Control:** Activación remota de sirenas físicas (Salida de Relé DO0) desde la interfaz web.
-- **Resiliencia:** Reconexión automática y logs detallados.
+1. Crear nuevo Web Service en https://dashboard.render.com
+2. Conectar repositorio GitHub: `secoviejo/visor-pci-v2`
+3. Configurar:
+   - **Build Command:** `npm install`
+   - **Start Command:** `node server.js`
+4. **Variables de entorno** (Environment):
+   ```
+   ENABLE_HARDWARE=false
+   ```
+5. Deploy
 
-### 4. Tiempo Real
-- Uso de **Socket.io** para notificación instantánea de alarmas al frontend.
-- Persistencia automática de eventos en base de datos SQLite.
+**Nota:** Con `ENABLE_HARDWARE=false`, la aplicación funcionará en modo "solo visualización" sin intentar conectarse a dispositivos Modbus/BACnet.
 
-## 🛠️ Tecnologías
-- **Backend:** Node.js, Express, Modbus-Serial, Socket.io, SQLite (better-sqlite3).
-- **Frontend:** Vanilla JS (ES6 Modules), CSS3 Moderno.
+## Desarrollo Local
 
-## 📦 Instalación
+Para desarrollo con dispositivos reales:
+```bash
+ENABLE_HARDWARE=true node server.js
+```
+
+O añade a tu `.env`:
+```
+ENABLE_HARDWARE=true
+```
+
+## Instalación
 
 ```bash
-git clone https://github.com/secoviejo/visor-pci-circe.git
-cd visor-pci-circe
 npm install
 node server.js
 ```
 
-## ⚙️ Configuración CIE-H12
-Por defecto, el sistema busca el controlador en:
-- **IP:** `192.168.0.200`
-- **Puerto:** `502`
-- **Unit ID:** `1`
+Accede a `http://localhost:3000`
 
-(Configurable vía variables de entorno en futuras versiones).
+**Usuario por defecto:**
+- Username: `admin`
+- Password: `admin123`
 
-## 🧪 Simulación y Testing
+## Tecnologías
 
-El proyecto incluye un script de simulación para probar la integración Modbus sin hardware real.
-
-### 1. Iniciar el Simulador
-Ejecuta el siguiente comando en una terminal dedicada:
-```bash
-npm run sim
-```
-Esto levantará un servidor Modbus TCP en `localhost:502` y mostrará un menú interactivo para simular eventos de fuego (DI0/DI1).
-
-### 2. Configurar el Servidor
-El sistema incluye **Autodetección Inteligente**:
-1. Intentará conectar primero al Hardware Real (`192.168.0.200` por defecto).
-2. Si falla, conectará automáticamente al **Simulador Local** (`127.0.0.1`).
-
-¡No necesitas editar ningún archivo! Simplemente arranca el simulador y el visor detectará que no hay hardware real y usará la simulación.
-
-### 3. Ejecutar el Visor
-En otra terminal:
-```bash
-npm start
-```
-Ahora verás los eventos del simulador reflejados en tiempo real en la aplicación.
+- Node.js + Express
+- Socket.IO (tiempo real)
+- better-sqlite3 (base de datos)
+- Tailwind CSS
+- Modbus TCP (solo si ENABLE_HARDWARE=true)
+- BACnet/IP (solo si ENABLE_HARDWARE=true)
