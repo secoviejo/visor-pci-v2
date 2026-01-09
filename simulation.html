@@ -288,7 +288,8 @@
 
                     let originHtml = '<span class="text-gray-300 dark:text-gray-700 font-medium text-[10px]">—</span>';
                     if (isAlarmActive) {
-                        const isSimulated = alarm.origin === 'SIMULACIÓN' || alarm.origin === 'SIMULACION';
+                        // Check for 'SIM' (actual DB value) or 'SIMULACIÓN'/'SIMULACION' for compatibility
+                        const isSimulated = alarm.origin === 'SIM' || alarm.origin === 'SIMULACIÓN' || alarm.origin === 'SIMULACION';
                         const originText = isSimulated ? 'SIMULADA' : 'REAL';
                         const originClass = isSimulated ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
                         originHtml = `<span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase ${originClass}">${originText}</span>`;
