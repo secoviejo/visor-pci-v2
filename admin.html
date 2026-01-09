@@ -634,7 +634,7 @@
                     </li>
                 `}).join('');
 
-                // [NEW] Elementos Existentes UI - CSV Upload
+                // [NEW] Elementos Existentes UI - CSV Upload + [NEW] TABLE
                 const configContainer = document.getElementById('building-config-container');
                 if (configContainer) {
                     configContainer.innerHTML = `
@@ -651,7 +651,43 @@
                                 <input type="file" id="file-input-config" class="hidden" accept=".csv" onchange="handleConfigUpload(this)">
                             </div>
                         </div>
+
+                        <!-- [NEW] Device Table -->
+                        <div class="mt-8">
+                            <div class="flex justify-between items-center mb-4">
+                                <h4 class="text-sm font-bold text-gray-700">Tabla de Dispositivos</h4>
+                                <div class="flex gap-2">
+                                    <button onclick="exportDevicesToCSV()" class="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition-colors">
+                                        <i class="fa fa-file-export"></i> Exportar CSV
+                                    </button>
+                                    <button onclick="addNewDeviceRow()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors">
+                                        <i class="fa fa-plus"></i> Añadir Dispositivo
+                                    </button>
+                                    <button onclick="loadBuildingDevices(currentBuildingId)" class="text-xs text-blue-600 hover:underline"><i class="fa fa-sync"></i> Refrescar</button>
+                                </div>
+                            </div>
+                            <div class="bg-white border rounded shadow overflow-hidden overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-500">ID</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-500">Tipo</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-500 w-20">Nº</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-500">Planta</th>
+                                            <th class="px-3 py-2 text-left font-medium text-gray-500">Ubicación</th>
+                                            <th class="px-3 py-2 text-right font-medium text-gray-500 w-24">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="building-devices-table" class="divide-y divide-gray-200 bg-white">
+                                        <tr><td colspan="6" class="px-3 py-4 text-center text-gray-400">Cargando...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     `;
+
+                    // Start loading devices
+                    loadBuildingDevices(id);
 
                     // Setup Drag and Drop for Config
                     setTimeout(() => {
@@ -669,7 +705,6 @@
                                 e.preventDefault();
                                 dropZoneConfig.classList.remove('border-blue-500', 'bg-blue-50');
                                 if (e.dataTransfer.files.length) {
-                                    // Manually trigger handleConfigUpload with a fake input object
                                     const fakeInput = { files: e.dataTransfer.files, value: 'dragged' };
                                     handleConfigUpload(fakeInput);
                                 }
@@ -678,28 +713,231 @@
                     }, 0);
                 }
 
-                // Setup Drag and Drop for Config
-                const dropZoneConfig = document.getElementById('drop-zone-config');
-                dropZoneConfig.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    dropZoneConfig.classList.add('border-blue-500', 'bg-blue-50');
-                });
-                dropZoneConfig.addEventListener('dragleave', (e) => {
-                    e.preventDefault();
-                    dropZoneConfig.classList.remove('border-blue-500', 'bg-blue-50');
-                });
-                dropZoneConfig.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    dropZoneConfig.classList.remove('border-blue-500', 'bg-blue-50');
-                    if (e.dataTransfer.files.length) {
-                        // Manually trigger handleConfigUpload with a fake input object
-                        const fakeInput = { files: e.dataTransfer.files, value: 'dragged' };
-                        handleConfigUpload(fakeInput);
-                    }
-                });
-
             } catch (e) { console.error(e); }
         }
+
+        // [NEW] Helper Functions for Device Table
+        window.loadBuildingDevices = async function (buildingId) {
+            const tbody = document.getElementById('building-devices-table');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-400"><i class="fa fa-spinner fa-spin"></i> Cargando dispositivos...</td></tr>';
+
+            try {
+                const devices = await api.getDevicesByBuilding(buildingId);
+                if (devices.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-400">No hay dispositivos registrados</td></tr>';
+                    return;
+                }
+
+                // Sort by ID naturally
+                devices.sort((a, b) => (parseInt(a.n) || 0) - (parseInt(b.n) || 0));
+
+                tbody.innerHTML = devices.map(d => `
+                    <tr id="row-dev-${d.db_id}" class="hover:bg-gray-50">
+                        <td class="px-3 py-2 whitespace-nowrap text-gray-600 font-mono text-xs">${d.id}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">
+                            <span class="px-2 py-0.5 rounded text-xs font-medium ${d.t === 'detector' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'}">
+                                ${d.t}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-gray-900">${d.n || '-'}</td>
+                        <td class="px-3 py-2 text-gray-500 text-xs">${d.floor_name || 'Desconocido'}</td>
+                        <td class="px-3 py-2 text-gray-500 truncate max-w-xs" title="${d.loc}">${d.loc || ''}</td>
+                        <td class="px-3 py-2 text-right text-xs font-medium">
+                            <button onclick="enableEditDevice(${d.db_id})" class="text-blue-600 hover:text-blue-900 mr-2">Editar</button>
+                            <button onclick="deleteDeviceItem(${d.db_id})" class="text-red-600 hover:text-red-900"><i class="fa fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Store mapped data for edit reference if needed, or just rely on DOM for simple edits?
+                // For robust editing, I should attach data to the row or fetch again via inputs.
+                // I'll assume currentBuildingDevices global is safer if I store it.
+                window.currentBuildingDevices = devices;
+
+            } catch (e) {
+                console.error('Error loading devices:', e);
+                tbody.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-red-500">Error: ${e.message}</td></tr>`;
+            }
+        };
+
+        window.enableEditDevice = function (dbId) {
+            const device = window.currentBuildingDevices.find(d => d.db_id === dbId);
+            if (!device) return;
+
+            const row = document.getElementById(`row-dev-${dbId}`);
+            if (!row) return;
+
+            // Generate floor options
+            const floorOpts = currentBuildingFloors.map(f => `<option value="${f.id}" ${f.id === device.floor_id ? 'selected' : ''}>${f.name}</option>`).join('');
+
+            row.innerHTML = `
+                <td class="px-3 py-2"><input type="text" id="edit-id-${dbId}" value="${device.id}" class="w-full border-gray-300 rounded text-xs p-1"></td>
+                <td class="px-3 py-2">
+                     <select id="edit-type-${dbId}" class="w-full border-gray-300 rounded text-xs p-1">
+                        <option value="detector" ${device.t === 'detector' ? 'selected' : ''}>Detector</option>
+                        <option value="pulsador" ${device.t === 'pulsador' ? 'selected' : ''}>Pulsador</option>
+                        <option value="sirena" ${device.t === 'sirena' ? 'selected' : ''}>Sirena</option>
+                        <option value="modulo" ${device.t === 'modulo' ? 'selected' : ''}>Módulo</option>
+                        <option value="central" ${device.t === 'central' ? 'selected' : ''}>Central</option>
+                    </select>
+                </td>
+                <td class="px-3 py-2"><input type="text" id="edit-n-${dbId}" value="${device.n || ''}" class="w-full border-gray-300 rounded text-xs p-1"></td>
+                <td class="px-3 py-2">
+                    <select id="edit-floor-${dbId}" class="w-full border-gray-300 rounded text-xs p-1">
+                        ${floorOpts}
+                    </select>
+                </td>
+                <td class="px-3 py-2"><input type="text" id="edit-loc-${dbId}" value="${device.loc || ''}" class="w-full border-gray-300 rounded text-xs p-1"></td>
+                <td class="px-3 py-2 text-right text-xs">
+                    <button onclick="saveDeviceItem(${dbId})" class="text-green-600 hover:text-green-900 mr-2 font-bold"><i class="fa fa-check"></i></button>
+                    <button onclick="loadBuildingDevices(currentBuildingId)" class="text-gray-500 hover:text-gray-700"><i class="fa fa-times"></i></button>
+                </td>
+            `;
+        };
+
+        window.saveDeviceItem = async function (dbId) {
+            try {
+                const updates = {
+                    id: document.getElementById(`edit-id-${dbId}`).value,
+                    t: document.getElementById(`edit-type-${dbId}`).value,
+                    n: document.getElementById(`edit-n-${dbId}`).value,
+                    loc: document.getElementById(`edit-loc-${dbId}`).value,
+                    floorId: document.getElementById(`edit-floor-${dbId}`).value
+                };
+
+                await api.updateDevice(dbId, updates);
+                loadBuildingDevices(currentBuildingId); // Reload to formatted view
+            } catch (e) {
+                alert('Error guardando cambios');
+                console.error(e);
+            }
+        };
+
+        window.addNewDeviceRow = function () {
+            const tbody = document.getElementById('building-devices-table');
+            if (!tbody) return;
+
+            // Remove empty message if any
+            if (tbody.innerHTML.includes('No hay dispositivos') || tbody.innerHTML.includes('Cargando')) {
+                tbody.innerHTML = '';
+            }
+
+            const floorOpts = currentBuildingFloors.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+
+            const newRow = document.createElement('tr');
+            newRow.className = 'bg-blue-50/50';
+            newRow.id = 'row-new-device';
+
+            newRow.innerHTML = `
+                <td class="px-3 py-2"><input type="text" id="new-id" placeholder="ID (ej: 101)" class="w-full border-gray-300 rounded text-xs p-1"></td>
+                <td class="px-3 py-2">
+                     <select id="new-type" class="w-full border-gray-300 rounded text-xs p-1">
+                        <option value="detector">Detector</option>
+                        <option value="pulsador">Pulsador</option>
+                        <option value="sirena">Sirena</option>
+                        <option value="modulo">Módulo</option>
+                        <option value="central">Central</option>
+                    </select>
+                </td>
+                <td class="px-3 py-2"><input type="text" id="new-n" placeholder="Nº" class="w-full border-gray-300 rounded text-xs p-1"></td>
+                <td class="px-3 py-2">
+                    <select id="new-floor" class="w-full border-gray-300 rounded text-xs p-1">
+                        ${floorOpts}
+                    </select>
+                </td>
+                <td class="px-3 py-2"><input type="text" id="new-loc" placeholder="Ubicación" class="w-full border-gray-300 rounded text-xs p-1"></td>
+                <td class="px-3 py-2 text-right text-xs">
+                    <button onclick="saveNewDeviceRow()" class="text-green-600 hover:text-green-900 mr-2 font-bold"><i class="fa fa-save"></i></button>
+                    <button onclick="loadBuildingDevices(currentBuildingId)" class="text-gray-500 hover:text-gray-700"><i class="fa fa-times"></i></button>
+                </td>
+            `;
+
+            tbody.prepend(newRow);
+        };
+
+        window.saveNewDeviceRow = async function () {
+            try {
+                const device = {
+                    id: document.getElementById('new-id').value.trim(),
+                    t: document.getElementById('new-type').value,
+                    n: document.getElementById('new-n').value.trim(),
+                    loc: document.getElementById('new-loc').value.trim(),
+                    floorId: document.getElementById('new-floor').value,
+                    x: 0,
+                    y: 0
+                };
+
+                if (!device.id || !device.floorId) {
+                    return alert('ID y Planta son obligatorios');
+                }
+
+                await api.createDevice(device);
+                loadBuildingDevices(currentBuildingId);
+            } catch (e) {
+                alert('Error creando dispositivo');
+                console.error(e);
+            }
+        };
+
+        window.deleteDeviceItem = async function (dbId) {
+            if (!confirm('¿Eliminar este dispositivo?')) return;
+
+            const row = document.getElementById(`row-dev-${dbId}`);
+            if (row) row.style.opacity = '0.5'; // Visual cue
+
+            try {
+                const res = await api.deleteDevice(dbId);
+                if (res && res.success) {
+                    // Remove from table immediately
+                    if (row) row.remove();
+                    // Also refresh data to be sure
+                    loadBuildingDevices(currentBuildingId);
+                } else {
+                    alert('No se pudo eliminar el dispositivo. Verifique permisos.');
+                    if (row) row.style.opacity = '1';
+                }
+            } catch (e) {
+                console.error('Delete error:', e);
+                alert('Error de conexión al eliminar');
+                if (row) row.style.opacity = '1';
+            }
+        };
+
+        window.exportDevicesToCSV = function () {
+            if (!window.currentBuildingDevices || window.currentBuildingDevices.length === 0) {
+                return alert('No hay dispositivos para exportar');
+            }
+
+            const buildingName = document.getElementById('selected-building-name').innerText;
+            const headers = ['id', 'tipo', 'numero', 'planta', 'ubicacion', 'x', 'y'];
+
+            const rows = window.currentBuildingDevices.map(d => [
+                d.id,
+                d.t,
+                d.n,
+                d.floor_name,
+                `"${d.loc || ''}"`, // Wrap in quotes to handle commas
+                d.x,
+                d.y
+            ]);
+
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(r => r.join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', `dispositivos_${buildingName.replace(/\s+/g, '_')}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
 
         window.handleDeleteFloor = async function (id, evt) {
             try {

@@ -515,6 +515,36 @@ app.get('/api/floors/:floorId/devices', (req, res) => {
     }
 });
 
+// 2.1 Get Devices by Building (NEW)
+app.get('/api/buildings/:id/devices', (req, res) => {
+    try {
+        const { id } = req.params;
+        const query = `
+            SELECT d.*, f.name as floor_name 
+            FROM devices d 
+            JOIN floors f ON d.floor_id = f.id 
+            WHERE f.building_id = ?
+        `;
+        const devices = db.prepare(query).all(id);
+
+        const mapped = devices.map(d => ({
+            id: d.device_id,
+            db_id: d.id,
+            n: d.number,
+            t: d.type,
+            x: d.x,
+            y: d.y,
+            loc: d.location,
+            floor_name: d.floor_name,
+            floor_id: d.floor_id
+        }));
+
+        res.json(mapped);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // 3. Update Device (Protected)
 app.put('/api/devices/:dbId', authenticateToken, (req, res) => {
     console.log(`PUT /api/devices/${req.params.dbId} requested by ${req.user.username}`);

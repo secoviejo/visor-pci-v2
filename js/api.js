@@ -188,6 +188,13 @@ export async function getDevices(floorId) {
 // Alias for compatibility
 export const getDevicesByFloor = getDevices;
 
+export async function getDevicesByBuilding(buildingId) {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/buildings/${buildingId}/devices`, { headers });
+    if (!res.ok) throw new Error('Error loading building devices');
+    return res.json();
+}
+
 
 export async function createDevice(device) {
     const headers = getHeaders();
