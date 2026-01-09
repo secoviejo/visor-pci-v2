@@ -133,11 +133,36 @@
             </div>
         </div>
 
-        <!-- Buildings Grid -->
-        <div id="buildings-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- JS Injected -->
-            <div class="animate-pulse bg-white p-6 rounded shadow h-32 flex items-center justify-center">
-                <span class="text-gray-400">Cargando edificios...</span>
+        <!-- Buildings List (Table) -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                        <tr>
+                            <th
+                                class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                Edificio</th>
+                            <th
+                                class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-center">
+                                Estado</th>
+                            <th
+                                class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">
+                                Acciones de Simulación</th>
+                        </tr>
+                    </thead>
+                    <tbody id="buildings-tbody" class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        <!-- JS Injected -->
+                        <tr>
+                            <td colspan="3" class="px-6 py-12 text-center">
+                                <div class="flex flex-col items-center gap-3">
+                                    <i class="fa-solid fa-circle-notch fa-spin text-2xl text-red-500"></i>
+                                    <span class="text-gray-400 font-medium">Cargando edificios...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </main>
@@ -230,98 +255,92 @@
         async function loadBuildings() {
             try {
                 const buildings = await api.getBuildings();
-                const container = document.getElementById('buildings-grid');
+                const tbody = document.getElementById('buildings-tbody');
 
                 if (buildings.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500">No hay edificios registrados.</p>';
+                    tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-8 text-center text-gray-500 italic">No hay edificios registrados.</td></tr>';
                     return;
                 }
 
                 // Fetch active events to determine status
                 const activeEvents = await api.getEvents({ resolved: 0, type: 'ALARM' });
-                // We consider an alarm active if there's any unresolved alarm event for the building
                 const buildingAlarmMap = new Map();
                 activeEvents.forEach(e => {
-                    // The API returns building_id in the event object
                     if (e.building_id) buildingAlarmMap.set(e.building_id, true);
                 });
 
-
-                container.innerHTML = buildings.map(b => {
+                tbody.innerHTML = buildings.map(b => {
                     const isAlarmActive = buildingAlarmMap.get(b.id);
                     const blinkClass = isAlarmActive ? 'blink-red' : '';
+                    const statusText = isAlarmActive ? 'INCIDENCIA ACTIVA' : 'SISTEMA NORMAL';
+                    const statusColor = isAlarmActive ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
 
                     return `
-                    <div class="building-card bg-white dark:bg-gray-800 border-l-4 border-red-500 rounded shadow-lg dark:shadow-none p-6 hover:shadow-xl transition-shadow dark:border-gray-700"
-                         data-building-id="${b.id}" data-building-name="${b.name}">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-800 dark:text-white">${b.name}</h3>
-                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">ID: ${b.id}</p>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 group-hover:bg-red-50 group-hover:text-red-500 transition-colors">
+                                    <i class="fa fa-building text-lg"></i>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-gray-900 dark:text-white">${b.name}</span>
+                                    <span class="text-[10px] font-mono text-gray-400 uppercase tracking-tighter">ID Edificio: ${b.id}</span>
+                                </div>
                             </div>
-                            <div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                                <i class="fa fa-fire text-xl text-red-600 dark:text-red-400 ${blinkClass}"></i>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center justify-center gap-3">
+                                <i class="fa fa-fire text-lg ${isAlarmActive ? 'text-red-600' : 'text-gray-200 dark:text-gray-700'} ${blinkClass}"></i>
+                                <span class="text-[11px] font-bold ${statusColor} tracking-tighter">${statusText}</span>
                             </div>
-                        </div>
-                        <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex gap-2">
-                            <button 
-                                class="activate-btn flex-1 bg-red-500 hover:bg-red-600 text-white rounded-md px-4 py-2 text-sm font-bold transition-colors shadow-sm"
-                                data-building-id="${b.id}" data-building-name="${b.name}">
-                                <i class="fa fa-fire mr-1"></i> Activar Alarma
-                            </button>
-                            <button 
-                                class="stop-btn flex-1 bg-green-600 hover:bg-green-700 text-white rounded-md px-4 py-2 text-sm font-bold transition-colors shadow-sm"
-                                data-building-id="${b.id}" data-building-name="${b.name}">
-                                <i class="fa fa-stop-circle mr-1"></i> Detener Simulación
-                            </button>
-                        </div>
-                    </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2">
+                                <button 
+                                    class="activate-btn flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-xs font-bold transition-all shadow-sm hover:shadow-md active:scale-95"
+                                    data-building-id="${b.id}" data-building-name="${b.name}">
+                                    <i class="fa fa-fire text-[10px]"></i> ACTIVAR ALARMA
+                                </button>
+                                <button 
+                                    class="stop-btn flex items-center gap-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 dark:hover:border-green-700 text-gray-700 dark:text-gray-200 hover:text-green-600 dark:hover:text-green-400 rounded-lg px-4 py-2 text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    data-building-id="${b.id}" data-building-name="${b.name}">
+                                    <i class="fa fa-stop-circle text-[10px]"></i> DETENER
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
                 `}).join('');
 
-                // Add event delegation for activate buttons
-                container.addEventListener('click', async (e) => {
-                    // Check if clicked on activate button
+                // Add event delegation for buttons
+                tbody.addEventListener('click', async (e) => {
                     const activateBtn = e.target.closest('.activate-btn');
                     if (activateBtn) {
-                        console.log('ACTIVATE CLICKED');
-                        if (isProcessing) {
-                            console.log('Already processing, ignored');
-                            return;
-                        }
-
+                        if (isProcessing) return;
                         const buildingId = activateBtn.dataset.buildingId;
                         const buildingName = activateBtn.dataset.buildingName;
-                        console.log('Starting simulation for:', buildingId, buildingName);
-
                         isProcessing = true;
                         try {
                             await confirmSimulation(buildingId, buildingName);
+                            // Refresh after action
+                            loadBuildings();
                         } finally {
                             isProcessing = false;
-                            console.log('Processing complete');
                         }
                         return;
                     }
 
-                    // Check if clicked on stop button
                     const stopBtn = e.target.closest('.stop-btn');
                     if (stopBtn) {
-                        console.log('STOP CLICKED');
-                        if (isProcessing) {
-                            console.log('Already processing, ignored');
-                            return;
-                        }
-
+                        if (isProcessing) return;
                         const buildingId = stopBtn.dataset.buildingId;
                         const buildingName = stopBtn.dataset.buildingName;
-                        console.log('Stopping simulation for:', buildingId, buildingName);
-
                         isProcessing = true;
                         try {
                             await stopBuildingSimulation(buildingId, buildingName);
+                            // Refresh after action
+                            loadBuildings();
                         } finally {
                             isProcessing = false;
-                            console.log('Stop processing complete');
                         }
                         return;
                     }
