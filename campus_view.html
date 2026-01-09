@@ -233,10 +233,12 @@
                     class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
                     <i class="fa fa-history"></i> Histórico
                 </a>
-                <button onclick="triggerSimulation()"
-                    class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                    <i class="fa fa-bug"></i> Simular Incidencia
-                </button>
+                <div id="admin-controls" class="hidden">
+                    <button onclick="triggerSimulation()"
+                        class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                        <i class="fa fa-bug"></i> Simular Incidencia
+                    </button>
+                </div>
                 <div class="relative">
                     <div id="alerts-panel"
                         class="cursor-pointer flex items-center gap-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-2 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
@@ -421,6 +423,14 @@
                 }
                 const isAdmin = user && user.role === 'admin';
                 document.getElementById('current-user-role').textContent = user.username.toUpperCase();
+
+                // Show admin controls if admin
+                if (isAdmin) {
+                    const adminControls = document.getElementById('admin-controls');
+                    if (adminControls) {
+                        adminControls.classList.remove('hidden');
+                    }
+                }
 
                 // Show Save button if admin
                 if (isAdmin) {
