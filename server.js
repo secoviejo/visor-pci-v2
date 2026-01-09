@@ -1381,6 +1381,12 @@ app.post('/api/simulation/building/:id/resolve', authenticateToken, (req, res) =
             });
         });
 
+        // Emit global simulation resolved event to refresh all clients
+        io.emit('pci:simulation:resolved', {
+            buildingId: buildingId,
+            resolvedCount: result.changes
+        });
+
         console.log(`[Simulation] Resolved ${result.changes} alerts for building ${buildingId}`);
         res.json({ success: true, resolvedCount: result.changes });
 

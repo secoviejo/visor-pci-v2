@@ -389,10 +389,15 @@
             }
         });
 
-        socket.on('pci:simulation:resolved', () => {
-            console.log('[Dashboard] All simulations resolved');
-            showToast('✅ Todas las simulaciones han sido detenidas', 'info');
-            loadCampuses(); // Refresh to clear alarm indicators
+        socket.on('pci:simulation:resolved', (data) => {
+            console.log('[Dashboard] Simulation resolved:', data);
+
+            // Show toast only if global resolution (no buildingId)
+            if (!data || !data.buildingId) {
+                showToast('✅ Todas las simulaciones han sido detenidas', 'info');
+            }
+
+            loadCampuses(); // Always refresh to update alarm counts
         });
 
         loadCampuses();
