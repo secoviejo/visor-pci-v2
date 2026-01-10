@@ -59,9 +59,14 @@
             </div>
             <div class="flex gap-4">
                 <div class="relative">
-                    <input type="text" placeholder="Buscar campus o edificio..."
+                    <input type="text" id="search-input" placeholder="Buscar campus o edificio..."
                         class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 dark:text-white dark:placeholder-gray-400 transition-colors">
                     <i class="fa fa-search absolute left-3 top-3 text-gray-400"></i>
+                    <!-- Search Results Dropdown -->
+                    <div id="search-results"
+                        class="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50 hidden">
+                        <!-- Results will be populated here -->
+                    </div>
                 </div>
             </div>
             <div class="flex gap-4">
@@ -406,6 +411,152 @@
         document.getElementById('theme-toggle').addEventListener('click', () => {
             theme.toggleTheme();
         });
+
+        // ========== SEARCH FUNCTIONALITY ==========
+        let allBuildings = []; // Store all buildings for search
+        let allCampuses = []; // Store all campuses for search
+
+        // Load all buildings and campuses for search
+        async function loadSearchData() {
+            try {
+                // Get all campuses
+                const campusRes = await fetch('/api/campuses');
+                allCampuses = await campusRes.json();
+
+                // Get all buildings
+                const buildingRes = await fetch('/api/buildings');
+                allBuildings = await buildingRes.json();
+            } catch (e) {
+                console.error('Error loading search data:', e);
+            }
+        }
+
+        // Search function
+        function performSearch(query) {
+            if (!query || query.trim().length < 2) {
+                document.getElementById('search-results').classList.add('hidden');
+                return;
+            }
+
+            query = query.toLowerCase().trim();
+            const resultsContainer = document.getElementById('search-results');
+
+            // Search in buildings
+            const buildingMatches = allBuildings.filter(b =>
+                b.name.toLowerCase().includes(query)
+            ).slice(0, 10); // Limit to 10 results
+
+            // Search in campuses
+            const campusMatches = allCampuses.filter(c =>
+                c.name.toLowerCase().includes(query)
+            ).slice(0, 5); // Limit to 5 results
+
+            if (buildingMatches.length === 0 && campusMatches.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="p-4 text-center text-gray-500 dark:text-gray-400 text-sm">
+                        <i class="fa fa-search mb-2"></i>
+                        <p>No se encontraron resultados para "${query}"</p>
+                    </div>
+                `;
+                resultsContainer.classList.remove('hidden');
+                return;
+            }
+
+            let html = '';
+
+            // Add campus results
+            if (campusMatches.length > 0) {
+                html += `<div class="p-2 bg-gray-50 dark:bg-gray-700/50 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Campus</div>`;
+                campusMatches.forEach(c => {
+                    html += `
+                        <div class="p-3 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 transition-colors" 
+                             onclick="navigateToCampus(${c.id})">
+                            <div class="flex items-center gap-3">
+                                <i class="fa fa-map-marked-alt text-blue-500"></i>
+                                <div>
+                                    <p class="font-medium text-gray-800 dark:text-white">${c.name}</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">${c.description || 'Campus'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Add building results
+            if (buildingMatches.length > 0) {
+                html += `<div class="p-2 bg-gray-50 dark:bg-gray-700/50 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">Edificios</div>`;
+                buildingMatches.forEach(b => {
+                    const campus = allCampuses.find(c => c.id === b.campus_id);
+                    html += `
+                        <div class="p-3 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 transition-colors" 
+                             onclick="navigateToBuilding(${b.campus_id}, ${b.id})">
+                            <div class="flex items-center gap-3">
+                                <i class="fa fa-building text-indigo-500"></i>
+                                <div>
+                                    <p class="font-medium text-gray-800 dark:text-white">${b.name}</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">${campus ? campus.name : 'Campus desconocido'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            resultsContainer.innerHTML = html;
+            resultsContainer.classList.remove('hidden');
+        }
+
+        // Navigate to campus
+        window.navigateToCampus = function (campusId) {
+            window.location.href = `campus_view.html?campusId=${campusId}`;
+        };
+
+        // Navigate to building (go to campus view with building highlighted)
+        window.navigateToBuilding = function (campusId, buildingId) {
+            window.location.href = `campus_view.html?campusId=${campusId}&buildingId=${buildingId}`;
+        };
+
+        // Setup search input listeners
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+
+        searchInput.addEventListener('input', (e) => {
+            performSearch(e.target.value);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const query = e.target.value.toLowerCase().trim();
+
+                // Find first matching building
+                const building = allBuildings.find(b =>
+                    b.name.toLowerCase().includes(query)
+                );
+
+                if (building) {
+                    navigateToBuilding(building.campus_id, building.id);
+                } else {
+                    // Try to find campus
+                    const campus = allCampuses.find(c =>
+                        c.name.toLowerCase().includes(query)
+                    );
+                    if (campus) {
+                        navigateToCampus(campus.id);
+                    }
+                }
+            }
+        });
+
+        // Close search results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.add('hidden');
+            }
+        });
+
+        // Load search data on page load
+        loadSearchData();
     </script>
 </body>
 

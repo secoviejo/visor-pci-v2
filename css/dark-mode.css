@@ -42,14 +42,21 @@ html.dark .form-control {
 
 /* Map Viewport */
 html.dark #viewport {
-    background-color: #121212 !important; /* Force darker background for map area */
+    background-color: #121212 !important;
+    /* Force darker background for map area */
 }
 
 /* Simulator Panel (Explorer) */
-html.dark #simulator-panel {
+/* Simulator Panel (Explorer) */
+html.dark #simulator-panel,
+html.dark .sim-content-wrapper {
     background-color: #262626;
     border-left: 1px solid #404040;
     color: #ddd;
+}
+
+html.dark #simulator-panel.collapsed {
+    border-left: none;
 }
 
 html.dark .sim-header {
@@ -107,12 +114,14 @@ html.dark #breadcrumbs {
 }
 
 html.dark #breadcrumbs a {
-    color: #3b82f6 !important; /* Blue-400 equivalent */
+    color: #3b82f6 !important;
+    /* Blue-400 equivalent */
 }
 
 html.dark #breadcrumbs span {
     color: #bbb !important;
 }
+
 html.dark #bc-building {
     color: #fff !important;
 }
@@ -124,8 +133,9 @@ html.dark #events-panel {
     color: #ddd;
 }
 
-html.dark #events-panel > div:first-child {
-    background-color: #333 !important; /* Header */
+html.dark #events-panel>div:first-child {
+    background-color: #333 !important;
+    /* Header */
     border-bottom: 1px solid #444 !important;
 }
 
@@ -139,6 +149,22 @@ html.dark .legend {
     border: 1px solid #555;
     color: #ccc;
 }
+
 html.dark .legend-item {
     color: #ccc !important;
+}
+
+/* Collapse Button Dark Mode */
+html.dark .panel-collapse-btn {
+    background: rgba(45, 45, 45, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: none;
+    color: #aaa;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.4);
+}
+
+html.dark .panel-collapse-btn:hover {
+    background: rgba(55, 55, 55, 1);
+    color: #fff;
+    box-shadow: -3px 0 12px rgba(0, 0, 0, 0.5);
 }

@@ -7,11 +7,66 @@
     display: flex;
     flex-direction: column;
     z-index: 1000;
-    transition: margin-right 0.3s ease;
+    transition: width 0.3s ease;
+    /* Animate width instead of transform */
+    position: relative;
+    overflow: visible;
+    /* Allow button to hang outside */
+}
+
+/* Wrapper to maintain content width while panel shrinks */
+.sim-content-wrapper {
+    width: 320px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Hide content as panel shrinks */
+    background: white;
 }
 
 #simulator-panel.collapsed {
-    margin-right: -320px;
+    width: 0;
+    border-left: none;
+    /* Hide border when width is 0 */
+}
+
+/* Collapse Toggle Button - Minimal White Arrow */
+.panel-collapse-btn {
+    position: absolute;
+    left: -24px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-right: none;
+    border-radius: 4px 0 0 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 0.9rem;
+    box-shadow: -2px 0 6px rgba(0, 0, 0, 0.08);
+    transition: all 0.2s ease;
+    z-index: 1001;
+}
+
+.panel-collapse-btn:hover {
+    background: rgba(255, 255, 255, 1);
+    color: #333;
+    box-shadow: -3px 0 10px rgba(0, 0, 0, 0.12);
+    left: -26px;
+}
+
+.panel-collapse-btn i {
+    transition: transform 0.3s ease;
+}
+
+#simulator-panel.collapsed .panel-collapse-btn i {
+    transform: rotate(180deg);
 }
 
 .sim-header {

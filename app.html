@@ -127,31 +127,41 @@
         </div>
 
         <!-- SIMULATOR PANEL (Refactored to Explorer) -->
+        <!-- SIMULATOR PANEL (Refactored to Explorer) -->
         <div id="simulator-panel">
-            <div class="sim-header">
-                <h3>Explorador & Simulador</h3>
-                <button id="sim-toggle-global" class="btn btn-outline"
-                    style="width: 100%; justify-content: center; font-size: 0.8rem; margin-top: 5px;">Simulación
-                    OFF</button>
-            </div>
+            <!-- Collapse/Expand Button -->
+            <button class="panel-collapse-btn" id="panel-collapse-btn" onclick="toggleSimulatorPanel()"
+                title="Minimizar/Expandir Panel">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
 
-            <div class="sim-controls">
-                <input type="text" id="sim-filter-input" placeholder="Buscar ID o Tipo..." class="form-control"
-                    style="width: 100%; margin-bottom: 8px;">
-                <div style="display: flex; gap: 5px;">
-                    <button id="sim-btn-all" class="btn btn-primary" style="flex: 1; font-size: 0.75rem;">Activar
-                        Todo</button>
-                    <button id="sim-btn-none" class="btn btn-outline"
-                        style="flex: 1; font-size: 0.75rem;">Desactivar</button>
+            <!-- Wrapper for content to maintain width during animation -->
+            <div class="sim-content-wrapper">
+                <div class="sim-header">
+                    <h3>Explorador & Simulador</h3>
+                    <button id="sim-toggle-global" class="btn btn-outline"
+                        style="width: 100%; justify-content: center; font-size: 0.8rem; margin-top: 5px;">Simulación
+                        OFF</button>
                 </div>
-            </div>
 
-            <div id="sim-list-container">
-                <!-- Items injected by JS -->
-            </div>
+                <div class="sim-controls">
+                    <input type="text" id="sim-filter-input" placeholder="Buscar ID o Tipo..." class="form-control"
+                        style="width: 100%; margin-bottom: 8px;">
+                    <div style="display: flex; gap: 5px;">
+                        <button id="sim-btn-all" class="btn btn-primary" style="flex: 1; font-size: 0.75rem;">Activar
+                            Todo</button>
+                        <button id="sim-btn-none" class="btn btn-outline"
+                            style="flex: 1; font-size: 0.75rem;">Desactivar</button>
+                    </div>
+                </div>
 
-            <div class="sim-footer">
-                Activos: <span id="sim-active-count">0 / 0</span>
+                <div id="sim-list-container">
+                    <!-- Items injected by JS -->
+                </div>
+
+                <div class="sim-footer">
+                    Activos: <span id="sim-active-count">0 / 0</span>
+                </div>
             </div>
         </div>
     </div>
@@ -381,6 +391,21 @@
 
         // Init icon
         updateAppCheck();
+
+        // ========== SIMULATOR PANEL TOGGLE ==========
+        window.toggleSimulatorPanel = function () {
+            const panel = document.getElementById('simulator-panel');
+            const isCollapsed = panel.classList.toggle('collapsed');
+
+            // Save state to localStorage
+            localStorage.setItem('simulator-panel-collapsed', isCollapsed);
+        };
+
+        // Load saved panel state
+        const savedPanelState = localStorage.getItem('simulator-panel-collapsed');
+        if (savedPanelState === 'true') {
+            document.getElementById('simulator-panel').classList.add('collapsed');
+        }
     </script>
 </body>
 

@@ -37,9 +37,13 @@
             font-family: 'Inter', sans-serif;
         }
 
+        :root {
+            --sidebar-width: 400px;
+        }
+
         .layout-grid {
             display: grid;
-            grid-template-columns: 1fr 400px;
+            grid-template-columns: 1fr var(--sidebar-width);
             grid-template-rows: 1fr 250px;
             grid-template-areas:
                 "map sidebar"
@@ -61,6 +65,45 @@
             /* Allows content under scrollbar if supported, or auto */
             scrollbar-gutter: stable;
             /* Keeps layout stable when scrollbar appears */
+            position: relative;
+        }
+
+        /* Resizer handle */
+        .sidebar-resizer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            background: linear-gradient(to right, transparent, #22c55e, transparent);
+            cursor: ew-resize;
+            z-index: 100;
+            transition: background 0.2s ease;
+        }
+
+        .sidebar-resizer:hover,
+        .sidebar-resizer.resizing {
+            background: linear-gradient(to right, transparent, #16a34a, transparent);
+            width: 8px;
+        }
+
+        .sidebar-resizer::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 3px;
+            height: 40px;
+            background: #22c55e;
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .sidebar-resizer:hover::before,
+        .sidebar-resizer.resizing::before {
+            opacity: 1;
         }
 
         .alerts-area {
@@ -197,6 +240,30 @@
         .blink-red {
             animation: blink-red 1s infinite ease-in-out;
         }
+
+        /* Highlighted building animation */
+        @keyframes highlight-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7);
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                box-shadow: 0 0 0 20px rgba(37, 99, 235, 0);
+                transform: translate(-50%, -50%) scale(1.15);
+            }
+        }
+
+        .building-marker.highlighted-building {
+            animation: highlight-pulse 2s infinite;
+            z-index: 50;
+        }
+
+        .building-marker.highlighted-building .status-badge {
+            background-color: #2563eb !important;
+        }
     </style>
 </head>
 
@@ -306,6 +373,9 @@
 
         <!-- Building Sidebar Area -->
         <div class="sidebar-area flex flex-col bg-[#f8fafc] dark:bg-gray-900 border-l dark:border-gray-800">
+            <!-- Resizer Handle -->
+            <div class="sidebar-resizer" id="sidebar-resizer" title="Arrastrar para redimensionar"></div>
+
             <div
                 class="px-5 py-4 border-b dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
                 <span class="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Listado
@@ -389,6 +459,7 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const campusId = urlParams.get('campusId');
+        const highlightBuildingId = urlParams.get('buildingId'); // Get building ID from URL if present
 
         let buildings = [];
         let curCampus = null;
@@ -624,6 +695,7 @@
             });
         }
 
+
         function renderMapMarkers(list, events) {
             const container = document.getElementById('campus-map-container');
 
@@ -638,8 +710,12 @@
 
             list.forEach((b, idx) => {
                 const hasAlarm = events.some(e => e.building_name === b.name || e.building_id === b.id);
+                const isHighlighted = highlightBuildingId && b.id == highlightBuildingId;
+
                 const marker = document.createElement('div');
-                marker.className = `building-marker group ${hasAlarm ? 'has-alarm' : ''}`;
+                // Priority: Alarm (red) > Highlighted (blue) > Normal (green)
+                // If has alarm, always show alarm animation regardless of highlight
+                marker.className = `building-marker group ${hasAlarm ? 'has-alarm' : (isHighlighted ? 'highlighted-building' : '')}`;
                 marker.dataset.id = b.id;
 
                 const left = b.x != null ? b.x : (20 + (idx * 15) % 65);
@@ -648,9 +724,13 @@
                 marker.style.top = `${top}%`;
                 marker.style.transform = "translate(-50%, -50%)"; // Ensure base transform is set
 
+                // Priority: Alarm (red) > Highlighted (blue) > Normal (green)
+                const badgeColor = hasAlarm ? 'bg-red-600 animate-pulse' : (isHighlighted ? 'bg-blue-600 animate-pulse' : 'bg-green-500');
+                const badgeIcon = hasAlarm ? 'fa-triangle-exclamation' : (isHighlighted ? 'fa-location-dot' : 'fa-check');
+
                 marker.innerHTML = `
-                    <div class="status-badge ${hasAlarm ? 'bg-red-600 animate-pulse' : 'bg-green-500'} group-hover:scale-110 transition-transform">
-                        <i class="fa-solid ${hasAlarm ? 'fa-triangle-exclamation' : 'fa-check'} text-white text-[10px]"></i>
+                    <div class="status-badge ${badgeColor} group-hover:scale-110 transition-transform">
+                        <i class="fa-solid ${badgeIcon} text-white text-[10px]"></i>
                     </div>
                     <div class="marker-label flex items-center gap-2 pointer-events-none select-none">
                         <span>${b.name}</span>
@@ -689,6 +769,24 @@
 
                 container.appendChild(marker);
             });
+
+            // If a building is highlighted, scroll it into view in the sidebar
+            if (highlightBuildingId) {
+                setTimeout(() => {
+                    const buildingCards = document.querySelectorAll('#building-list > div');
+                    buildingCards.forEach(card => {
+                        const cardBuildingId = card.onclick.toString().match(/buildingId=(\d+)/)?.[1];
+                        if (cardBuildingId == highlightBuildingId) {
+                            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            // Add temporary highlight effect
+                            card.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                            setTimeout(() => {
+                                card.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50', 'dark:bg-blue-900/30');
+                            }, 3000);
+                        }
+                    });
+                }, 500);
+            }
         }
 
         document.addEventListener('mouseup', async (e) => {
@@ -847,6 +945,63 @@
             });
         });
         observer.observe(document.documentElement, { attributes: true });
+
+        // ========== SIDEBAR RESIZER ==========
+        const resizer = document.getElementById('sidebar-resizer');
+        let isResizing = false;
+        let resizerStartX = 0;
+        let resizerStartWidth = 0;
+
+        // Load saved width from localStorage
+        const savedWidth = localStorage.getItem('sidebar-width');
+        if (savedWidth) {
+            document.documentElement.style.setProperty('--sidebar-width', savedWidth + 'px');
+        }
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            resizerStartX = e.clientX;
+
+            // Get current width
+            const sidebarArea = document.querySelector('.sidebar-area');
+            resizerStartWidth = sidebarArea.offsetWidth;
+
+            resizer.classList.add('resizing');
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            // Calculate new width (moving left increases width, moving right decreases)
+            const deltaX = resizerStartX - e.clientX;
+            let newWidth = resizerStartWidth + deltaX;
+
+            // Constrain width between 250px and 800px
+            newWidth = Math.max(250, Math.min(800, newWidth));
+
+            // Update CSS variable
+            document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizer.classList.remove('resizing');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+
+                // Save width to localStorage
+                const currentWidth = getComputedStyle(document.documentElement)
+                    .getPropertyValue('--sidebar-width')
+                    .trim()
+                    .replace('px', '');
+                localStorage.setItem('sidebar-width', currentWidth);
+            }
+        });
     </script>
 </body>
 
