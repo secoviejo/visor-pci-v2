@@ -408,3 +408,138 @@ export function getCurrentUser() {
         return payload;
     } catch (e) { return null; }
 }
+
+// ================== NOTIFICATION API FUNCTIONS ==================
+
+export async function getNotificationRecipients() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/notifications/recipients`, { headers });
+    if (!res.ok) throw new Error('Error loading recipients');
+    return res.json();
+}
+
+export async function createNotificationRecipient(data) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/notifications/recipients`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Error creating recipient');
+    return res.json();
+}
+
+export async function updateNotificationRecipient(id, data) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/notifications/recipients/${id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Error updating recipient');
+    return res.json();
+}
+
+export async function deleteNotificationRecipient(id) {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/notifications/recipients/${id}`, {
+        method: 'DELETE',
+        headers
+    });
+    if (!res.ok) throw new Error('Error deleting recipient');
+    return res.json();
+}
+
+export async function getNotificationConfig() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/notifications/config`, { headers });
+    if (!res.ok) throw new Error('Error loading config');
+    return res.json();
+}
+
+export async function updateNotificationConfig(data) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/notifications/config`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Error updating config');
+    return res.json();
+}
+
+export async function testNotification(recipient_id, type) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/notifications/test`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ recipient_id, type })
+    });
+    if (!res.ok) throw new Error('Error testing notification');
+    return res.json();
+}
+
+export async function getNotificationLogs(filters = {}) {
+    const headers = getHeaders();
+    let url = `${API_URL}/notifications/logs`;
+    const params = new URLSearchParams();
+    if (filters.type) params.append('type', filters.type);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.limit) params.append('limit', filters.limit);
+
+    if (params.toString()) url += `?${params.toString()}`;
+
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error('Error loading logs');
+    return res.json();
+}
+
+// Make it available globally as well
+window.api = {
+    login,
+    logout,
+    isLoggedIn,
+    getCurrentUser,
+    getCampuses,
+    updateCampus,
+    getBuildings,
+    createBuilding,
+    updateBuilding,
+    uploadBuildingConfig,
+    getFloors,
+    createFloor,
+    uploadFloor,
+    deleteFloor,
+    getDevices,
+    getDevicesByFloor,
+    getDevicesByBuilding,
+    createDevice,
+    updateDevice,
+    deleteDevice,
+    controlDevice,
+    getEvents,
+    acknowledgeEvent,
+    getUsers,
+    createUser,
+    deleteUser,
+    getGateways,
+    createGateway,
+    getSimulatorStatus,
+    startSimulator,
+    stopSimulator,
+    simulateBuildingAlarm,
+    resolveAllSimulations,
+    stopBuildingSimulation,
+    getNotificationRecipients,
+    createNotificationRecipient,
+    updateNotificationRecipient,
+    deleteNotificationRecipient,
+    getNotificationConfig,
+    updateNotificationConfig,
+    testNotification,
+    getNotificationLogs
+};

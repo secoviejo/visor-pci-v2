@@ -1,6 +1,7 @@
 node_modules/
 pci.db
 *.log
+.env
 
 visor-pci-circe-github/
 visor-pci-v2-fresh/

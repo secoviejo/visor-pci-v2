@@ -191,7 +191,61 @@ function initDb() {
         db.exec("ALTER TABLE events ADD COLUMN floor_id INTEGER");
     }
 
+    // Notification Recipients table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS notification_recipients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            enabled BOOLEAN DEFAULT 1,
+            notify_email BOOLEAN DEFAULT 1,
+            notify_sms BOOLEAN DEFAULT 0,
+            sms_critical_only BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Notification Configuration table (singleton)
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS notification_config (
+            id INTEGER PRIMARY KEY DEFAULT 1,
+            email_enabled BOOLEAN DEFAULT 1,
+            sms_enabled BOOLEAN DEFAULT 1,
+            gmail_user TEXT,
+            gmail_app_password TEXT,
+            twilio_account_sid TEXT,
+            twilio_auth_token TEXT,
+            twilio_phone_number TEXT,
+            CHECK (id = 1)
+        )
+    `);
+
+    // Initialize default config row if not exists
+    const configExists = db.prepare('SELECT id FROM notification_config WHERE id = 1').get();
+    if (!configExists) {
+        db.prepare(`
+            INSERT INTO notification_config (id, email_enabled, sms_enabled) 
+            VALUES (1, 1, 1)
+        `).run();
+    }
+
+    // Notification Log table
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS notification_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alarm_id INTEGER,
+            recipient_id INTEGER,
+            type TEXT, -- 'EMAIL' | 'SMS'
+            status TEXT, -- 'SENT' | 'FAILED' | 'SKIPPED'
+            error_message TEXT,
+            sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(recipient_id) REFERENCES notification_recipients(id)
+        )
+    `);
+
     console.log('Database schema initialized.');
+
     seedData();
 }
 

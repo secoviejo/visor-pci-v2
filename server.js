@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./database');
 const modbusService = require('./js/services/modbusService');
+const notificationService = require('./services/notificationService');
 const bacnetService = require('./js/services/bacnetService'); // [NEW] BACnet Integration
 const fs = require('fs'); // Added for file deletion
 
@@ -718,6 +720,14 @@ modbusService.on('change', (event) => {
             // Broadcast
             io.emit('pci:alarm:on', alertData);
             console.log('[Socket] Emitted pci:alarm:on');
+
+            // Send notifications
+            notificationService.notifyAlarm({
+                ...alertData,
+                priority: 'CRITICAL', // Real hardware alarms are critical
+                building_name: bName
+            }).catch(err => console.error('[Notification Error]', err));
+
         } catch (e) {
             console.error('Error saving alert:', e);
         }
@@ -1081,6 +1091,13 @@ app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
 
             // Emit Alarm (Popup)
             io.emit('pci:alarm:on', alertData);
+
+            // Send notifications (NORMAL priority for simulated alarms)
+            notificationService.notifyAlarm({
+                ...alertData,
+                priority: 'NORMAL'
+            }).catch(err => console.error('[Notification Error]', err));
+
         } catch (e) {
             console.error('[Sim] Error creating alert:', e);
         }
@@ -1405,6 +1422,204 @@ app.post('/api/simulation/building/:id/resolve', authenticateToken, (req, res) =
         res.status(500).json({ error: e.message });
     }
 });
+
+// ================== NOTIFICATION API ROUTES ==================
+
+// Get all recipients
+app.get('/api/notifications/recipients', authenticateToken, (req, res) => {
+    try {
+        const recipients = db.prepare('SELECT * FROM notification_recipients ORDER BY created_at DESC').all();
+        res.json(recipients);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Create new recipient
+app.post('/api/notifications/recipients', authenticateToken, (req, res) => {
+    try {
+        const { name, email, phone, notify_email, notify_sms, sms_critical_only } = req.body;
+
+        if (!name || (!email && !phone)) {
+            return res.status(400).json({ error: 'Name and at least one contact method required' });
+        }
+
+        const stmt = db.prepare(`
+            INSERT INTO notification_recipients (name, email, phone, notify_email, notify_sms, sms_critical_only)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        const result = stmt.run(name, email, phone, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0);
+
+        res.json({ success: true, id: result.lastInsertRowid });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Update recipient
+app.put('/api/notifications/recipients/:id', authenticateToken, (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, phone, enabled, notify_email, notify_sms, sms_critical_only } = req.body;
+
+        const stmt = db.prepare(`
+            UPDATE notification_recipients 
+            SET name = ?, email = ?, phone = ?, enabled = ?, notify_email = ?, notify_sms = ?, sms_critical_only = ?
+            WHERE id = ?
+        `);
+        const result = stmt.run(name, email, phone, enabled ? 1 : 0, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, id);
+
+        if (result.changes > 0) {
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Recipient not found' });
+        }
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Delete recipient
+app.delete('/api/notifications/recipients/:id', authenticateToken, (req, res) => {
+    try {
+        const { id } = req.params;
+        const stmt = db.prepare('DELETE FROM notification_recipients WHERE id = ?');
+        const result = stmt.run(id);
+
+        if (result.changes > 0) {
+            res.json({ success: true });
+        } else {
+            res.status(404).json({ error: 'Recipient not found' });
+        }
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Get notification configuration
+app.get('/api/notifications/config', authenticateToken, (req, res) => {
+    try {
+        const config = db.prepare('SELECT * FROM notification_config WHERE id = 1').get();
+        if (config) {
+            res.json({
+                ...config,
+                gmail_app_password: config.gmail_app_password ? '********' : null,
+                twilio_auth_token: config.twilio_auth_token ? '********' : null
+            });
+        } else {
+            res.json({ email_enabled: true, sms_enabled: true });
+        }
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Update notification configuration
+app.put('/api/notifications/config', authenticateToken, (req, res) => {
+    try {
+        const { email_enabled, sms_enabled, gmail_user, gmail_app_password, twilio_account_sid, twilio_auth_token, twilio_phone_number } = req.body;
+
+        const current = db.prepare('SELECT * FROM notification_config WHERE id = 1').get();
+        const finalGmailPassword = (gmail_app_password && gmail_app_password !== '********') ? gmail_app_password : current?.gmail_app_password;
+        const finalTwilioToken = (twilio_auth_token && twilio_auth_token !== '********') ? twilio_auth_token : current?.twilio_auth_token;
+
+        const stmt = db.prepare(`
+            UPDATE notification_config 
+            SET email_enabled = ?, sms_enabled = ?, gmail_user = ?, gmail_app_password = ?, 
+                twilio_account_sid = ?, twilio_auth_token = ?, twilio_phone_number = ?
+            WHERE id = 1
+        `);
+        stmt.run(email_enabled ? 1 : 0, sms_enabled ? 1 : 0, gmail_user, finalGmailPassword, twilio_account_sid, finalTwilioToken, twilio_phone_number);
+
+        notificationService.refreshConfig();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Test notification
+app.post('/api/notifications/test', authenticateToken, async (req, res) => {
+    try {
+        const { recipient_id, type } = req.body;
+
+        const recipient = db.prepare('SELECT * FROM notification_recipients WHERE id = ?').get(recipient_id);
+        if (!recipient) {
+            return res.status(404).json({ error: 'Recipient not found' });
+        }
+
+        const testAlarm = {
+            elementId: 'TEST-001',
+            type: 'ALARM',
+            building_id: 1,
+            floor_id: 1,
+            location: 'Ubicación de Prueba',
+            description: 'Esta es una alarma de prueba del sistema de notificaciones',
+            status: 'ACTIVA',
+            origin: 'PRUEBA',
+            priority: 'CRITICAL',
+            started_at: new Date().toISOString(),
+            building_name: 'Edificio de Prueba'
+        };
+
+        const results = [];
+
+        if (type === 'email' || type === 'both') {
+            const emailResult = await notificationService.sendEmail(recipient, testAlarm, null);
+            results.push({ type: 'email', ...emailResult });
+        }
+
+        if (type === 'sms' || type === 'both') {
+            const smsResult = await notificationService.sendSMS(recipient, testAlarm, null);
+            results.push({ type: 'sms', ...smsResult });
+        }
+
+        const allSuccess = results.every(r => r.success);
+        res.json({ success: allSuccess, results });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Get notification logs
+app.get('/api/notifications/logs', authenticateToken, (req, res) => {
+    try {
+        const { limit = 100, type, status } = req.query;
+
+        let query = `
+            SELECT l.*, r.name as recipient_name, r.email, r.phone
+            FROM notification_log l
+            LEFT JOIN notification_recipients r ON l.recipient_id = r.id
+        `;
+
+        const conditions = [];
+        const params = [];
+
+        if (type) {
+            conditions.push('l.type = ?');
+            params.push(type.toUpperCase());
+        }
+
+        if (status) {
+            conditions.push('l.status = ?');
+            params.push(status.toUpperCase());
+        }
+
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY l.sent_at DESC LIMIT ?';
+        params.push(parseInt(limit));
+
+        const logs = db.prepare(query).all(...params);
+        res.json(logs);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ================== END NOTIFICATION ROUTES ==================
 
 // Start Server
 server.listen(PORT, () => {

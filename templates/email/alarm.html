@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alarma PCI</title>
+</head>
+
+<body
+    style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"
+        style="background-color: #f5f5f5;">
+        <tr>
+            <td style="padding: 20px 0;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600"
+                    style="margin: 0 auto; max-width: 600px;">
+                    <!-- Header -->
+                    <tr>
+                        <td
+                            style="background-color: {{PRIORITY_COLOR}}; color: #ffffff; padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+                                🚨 Alarma PCI Detectada
+                            </h1>
+                            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">
+                                Sistema de Protección Contra Incendios
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Priority Badge -->
+                    <tr>
+                        <td style="background-color: #ffffff; padding: 20px 30px 0 30px;">
+                            <div
+                                style="display: inline-block; background-color: {{PRIORITY_COLOR}}; color: #ffffff; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                                {{PRIORITY}}
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="background-color: #ffffff; padding: 20px 30px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e5e5;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                                            width="100%">
+                                            <tr>
+                                                <td
+                                                    style="width: 120px; font-weight: 600; color: #666; font-size: 14px;">
+                                                    Edificio</td>
+                                                <td style="color: #1a1a1a; font-size: 14px; font-weight: 500;">
+                                                    {{BUILDING}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e5e5;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                                            width="100%">
+                                            <tr>
+                                                <td
+                                                    style="width: 120px; font-weight: 600; color: #666; font-size: 14px;">
+                                                    Planta</td>
+                                                <td style="color: #1a1a1a; font-size: 14px; font-weight: 500;">{{FLOOR}}
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e5e5;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                                            width="100%">
+                                            <tr>
+                                                <td
+                                                    style="width: 120px; font-weight: 600; color: #666; font-size: 14px;">
+                                                    Ubicación</td>
+                                                <td style="color: #1a1a1a; font-size: 14px;">{{LOCATION}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e5e5;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                                            width="100%">
+                                            <tr>
+                                                <td
+                                                    style="width: 120px; font-weight: 600; color: #666; font-size: 14px;">
+                                                    Descripción</td>
+                                                <td style="color: #1a1a1a; font-size: 14px;">{{DESCRIPTION}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e5e5;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                                            width="100%">
+                                            <tr>
+                                                <td
+                                                    style="width: 120px; font-weight: 600; color: #666; font-size: 14px;">
+                                                    Origen</td>
+                                                <td style="color: #1a1a1a; font-size: 14px;">{{ORIGIN}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                                            width="100%">
+                                            <tr>
+                                                <td
+                                                    style="width: 120px; font-weight: 600; color: #666; font-size: 14px;">
+                                                    Fecha/Hora</td>
+                                                <td
+                                                    style="color: #1a1a1a; font-size: 14px; font-family: 'Courier New', monospace;">
+                                                    {{TIMESTAMP}}</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Warning Message -->
+                    <tr>
+                        <td style="background-color: #fef3c7; padding: 20px 30px; border-radius: 0 0 8px 8px;">
+                            <p style="margin: 0; color: #92400e; font-size: 13px; line-height: 1.5;">
+                                ⚠️ <strong>Atención:</strong> Esta notificación ha sido generada automáticamente por el
+                                sistema de detección PCI.
+                                Verifica el estado de la alarma en el panel de control.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 20px 0; text-align: center;">
+                            <p style="margin: 0; color: #999; font-size: 12px;">
+                                Sistema de Notificaciones PCI - Visor CIRCE<br>
+                                Universidad de Zaragoza
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>
