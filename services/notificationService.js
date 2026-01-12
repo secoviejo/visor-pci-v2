@@ -8,6 +8,7 @@ class NotificationService {
     constructor() {
         this.emailTransporter = null;
         this.twilioClient = null;
+        this.telegramBotToken = null;
         this.emailTemplate = null;
         this.initializeServices();
         this.loadEmailTemplate();
@@ -55,6 +56,15 @@ class NotificationService {
                 this.twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
                 this.twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
                 console.log('[Notifications] SMS service initialized from ENV');
+            }
+
+            // Initialize Telegram
+            if (config.telegram_bot_token) {
+                this.telegramBotToken = config.telegram_bot_token;
+                console.log('[Notifications] Telegram service initialized');
+            } else if (process.env.TELEGRAM_BOT_TOKEN) {
+                this.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+                console.log('[Notifications] Telegram service initialized from ENV');
             }
 
         } catch (error) {
@@ -218,6 +228,76 @@ class NotificationService {
         }
     }
 
+    async sendTelegram(recipient, alarm, alarmId) {
+        if (!this.telegramBotToken) {
+            console.log('[Telegram] Service not initialized');
+            return { success: false, error: 'Telegram service not configured' };
+        }
+
+        if (!recipient.telegram_chat_id) {
+            console.log(`[Telegram] No Chat ID for recipient ${recipient.name}`);
+            return { success: false, error: 'No Chat ID' };
+        }
+
+        try {
+            const building = alarm.building_id ?
+                db.prepare('SELECT name FROM buildings WHERE id = ?').get(alarm.building_id) : null;
+            const floor = alarm.floor_id ?
+                db.prepare('SELECT name FROM floors WHERE id = ?').get(alarm.floor_id) : null;
+
+            const priority = this.classifyPriority(alarm);
+            const buildingName = building?.name || alarm.building_name || 'Edificio Desconocido';
+            const floorName = floor?.name || '';
+            const location = alarm.location || 'N/A';
+            const description = alarm.description || 'Alarma detectada';
+
+            // Richer format for Telegram
+            const message = `🚨 <b>ALARMA PCI DETECTADA</b> 🚨
+<b>Prioridad:</b> ${priority}
+<b>Edificio:</b> ${buildingName}
+<b>Planta:</b> ${floorName}
+<b>Ubicación:</b> ${location}
+<b>Descripción:</b> ${description}
+<b>Fecha:</b> ${new Date(alarm.started_at || Date.now()).toLocaleString('es-ES')}`;
+
+            const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: recipient.telegram_chat_id,
+                    text: message,
+                    parse_mode: 'HTML'
+                })
+            });
+
+            const data = await response.json();
+
+            if (!data.ok) {
+                throw new Error(data.description || 'Telegram API Error');
+            }
+
+            console.log(`[Telegram] Sent to ${recipient.name} (${recipient.telegram_chat_id})`);
+
+            db.prepare(`
+                INSERT INTO notification_log (alarm_id, recipient_id, type, status)
+                VALUES (?, ?, 'TELEGRAM', 'SENT')
+            `).run(alarmId, recipient.id);
+
+            return { success: true };
+
+        } catch (error) {
+            console.error(`[Telegram] Error sending to ${recipient.name}:`, error.message);
+
+            db.prepare(`
+                INSERT INTO notification_log (alarm_id, recipient_id, type, status, error_message)
+                VALUES (?, ?, 'TELEGRAM', 'FAILED', ?)
+            `).run(alarmId, recipient.id, error.message);
+
+            return { success: false, error: error.message };
+        }
+    }
+
     async notifyAlarm(alarm) {
         try {
             // ⚠️ ONLY SEND NOTIFICATIONS FOR REAL ALARMS (not simulated)
@@ -263,6 +343,12 @@ class NotificationService {
                 if (shouldSendSMS) {
                     const smsResult = await this.sendSMS(recipient, alarm, alarmId);
                     results.push({ type: 'sms', recipient: recipient.phone, ...smsResult });
+                }
+
+                // Send Telegram if enabled
+                if (this.telegramBotToken && recipient.notify_telegram) {
+                    const telegramResult = await this.sendTelegram(recipient, alarm, alarmId);
+                    results.push({ type: 'telegram', recipient: recipient.telegram_chat_id, ...telegramResult });
                 }
             }
 

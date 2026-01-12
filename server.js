@@ -1438,17 +1438,17 @@ app.get('/api/notifications/recipients', authenticateToken, (req, res) => {
 // Create new recipient
 app.post('/api/notifications/recipients', authenticateToken, (req, res) => {
     try {
-        const { name, email, phone, notify_email, notify_sms, sms_critical_only } = req.body;
+        const { name, email, phone, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram } = req.body;
 
-        if (!name || (!email && !phone)) {
+        if (!name || (!email && !phone && !telegram_chat_id)) {
             return res.status(400).json({ error: 'Name and at least one contact method required' });
         }
 
         const stmt = db.prepare(`
-            INSERT INTO notification_recipients (name, email, phone, notify_email, notify_sms, sms_critical_only)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO notification_recipients (name, email, phone, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
-        const result = stmt.run(name, email, phone, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0);
+        const result = stmt.run(name, email, phone, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, telegram_chat_id, notify_telegram ? 1 : 0);
 
         res.json({ success: true, id: result.lastInsertRowid });
     } catch (e) {
@@ -1460,14 +1460,14 @@ app.post('/api/notifications/recipients', authenticateToken, (req, res) => {
 app.put('/api/notifications/recipients/:id', authenticateToken, (req, res) => {
     try {
         const { id } = req.params;
-        const { name, email, phone, enabled, notify_email, notify_sms, sms_critical_only } = req.body;
+        const { name, email, phone, enabled, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram } = req.body;
 
         const stmt = db.prepare(`
             UPDATE notification_recipients 
-            SET name = ?, email = ?, phone = ?, enabled = ?, notify_email = ?, notify_sms = ?, sms_critical_only = ?
+            SET name = ?, email = ?, phone = ?, enabled = ?, notify_email = ?, notify_sms = ?, sms_critical_only = ?, telegram_chat_id = ?, notify_telegram = ?
             WHERE id = ?
         `);
-        const result = stmt.run(name, email, phone, enabled ? 1 : 0, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, id);
+        const result = stmt.run(name, email, phone, enabled ? 1 : 0, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, telegram_chat_id, notify_telegram ? 1 : 0, id);
 
         if (result.changes > 0) {
             res.json({ success: true });
@@ -1504,7 +1504,8 @@ app.get('/api/notifications/config', authenticateToken, (req, res) => {
             res.json({
                 ...config,
                 gmail_app_password: config.gmail_app_password ? '********' : null,
-                twilio_auth_token: config.twilio_auth_token ? '********' : null
+                twilio_auth_token: config.twilio_auth_token ? '********' : null,
+                telegram_bot_token: config.telegram_bot_token ? '********' : null
             });
         } else {
             res.json({ email_enabled: true, sms_enabled: true });
@@ -1517,19 +1518,20 @@ app.get('/api/notifications/config', authenticateToken, (req, res) => {
 // Update notification configuration
 app.put('/api/notifications/config', authenticateToken, (req, res) => {
     try {
-        const { email_enabled, sms_enabled, gmail_user, gmail_app_password, twilio_account_sid, twilio_auth_token, twilio_phone_number } = req.body;
+        const { email_enabled, sms_enabled, gmail_user, gmail_app_password, twilio_account_sid, twilio_auth_token, twilio_phone_number, telegram_bot_token } = req.body;
 
         const current = db.prepare('SELECT * FROM notification_config WHERE id = 1').get();
         const finalGmailPassword = (gmail_app_password && gmail_app_password !== '********') ? gmail_app_password : current?.gmail_app_password;
         const finalTwilioToken = (twilio_auth_token && twilio_auth_token !== '********') ? twilio_auth_token : current?.twilio_auth_token;
+        const finalTelegramToken = (telegram_bot_token && telegram_bot_token !== '********') ? telegram_bot_token : current?.telegram_bot_token;
 
         const stmt = db.prepare(`
             UPDATE notification_config 
             SET email_enabled = ?, sms_enabled = ?, gmail_user = ?, gmail_app_password = ?, 
-                twilio_account_sid = ?, twilio_auth_token = ?, twilio_phone_number = ?
+                twilio_account_sid = ?, twilio_auth_token = ?, twilio_phone_number = ?, telegram_bot_token = ?
             WHERE id = 1
         `);
-        stmt.run(email_enabled ? 1 : 0, sms_enabled ? 1 : 0, gmail_user, finalGmailPassword, twilio_account_sid, finalTwilioToken, twilio_phone_number);
+        stmt.run(email_enabled ? 1 : 0, sms_enabled ? 1 : 0, gmail_user, finalGmailPassword, twilio_account_sid, finalTwilioToken, twilio_phone_number, finalTelegramToken);
 
         notificationService.refreshConfig();
         res.json({ success: true });
@@ -1572,6 +1574,11 @@ app.post('/api/notifications/test', authenticateToken, async (req, res) => {
         if (type === 'sms' || type === 'both') {
             const smsResult = await notificationService.sendSMS(recipient, testAlarm, null);
             results.push({ type: 'sms', ...smsResult });
+        }
+
+        if (type === 'telegram' || type === 'both') {
+            const telegramResult = await notificationService.sendTelegram(recipient, testAlarm, null);
+            results.push({ type: 'telegram', ...telegramResult });
         }
 
         const allSuccess = results.every(r => r.success);
