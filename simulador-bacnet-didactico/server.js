@@ -6,7 +6,7 @@ const app = express();
 const HTTP_PORT = 3001;
 
 // Crear instancia del panel BACnet
-const firePanel = new BACnetFirePanel(40001, 47808);
+const firePanel = new BACnetFirePanel(40001, 47809);
 
 // Middleware
 app.use(express.json());
@@ -85,7 +85,7 @@ app.listen(HTTP_PORT, () => {
     console.log(`║  Simulador Didáctico BACnet - Central de Incendios       ║`);
     console.log(`╠═══════════════════════════════════════════════════════════╣`);
     console.log(`║  Interfaz Web:  http://localhost:${HTTP_PORT}                   ║`);
-    console.log(`║  Servidor BACnet: 0.0.0.0:47808                           ║`);
+    console.log(`║  Servidor BACnet: 0.0.0.0:47809                           ║`);
     console.log(`║  Device ID: 40001                                         ║`);
     console.log(`╚═══════════════════════════════════════════════════════════╝\n`);
     console.log(`✅ Servidor listo. Abre http://localhost:${HTTP_PORT} en tu navegador.\n`);

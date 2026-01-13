@@ -2,7 +2,7 @@ const bacnet = require('node-bacnet');
 const EventEmitter = require('events');
 
 class BACnetFirePanel extends EventEmitter {
-    constructor(deviceId = 40001, port = 47808) {
+    constructor(deviceId = 40001, port = 47809) {
         super();
 
         this.deviceId = deviceId;
@@ -173,6 +173,26 @@ class BACnetFirePanel extends EventEmitter {
 
         console.log(`[BACnet] Servidor iniciado en puerto ${this.port}`);
         console.log(`[BACnet] Device ID: ${this.deviceId}`);
+
+        // Enviar I-Am periódicamente para que los clientes nos descubran
+        setInterval(() => {
+            this.client.iAmResponse(
+                this.deviceId,
+                bacnet.enum.Segmentation.SEGMENTATION_NONE,
+                999 // Vendor ID
+            );
+            console.log('[BACnet] Enviando I-Am broadcast...');
+        }, 30000); // Cada 30 segundos
+
+        // Enviar un I-Am inicial inmediatamente
+        setTimeout(() => {
+            this.client.iAmResponse(
+                this.deviceId,
+                bacnet.enum.Segmentation.SEGMENTATION_NONE,
+                999
+            );
+            console.log('[BACnet] I-Am inicial enviado');
+        }, 2000);
     }
 
     // Métodos para cambiar estado
