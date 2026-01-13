@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  visor-pci:
+    build: .
+    container_name: visor-pci-server
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      # PERSISTENCIA: Mapeamos los archivos y carpetas clave a la máquina host
+      # para no perder datos si el contenedor se reinicia.
+      - ./pci.db:/usr/src/app/pci.db
+      - ./uploads:/usr/src/app/uploads
+      - ./datos_edificios:/usr/src/app/datos_edificios
+      - ./.env:/usr/src/app/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ENABLE_HARDWARE=true # Activa comunicaciones Modbus/BACnet
+    # Dependiendo de la red de la Universidad, puede que necesiten usar 'network_mode: host'
+    # para conectarse con las centrales de incendio si están en redes complejas.
+    # network_mode: "host"
+
+networks:
+  default:
+    name: visor-pci-network

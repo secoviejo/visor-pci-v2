@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+Dockerfile
+docker-compose.yml
+.git
+.gitignore
+.env
+# Opcionalmente ignorar DB local para que use la del volumen o se cree limpia
+# pci.db 

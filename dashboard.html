@@ -123,7 +123,14 @@
                 <div
                     class="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full border border-green-200 dark:border-green-800">
                     <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span class="text-sm font-medium text-green-700 dark:text-green-400">Sistema Operativo</span>
+                    <span id="system-status-text" class="text-sm font-medium text-green-700 dark:text-green-400">Sistema
+                        Operativo</span>
+                </div>
+
+                <div id="env-badge"
+                    class="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800 hidden">
+                    <i id="env-icon" class="fa fa-cloud text-blue-500"></i>
+                    <span id="env-text" class="text-sm font-medium text-blue-700 dark:text-blue-400">Cargando...</span>
                 </div>
 
                 <!-- Alertas Activas Badge -->
@@ -405,7 +412,41 @@
             loadCampuses(); // Always refresh to update alarm counts
         });
 
+        async function checkSystemStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                const envBadge = document.getElementById('env-badge');
+                const envText = document.getElementById('env-text');
+                const envIcon = document.getElementById('env-icon');
+                const statusText = document.getElementById('system-status-text');
+
+                envBadge.classList.remove('hidden');
+
+                if (data.environment === 'cloud') {
+                    envText.textContent = 'Modo Nube (Visor)';
+                    envIcon.className = 'fa fa-cloud text-blue-500';
+                    statusText.textContent = 'Visor Online';
+                } else if (data.environment === 'docker') {
+                    envText.textContent = 'Modo Docker (Monitor)';
+                    envIcon.className = 'fa fa-whale text-blue-500'; // Fa-whale or box
+                    statusText.textContent = 'Monitorización Local';
+                } else {
+                    envText.textContent = 'Modo Local (Dev)';
+                    envIcon.className = 'fa fa-laptop text-blue-500';
+                }
+
+                if (!data.hardware_enabled && data.environment !== 'cloud') {
+                    statusText.textContent += ' (Sin Hardware)';
+                }
+            } catch (e) {
+                console.warn('Could not fetch system status');
+            }
+        }
+
         loadCampuses();
+        checkSystemStatus();
 
         // Theme Toggle Handler
         document.getElementById('theme-toggle').addEventListener('click', () => {

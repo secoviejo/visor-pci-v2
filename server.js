@@ -14,9 +14,20 @@ let simulatorProcess = null;
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Check if we should enable hardware connections (disable in production/cloud)
-const ENABLE_HARDWARE = process.env.ENABLE_HARDWARE === 'true';
+// Environment Detection
+const IS_RENDER = process.env.RENDER === 'true' || !!process.env.RENDER_EXTERNAL_URL;
+const IS_DOCKER = process.env.IS_DOCKER === 'true';
 
+// Check if we should enable hardware connections (disable in production/cloud by default)
+let ENABLE_HARDWARE = process.env.ENABLE_HARDWARE === 'true';
+
+// Auto-disable hardware on Render unless explicitly forced
+if (IS_RENDER && process.env.ENABLE_HARDWARE !== 'true') {
+    ENABLE_HARDWARE = false;
+    console.log('[Config] Render detected: Auto-disabling hardware connections');
+}
+
+console.log(`[Config] Environment: ${IS_RENDER ? 'RENDER' : (IS_DOCKER ? 'DOCKER' : 'LOCAL')}`);
 console.log(`[Config] Hardware connections: ${ENABLE_HARDWARE ? 'ENABLED' : 'DISABLED'}`);
 
 // Initialize Modbus and BACnet services only if hardware is enabled
@@ -72,7 +83,7 @@ const upload = multer({ storage: storage });
 // Auth Config
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const JWT_SECRET = 'super_secret_key_change_me'; // In prod use ENV
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
 
 // Middleware
 app.use(cors());
@@ -138,6 +149,16 @@ const authorizeRole = (roles) => {
 
 app.post('/api/auth/verify', authenticateToken, (req, res) => {
     res.json({ valid: true, user: req.user });
+});
+
+// 0.1 System Status Endpoint (Environment Info)
+app.get('/api/status', (req, res) => {
+    res.json({
+        environment: IS_RENDER ? 'cloud' : (IS_DOCKER ? 'docker' : 'local'),
+        hardware_enabled: ENABLE_HARDWARE,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
 });
 
 // 1. Get All Buildings (Public) - Filter by Campus
