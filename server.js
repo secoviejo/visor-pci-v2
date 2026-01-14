@@ -56,6 +56,17 @@ if (ENABLE_HARDWARE) {
         console.log(`[BACnet] New Device: ${device.deviceId} (${device.address})`);
     });
 
+    // --- Initialize BACnet Polling for configured buildings ---
+    const buildingsWithBacnet = db.prepare('SELECT id, name, bacnet_ip, bacnet_port, bacnet_device_id FROM buildings WHERE bacnet_ip IS NOT NULL').all();
+    buildingsWithBacnet.forEach(b => {
+        if (b.bacnet_ip && b.bacnet_ip.trim() !== '') {
+            const port = b.bacnet_port || 47809;
+            const deviceAddress = `${b.bacnet_ip}:${port}`;
+            // Poll Binary Inputs 0-4 (matching simulator's 5 devices)
+            bacnetService.startBuildingPolling(b.id, deviceAddress, [0, 1, 2, 3, 4], 3000);
+        }
+    });
+
     console.log('[Hardware] Modbus and BACnet services initialized');
 } else {
     console.log('[Hardware] Skipping hardware initialization (set ENABLE_HARDWARE=true to enable)');
@@ -804,6 +815,118 @@ modbusService.on('change', (event) => {
             }
         } catch (e) {
             console.error('Error resolving alert:', e);
+        }
+    }
+});
+
+// --- BACnet Alarm Events Handler ---
+bacnetService.on('alarmChange', (event) => {
+    console.log('[BACnet Event]', event);
+
+    // Map BI instance to device type
+    const biTypeMap = {
+        0: 'detector',  // ALARMA_DET_01
+        1: 'detector',  // ALARMA_DET_02
+        2: 'detector',  // ALARMA_DET_03
+        3: 'pulsador',  // ALARMA_PULS_01
+        4: 'sirena'     // SIRENA_ACTIVA
+    };
+
+    const deviceType = biTypeMap[event.biInstance] || 'detector';
+    const elementId = `BACNET-${event.buildingId}-BI${event.biInstance}`;
+
+    if (event.value === true) {
+        // Alarm ON
+        const building = db.prepare('SELECT name FROM buildings WHERE id = ?').get(event.buildingId);
+        const bName = building ? building.name : `Edificio ${event.buildingId}`;
+
+        const alertData = {
+            elementId: elementId,
+            type: deviceType,
+            building_id: event.buildingId,
+            floor_id: 1,
+            location: `${bName} - Dispositivo BACnet BI:${event.biInstance}`,
+            description: `Alarma BACnet en ${bName}`,
+            status: 'ACTIVA',
+            origin: 'REAL',
+            started_at: new Date().toISOString(),
+            ended_at: null
+        };
+
+        // Check if alarm already exists
+        const existingAlarm = db.prepare(`
+            SELECT id FROM alerts 
+            WHERE element_id = ? AND status = 'ACTIVA'
+        `).get(alertData.elementId);
+
+        if (existingAlarm) {
+            console.log(`[BACnet] Alarm already active for ${alertData.elementId}, skipping`);
+            return;
+        }
+
+        try {
+            const stmt = db.prepare(`
+                INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
+                VALUES (@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
+            `);
+            const result = stmt.run(alertData);
+            alertData.db_id = result.lastInsertRowid;
+
+            io.emit('pci:alarm:on', alertData);
+            console.log(`[Socket] Emitted pci:alarm:on for BACnet ${alertData.elementId}`);
+
+            // Send notifications
+            notificationService.notifyAlarm({
+                ...alertData,
+                priority: 'CRITICAL',
+                building_name: bName
+            }).catch(err => console.error('[Notification Error]', err));
+
+            // Log event
+            db.prepare(`
+                INSERT INTO events (device_id, type, message, value, building_id, floor_id)
+                VALUES (?, 'ALARM', 'Alarma BACnet Activada', ?, ?, ?)
+            `).run(elementId, JSON.stringify(event.value), event.buildingId, 1);
+
+            io.emit('event:new', {
+                id: result.lastInsertRowid,
+                device_id: elementId,
+                building_id: event.buildingId,
+                floor_id: 1,
+                type: 'ALARM',
+                message: 'Alarma BACnet Activada',
+                timestamp: new Date(),
+                acknowledged: false
+            });
+
+        } catch (e) {
+            console.error('[BACnet] Error saving alert:', e);
+        }
+
+    } else {
+        // Alarm OFF - Resolve
+        console.log(`[BACnet Event] Resolving alarm for ${elementId}`);
+
+        try {
+            const stmt = db.prepare(`
+                UPDATE alerts 
+                SET status = 'RESUELTA', ended_at = ? 
+                WHERE element_id = ? AND status = 'ACTIVA'
+            `);
+            const now = new Date().toISOString();
+            const result = stmt.run(now, elementId);
+
+            if (result.changes > 0) {
+                io.emit('pci:alarm:off', {
+                    elementId,
+                    type: deviceType,
+                    status: 'RESUELTA',
+                    ended_at: now
+                });
+                console.log(`[Socket] Emitted pci:alarm:off for BACnet ${elementId}`);
+            }
+        } catch (e) {
+            console.error('[BACnet] Error resolving alert:', e);
         }
     }
 });

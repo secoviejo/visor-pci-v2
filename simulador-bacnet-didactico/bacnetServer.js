@@ -67,14 +67,23 @@ class BACnetFirePanel extends EventEmitter {
 
         // Manejar ReadProperty
         this.client.on('readProperty', (data) => {
+            const request = data.request || data.payload;
+            if (!request || !request.objectId) {
+                return;
+            }
             this.stats.readProperty++;
 
-            const objType = data.request.objectId.type;
-            const objInstance = data.request.objectId.instance;
-            const propId = data.request.property.id;
+            const objType = request.objectId.type;
+            const objInstance = request.objectId.instance;
+            const propId = request.property.id;
+            const senderAddress = data.address || (data.header && data.header.sender && data.header.sender.address);
+            const invokeId = data.invokeId || data.invoke;
+
+            console.log(`[BACnet] ReadProperty from ${senderAddress}: Type=${objType}, Instance=${objInstance}, Prop=${propId}`);
 
             let value = null;
             let objectName = '';
+            let tag = bacnet.enum.ApplicationTag.UNSIGNED_INTEGER;
 
             // Mapear objeto a valor
             if (objType === bacnet.enum.ObjectType.MULTI_STATE_VALUE && objInstance === 0) {
@@ -86,30 +95,32 @@ class BACnetFirePanel extends EventEmitter {
             } else if (objType === bacnet.enum.ObjectType.BINARY_VALUE && objInstance === 0) {
                 objectName = 'CMD_RESET';
                 value = this.state.cmdReset;
+                tag = bacnet.enum.ApplicationTag.BOOLEAN;
             } else if (objType === bacnet.enum.ObjectType.BINARY_INPUT) {
                 const deviceMap = ['det01Alarm', 'det02Alarm', 'det03Alarm', 'mcp01Alarm', 'sirenActive'];
                 const nameMap = ['ALARMA_DET_01', 'ALARMA_DET_02', 'ALARMA_DET_03', 'ALARMA_PULS_01', 'SIRENA_ACTIVA'];
                 if (objInstance < deviceMap.length) {
                     objectName = nameMap[objInstance];
                     value = this.state[deviceMap[objInstance]];
+                    tag = bacnet.enum.ApplicationTag.BOOLEAN;
                 }
             }
 
             this.emit('message', {
                 type: 'request',
                 service: 'ReadProperty',
-                from: data.address,
+                from: senderAddress,
                 humanText: `Cliente lee: ${objectName}`
             });
 
             if (value !== null && propId === bacnet.enum.PropertyIdentifier.PRESENT_VALUE) {
                 // Responder con el valor
                 this.client.readPropertyResponse(
-                    data.address,
-                    data.invoke,
-                    data.request.objectId,
-                    data.request.property,
-                    [{ type: bacnet.enum.ApplicationTag.UNSIGNED_INTEGER, value: value }]
+                    senderAddress,
+                    invokeId,
+                    request.objectId,
+                    request.property,
+                    [{ type: tag, value: value }]
                 );
 
                 this.emit('message', {
@@ -122,33 +133,31 @@ class BACnetFirePanel extends EventEmitter {
 
         // Manejar WriteProperty
         this.client.on('writeProperty', (data) => {
+            const request = data.request || data.payload;
+            if (!request || !request.objectId) return;
+
             this.stats.writeProperty++;
+            const objType = request.objectId.type;
+            const objInstance = request.objectId.instance;
+            const senderAddress = data.address || (data.header && data.header.sender && data.header.sender.address);
+            const invokeId = data.invokeId || data.invoke;
 
-            const objType = data.request.objectId.type;
-            const objInstance = data.request.objectId.instance;
-            const value = data.request.values[0].value;
-
-            this.emit('message', {
-                type: 'request',
-                service: 'WriteProperty',
-                from: data.address,
-                humanText: `Cliente escribe: CMD_RESET = ${value}`
-            });
-
-            // Solo permitir escritura en CMD_RESET
             if (objType === bacnet.enum.ObjectType.BINARY_VALUE && objInstance === 0) {
-                if (value === 1) {
-                    this.resetPanel();
+                const newValue = request.value.value[0].value;
+                this.state.cmdReset = !!newValue;
+                if (newValue) {
+                    this.resetPanel(); // Changed from resetAllAlarms() to resetPanel() as it exists
                 }
 
-                // Confirmar escritura
-                this.client.simpleAckResponse(data.address, bacnet.enum.BacnetConfirmedService.WRITE_PROPERTY, data.invoke);
+                this.client.simpleAckResponse(senderAddress, bacnet.enum.ConfirmedServiceChoice.WRITE_PROPERTY, invokeId);
 
                 this.emit('message', {
-                    type: 'response',
+                    type: 'request',
                     service: 'WriteProperty',
-                    humanText: 'Escritura confirmada - Panel reseteado'
+                    from: senderAddress,
+                    humanText: `Comando RESET enviado`
                 });
+                this.emit('stateChange', this.state);
             }
         });
 

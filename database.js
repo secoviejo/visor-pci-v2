@@ -76,6 +76,18 @@ function initDb() {
         db.exec("ALTER TABLE buildings ADD COLUMN thumbnail TEXT");
         console.log('Added thumbnail column to buildings.');
     }
+    if (!buildingCols.some(c => c.name === 'bacnet_ip')) {
+        db.exec("ALTER TABLE buildings ADD COLUMN bacnet_ip TEXT");
+        console.log('Added bacnet_ip column to buildings.');
+    }
+    if (!buildingCols.some(c => c.name === 'bacnet_port')) {
+        db.exec("ALTER TABLE buildings ADD COLUMN bacnet_port INTEGER");
+        console.log('Added bacnet_port column to buildings.');
+    }
+    if (!buildingCols.some(c => c.name === 'bacnet_device_id')) {
+        db.exec("ALTER TABLE buildings ADD COLUMN bacnet_device_id INTEGER");
+        console.log('Added bacnet_device_id column to buildings.');
+    }
 
     // Check if we need to migrate floors (add building_id)
     // We can't easily ALTER COLUMN to add FK in SQLite, so we check if table exists and has column.
