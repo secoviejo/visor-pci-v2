@@ -1125,6 +1125,7 @@ app.get('/api/campuses/stats', (req, res) => {
 
         const query = `
             SELECT c.id, c.name, c.description, c.image_filename, c.background_image, 
+                   (SELECT COUNT(*) FROM buildings b WHERE b.campus_id = c.id) as building_count,
                    (
                        SELECT COUNT(DISTINCT uid) FROM (
                            SELECT d.device_id as uid

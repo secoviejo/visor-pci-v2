@@ -232,9 +232,12 @@
             window.location.href = 'index.html';
         }
 
+        let isFetchingCampuses = false;
         async function loadCampuses() {
+            if (isFetchingCampuses) return;
+            isFetchingCampuses = true;
+
             try {
-                // Fetch stats which includes campus list + alarm count
                 const res = await fetch('/api/campuses/stats');
                 if (!res.ok) throw new Error('Error cargando estadísticas');
                 const campuses = await res.json();
@@ -245,47 +248,21 @@
                 let totalAlerts = 0;
                 let totalBuildings = 0;
 
-                // Calculate totals
-                // Calculate totals
-                for (const c of campuses) {
-                    // FIX: Backend returns 'alarm_count', not 'active_alarms'
-                    totalAlerts += (c.alarm_count || 0);
-                }
-
                 document.getElementById('stat-campus').textContent = campuses.length;
-
-                const alertContainer = document.getElementById('stat-alerts-container');
-                const alertCount = document.getElementById('stat-alerts');
-                const alertGridCount = document.getElementById('stat-alerts-grid');
-
-                if (totalAlerts > 0) {
-                    alertCount.textContent = totalAlerts;
-                    alertGridCount.textContent = totalAlerts;
-                    alertContainer.classList.remove('hidden');
-                } else {
-                    alertCount.textContent = 0;
-                    alertGridCount.textContent = 0;
-                    alertContainer.classList.add('hidden');
-                }
 
                 if (campuses.length === 0) {
                     grid.innerHTML = '<p class="text-gray-500">No hay campus configurados.</p>';
+                    isFetchingCampuses = false;
                     return;
                 }
 
                 for (const c of campuses) {
-                    // Try to get buildings count properly
-                    let buildingsCount = '(?)';
-                    try {
-                        const buildings = await api.getBuildings(c.id);
-                        buildingsCount = buildings.length;
-                        totalBuildings += buildingsCount;
-                        document.getElementById('stat-buildings').textContent = totalBuildings;
-                    } catch (e) { };
+                    totalAlerts += (c.alarm_count || 0);
+                    const buildingsCount = c.building_count || 0;
+                    totalBuildings += buildingsCount;
 
                     const card = document.createElement('div');
 
-                    // Dynamic styling for Active Alarm
                     const hasAlarm = c.alarm_count > 0;
                     const borderClass = hasAlarm
                         ? 'border-red-500 border-2 dark:border-red-500 shadow-red-200 dark:shadow-none'
@@ -296,7 +273,6 @@
 
                     const imgSrc = c.image_filename ? c.image_filename : 'https://via.placeholder.com/400x200?text=Campus';
 
-                    // Badge HTML
                     const badgeHtml = hasAlarm
                         ? `<div class="absolute top-4 right-4 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg animate-pulse flex items-center gap-2">
                              <i class="fa fa-fire"></i> ${c.alarm_count} ALARMAS
@@ -321,10 +297,28 @@
                     grid.appendChild(card);
                 }
 
+                // Global Stats Update
+                document.getElementById('stat-buildings').textContent = totalBuildings;
+                const alertContainer = document.getElementById('stat-alerts-container');
+                const alertCount = document.getElementById('stat-alerts');
+                const alertGridCount = document.getElementById('stat-alerts-grid');
+
+                if (totalAlerts > 0) {
+                    alertCount.textContent = totalAlerts;
+                    alertGridCount.textContent = totalAlerts;
+                    alertContainer.classList.remove('hidden');
+                } else {
+                    alertCount.textContent = 0;
+                    alertGridCount.textContent = 0;
+                    alertContainer.classList.add('hidden');
+                }
+
             } catch (err) {
                 console.error(err);
                 document.getElementById('campus-grid').innerHTML =
                     `<div class="col-span-3 text-center text-red-500">Error cargando datos: ${err.message}. Asegúrese de haber iniciado sesión.</div>`;
+            } finally {
+                isFetchingCampuses = false;
             }
         }
 
