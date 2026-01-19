@@ -1292,12 +1292,12 @@ app.post('/api/simulation/resolve', authenticateToken, (req, res) => {
         const stmt = db.prepare(`
             UPDATE alerts 
             SET status = 'RESUELTA', ended_at = ? 
-            WHERE status = 'ACTIVA' AND origin = 'SIM'
+            WHERE status = 'ACTIVA' AND (origin = 'SIM' OR origin = 'SIMULACIÓN')
         `);
         const result = stmt.run(now);
 
         // Also mark events as resolved if they are ALARM and SIM
-        db.prepare(`UPDATE events SET resolved = 1 WHERE type = 'ALARM' AND origin = 'SIM'`).run();
+        db.prepare(`UPDATE events SET resolved = 1 WHERE type = 'ALARM' AND (origin = 'SIM' OR origin = 'SIMULACIÓN')`).run();
 
         // Broadcast to all clients to stop blinking/highlighting
         io.emit('pci:simulation:resolved');
