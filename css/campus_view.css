@@ -1,0 +1,46 @@
+/* Campus View - Alerts Table Styles */
+
+/* Fixed column widths for alerts table */
+.alerts-area table {
+    table-layout: fixed;
+}
+
+.alerts-area table th:nth-child(1),
+.alerts-area table td:nth-child(1) {
+    width: 120px; /* EDIFICIO */
+}
+
+.alerts-area table th:nth-child(2),
+.alerts-area table td:nth-child(2) {
+    width: 80px; /* PLANTA */
+}
+
+.alerts-area table th:nth-child(3),
+.alerts-area table td:nth-child(3) {
+    width: 140px; /* ID */
+}
+
+.alerts-area table th:nth-child(4),
+.alerts-area table td:nth-child(4) {
+    width: 100px; /* TIPO */
+}
+
+.alerts-area table th:nth-child(5),
+.alerts-area table td:nth-child(5) {
+    width: 150px; /* UBICACIÓN */
+}
+
+.alerts-area table th:nth-child(6),
+.alerts-area table td:nth-child(6) {
+    width: 100px; /* HORA */
+}
+
+.alerts-area table th:nth-child(7),
+.alerts-area table td:nth-child(7) {
+    width: 100px; /* ORIGEN */
+}
+
+.alerts-area table th:nth-child(8),
+.alerts-area table td:nth-child(8) {
+    width: 110px; /* ESTADO */
+}

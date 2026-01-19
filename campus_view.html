@@ -264,6 +264,74 @@
         .building-marker.highlighted-building .status-badge {
             background-color: #2563eb !important;
         }
+
+        /* Alerts Table Fixed Layout */
+        .alerts-area table {
+            table-layout: fixed;
+            width: 100%;
+        }
+
+        .alerts-area th:nth-child(1),
+        .alerts-area td:nth-child(1) {
+            width: 15%;
+        }
+
+        /* Edificio */
+
+        .alerts-area th:nth-child(2),
+        .alerts-area td:nth-child(2) {
+            width: 12%;
+        }
+
+        /* Planta */
+
+        .alerts-area th:nth-child(3),
+        .alerts-area td:nth-child(3) {
+            width: 15%;
+        }
+
+        /* ID */
+
+        .alerts-area th:nth-child(4),
+        .alerts-area td:nth-child(4) {
+            width: 10%;
+        }
+
+        /* Tipo */
+
+        .alerts-area th:nth-child(5),
+        .alerts-area td:nth-child(5) {
+            width: 20%;
+        }
+
+        /* Ubicación */
+
+        .alerts-area th:nth-child(6),
+        .alerts-area td:nth-child(6) {
+            width: 10%;
+        }
+
+        /* Hora */
+
+        .alerts-area th:nth-child(7),
+        .alerts-area td:nth-child(7) {
+            width: 10%;
+        }
+
+        /* Origen */
+
+        .alerts-area th:nth-child(8),
+        .alerts-area td:nth-child(8) {
+            width: 8%;
+        }
+
+        /* Estado */
+
+        .alerts-area td {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     </style>
 </head>
 
@@ -420,10 +488,10 @@
                 </div>
             </div>
 
-            <div class="flex-grow overflow-x-auto min-w-[1000px]">
-                <table class="w-full text-left text-xs">
+            <div class="flex-grow overflow-auto">
+                <table class="w-full text-left text-xs min-w-[1000px]">
                     <thead
-                        class="bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 font-semibold uppercase tracking-wider sticky top-[40px]">
+                        class="bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 font-semibold uppercase tracking-wider sticky top-0 z-10">
                         <tr>
                             <th class="px-6 py-3">Edificio</th>
                             <th class="px-6 py-3">Planta</th>
