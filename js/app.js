@@ -24,7 +24,9 @@ const modalInfo = document.getElementById('modal-info');
 const modalAdd = document.getElementById('modal-add');
 
 // State
-let currentFloorId = null;
+window.currentFloorId = null;
+window.currentBuildingId = null;
+let currentFloorId = null; // Local copy for internal logic if needed, but better to use window.
 let currentBuildingId = null;
 let devices = [];
 let scale = 1, pointX = 0, pointY = 0;
@@ -159,6 +161,7 @@ async function loadBuildings() {
 
 async function loadFloors(buildingId) {
     currentBuildingId = buildingId;
+    window.currentBuildingId = buildingId; // Expose globally for debugging
 
     // Update Building Breadcrumb
     const sel = document.getElementById('building-select');
@@ -315,7 +318,11 @@ window.updateMapVisuals = function () {
         const alertBuildingId = a.buildingId || a.building_id;
         const matchesBuilding = String(alertBuildingId) === String(currentBuildingId) ||
             a.building_name === document.getElementById('bc-building')?.textContent;
-        return matchesBuilding && a.status === 'ACTIVA';
+
+        // Match both 'ALARM' (simulated/BACnet) and 'detector'/'pulsador' (Hardware/SOLAE)
+        const isCritical = a.type === 'ALARM' || a.type === 'detector' || a.type === 'pulsador';
+
+        return matchesBuilding && a.status === 'ACTIVA' && isCritical;
     });
 
     // We also check simulation status derived from activeEvents via API which might not be fully synced in `activeAlerts`
@@ -340,7 +347,8 @@ window.updateMapVisuals = function () {
         // 2. Check Real/Simulated Alerts (Direct Device hit)
         if (!isBlinking) {
             const hasAlert = activeAlerts.some(alert =>
-                (alert.elementId == dbId || alert.elementId == devId) && alert.type === 'ALARM'
+                (alert.elementId == dbId || alert.elementId == devId) &&
+                (alert.type === 'ALARM' || alert.type === 'detector' || alert.type === 'pulsador')
             );
             if (hasAlert) isBlinking = true;
         }

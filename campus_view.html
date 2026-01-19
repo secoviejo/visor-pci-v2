@@ -981,10 +981,6 @@
                 renderBuildings(buildings, activeEvents);
                 renderMapMarkers(buildings, activeEvents);
 
-                // Sync markers and building list with active alarms
-                renderBuildings(buildings, buildingAlarms);
-                renderMapMarkers(buildings, buildingAlarms);
-
             } catch (err) { console.error("Error refreshing alerts:", err); }
         }
 

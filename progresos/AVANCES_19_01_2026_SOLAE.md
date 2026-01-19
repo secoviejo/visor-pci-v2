@@ -227,14 +227,40 @@ Server running at http://localhost:3000
 
 ---
 
-## 🎉 Conclusión
+### 7. Mejoras de Lógica Visual y Sincronización Real
 
-La integración del SOLAE CIE-H12 con el sistema Visor PCI ha sido **completamente exitosa**. El sistema está ahora **100% operativo** y listo para monitoreo en producción.
+**Problema Identificado:**
+- El icono central **CIE** no parpadeaba con alarmas reales del SOLAE (tipo `detector`).
+- Los marcadores de edificios en la vista de campus mostraban alertas incluso si estaban todas resueltas.
+- Discrepancias entre tipos de alarma simulada (`ALARM`) y real (`detector`).
 
-**Estado Final:** ✅ OPERATIVO
+**Solución Implementada:**
+
+1. **Corrección en `app.js`**:
+   - Unificada la lógica de parpadeo para aceptar tipos `ALARM`, `detector` y `pulsador`.
+   - **Exposición Global**: Se movieron `currentBuildingId` y `currentFloorId` al objeto `window` para permitir que el sistema de alertas (que vive en otro módulo) y las actualizaciones de sockets externos puedan consultar el estado del edificio actual de forma fiable.
+   - Refinada la función `updateMapVisuals` para ser más robusta y eficiente, eliminando logs redundantes.
+
+2. **Filtro de Marcadores de Campus**:
+   - Ajustada la lógica para ocultar badges de alerta en edificios si no hay alarmas con estado `ACTIVA`.
+   - **Bug Fix**: Corregido un error de referencia en `campus_view.html` donde se intentaba usar una variable no definida (`buildingAlarms`).
+
+**Archivos Modificados:**
+- `js/app.js`
+- `campus_view.html`
+- `progresos/AVANCES_19_01_2026_SOLAE.md`
+
+---
+
+## 🎉 Conclusión Final
+
+La integración del SOLAE CIE-H12 con el sistema Visor PCI ha sido **completamente exitosa**. El sistema no solo recibe los eventos del hardware en tiempo real, sino que los visualiza correctamente en todos los niveles (Campus y Edificio), con parpadeo del Central (CIE) verificado visualmente en navegador.
+
+**Estado Final:** ✅ OPERATIVO Y SINCRONIZADO
+**Verificación Visual:** Confirmada mediante capturas del subagent (CIE parpadeando con halo dorado).
 
 ---
 
 **Fecha:** 19 de Enero de 2026  
-**Duración de la sesión:** ~2 horas  
-**Resultado:** Éxito Total 🎯
+**Hora de cierre:** 19:15
+**Resultado:** Éxito Total 🎯🎯🎯
