@@ -803,6 +803,11 @@ modbusService.on('change', (event) => {
             const now = new Date().toISOString();
             const result = stmt.run(now, elementId);
 
+            // [NEW] Also resolve in events table ALWAYS for safety
+            try {
+                db.prepare("UPDATE events SET resolved = 1 WHERE device_id = ? AND resolved = 0").run(elementId);
+            } catch (e) { console.error("Error resolving event in DB:", e); }
+
             if (result.changes > 0) {
                 // Broadcast deactivation
                 io.emit('pci:alarm:off', {
@@ -811,9 +816,9 @@ modbusService.on('change', (event) => {
                     status: 'RESUELTA',
                     ended_at: now
                 });
-                console.log(`[Socket] Emitted pci:alarm:off for ${elementId}`);
+                console.log(`[Socket] Emitted pci: alarm: off for ${elementId}`);
             } else {
-                console.log(`[Modbus] No active alarm found for ${elementId} to resolve`);
+                console.log(`[Modbus] Alert already resolved or not found in 'alerts' table for ${elementId}, but ensured 'events' is synced.`);
             }
         } catch (e) {
             console.error('Error resolving alert:', e);
@@ -835,20 +840,20 @@ bacnetService.on('alarmChange', (event) => {
     };
 
     const deviceType = biTypeMap[event.biInstance] || 'detector';
-    const elementId = `BACNET-${event.buildingId}-BI${event.biInstance}`;
+    const elementId = `BACNET - ${event.buildingId} -BI${event.biInstance} `;
 
     if (event.value === true) {
         // Alarm ON
         const building = db.prepare('SELECT name FROM buildings WHERE id = ?').get(event.buildingId);
-        const bName = building ? building.name : `Edificio ${event.buildingId}`;
+        const bName = building ? building.name : `Edificio ${event.buildingId} `;
 
         const alertData = {
             elementId: elementId,
             type: deviceType,
             building_id: event.buildingId,
             floor_id: 1,
-            location: `${bName} - Dispositivo BACnet BI:${event.biInstance}`,
-            description: `Alarma BACnet en ${bName}`,
+            location: `${bName} - Dispositivo BACnet BI:${event.biInstance} `,
+            description: `Alarma BACnet en ${bName} `,
             status: 'ACTIVA',
             origin: 'REAL',
             started_at: new Date().toISOString(),
@@ -859,7 +864,7 @@ bacnetService.on('alarmChange', (event) => {
         const existingAlarm = db.prepare(`
             SELECT id FROM alerts 
             WHERE element_id = ? AND status = 'ACTIVA'
-        `).get(alertData.elementId);
+                `).get(alertData.elementId);
 
         if (existingAlarm) {
             console.log(`[BACnet] Alarm already active for ${alertData.elementId}, skipping`);
@@ -868,14 +873,14 @@ bacnetService.on('alarmChange', (event) => {
 
         try {
             const stmt = db.prepare(`
-                INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
-                VALUES (@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
-            `);
+                INSERT INTO alerts(element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
+            VALUES(@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
+                `);
             const result = stmt.run(alertData);
             alertData.db_id = result.lastInsertRowid;
 
             io.emit('pci:alarm:on', alertData);
-            console.log(`[Socket] Emitted pci:alarm:on for BACnet ${alertData.elementId}`);
+            console.log(`[Socket] Emitted pci: alarm:on for BACnet ${alertData.elementId}`);
 
             // Send notifications
             notificationService.notifyAlarm({
@@ -886,9 +891,9 @@ bacnetService.on('alarmChange', (event) => {
 
             // Log event
             db.prepare(`
-                INSERT INTO events (device_id, type, message, value, building_id, floor_id)
-                VALUES (?, 'ALARM', 'Alarma BACnet Activada', ?, ?, ?)
-            `).run(elementId, JSON.stringify(event.value), event.buildingId, 1);
+                INSERT INTO events(device_id, type, message, value, building_id, floor_id)
+            VALUES(?, 'ALARM', 'Alarma BACnet Activada', ?, ?, ?)
+                `).run(elementId, JSON.stringify(event.value), event.buildingId, 1);
 
             io.emit('event:new', {
                 id: result.lastInsertRowid,
@@ -912,20 +917,25 @@ bacnetService.on('alarmChange', (event) => {
         try {
             const stmt = db.prepare(`
                 UPDATE alerts 
-                SET status = 'RESUELTA', ended_at = ? 
+                SET status = 'RESUELTA', ended_at = ?
                 WHERE element_id = ? AND status = 'ACTIVA'
-            `);
+                    `);
             const now = new Date().toISOString();
             const result = stmt.run(now, elementId);
 
             if (result.changes > 0) {
+                // [NEW] Also resolve in events table
+                try {
+                    db.prepare("UPDATE events SET resolved = 1 WHERE device_id = ? AND resolved = 0").run(elementId);
+                } catch (e) { console.error("Error resolving BACnet event in DB:", e); }
+
                 io.emit('pci:alarm:off', {
                     elementId,
                     type: deviceType,
                     status: 'RESUELTA',
                     ended_at: now
                 });
-                console.log(`[Socket] Emitted pci:alarm:off for BACnet ${elementId}`);
+                console.log(`[Socket] Emitted pci: alarm:off for BACnet ${elementId}`);
             }
         } catch (e) {
             console.error('[BACnet] Error resolving alert:', e);
@@ -940,7 +950,7 @@ app.post('/api/devices/control', authenticateToken, async (req, res) => {
         const { action } = req.body;
         // action: 'activate' | 'deactivate'
 
-        console.log(`[Control] Request: ${action} by ${req.user.username}`);
+        console.log(`[Control] Request: ${action} by ${req.user.username} `);
 
         if (action === 'activate') {
             await modbusService.writeOutput(0, true);
@@ -952,7 +962,7 @@ app.post('/api/devices/control', authenticateToken, async (req, res) => {
             res.status(400).json({ error: 'Invalid action' });
         }
     } catch (e) {
-        console.error(`[Control] Error: ${e.message}`);
+        console.error(`[Control] Error: ${e.message} `);
         res.status(500).json({ error: e.message });
     }
 });
@@ -963,21 +973,21 @@ app.get('/api/events', authenticateToken, (req, res) => {
         const { limit = 50, offset = 0, type, resolved, campusId } = req.query;
 
         let query = `
-            SELECT e.*, 
-                   COALESCE(d.number, '') as device_number, 
-                   COALESCE(d.type, e.type) as device_type, 
-                   COALESCE(d.location, '') as device_location, 
-                   COALESCE(e_f.name, d_f.name) as floor_name, 
-                   COALESCE(e_b.name, d_b.name) as building_name, 
-                   COALESCE(e.building_id, d_b.id) as building_id, 
-                   COALESCE(e_b.campus_id, d_b.campus_id) as campus_id
+            SELECT e.*,
+                COALESCE(d.number, '') as device_number,
+                COALESCE(d.type, e.type) as device_type,
+                COALESCE(d.location, '') as device_location,
+                COALESCE(e_f.name, d_f.name) as floor_name,
+                COALESCE(e_b.name, d_b.name) as building_name,
+                COALESCE(e.building_id, d_b.id) as building_id,
+                COALESCE(e_b.campus_id, d_b.campus_id) as campus_id
             FROM events e
             LEFT JOIN devices d ON e.device_id = d.device_id
             LEFT JOIN floors d_f ON d.floor_id = d_f.id
             LEFT JOIN buildings d_b ON d_f.building_id = d_b.id
             LEFT JOIN buildings e_b ON e.building_id = e_b.id
             LEFT JOIN floors e_f ON e.floor_id = e_f.id
-        `;
+                `;
 
         const params = [];
         const conditions = [];
@@ -1058,7 +1068,7 @@ app.post('/api/admin/simulator/start', authenticateToken, (req, res) => {
     });
 
     simulatorProcess.on('close', (code) => {
-        console.log(`[Admin] Simulator process exited with code ${code}`);
+        console.log(`[Admin] Simulator process exited with code ${code} `);
         simulatorProcess = null;
     });
 
@@ -1093,8 +1103,8 @@ app.post('/api/admin/simulator/stop', authenticateToken, (req, res) => {
                 if (line.includes('LISTENING')) {
                     const pid = line.trim().split(/\s+/).pop();
                     if (pid && pid !== '0' && pid != process.pid) {
-                        console.log(`[Admin] Killing process on port 502 with PID: ${pid}`);
-                        execSync(`taskkill /F /PID ${pid} /T`);
+                        console.log(`[Admin] Killing process on port 502 with PID: ${pid} `);
+                        execSync(`taskkill / F / PID ${pid} /T`);
                     }
                 }
             });

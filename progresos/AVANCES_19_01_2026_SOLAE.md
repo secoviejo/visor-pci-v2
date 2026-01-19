@@ -250,17 +250,32 @@ Server running at http://localhost:3000
 - `campus_view.html`
 - `progresos/AVANCES_19_01_2026_SOLAE.md`
 
+### 8. Sincronización y Refresco Real
+
+**Problema Identificado:**
+- Al reiniciar el servidor, las entradas Modbus se inicializaban en `false`. Si el contacto físico ya estaba abierto (estado normal), el sistema no detectaba la transición de `true → false`, dejando alarmas "fantasma" activas en la base de datos.
+- La resolución de alarmas por hardware solo actualizaba la tabla `alerts`, pero el visor frontal depende de la tabla `events` para limpiar los iconos del mapa.
+
+**Solución Implementada:**
+1. **Inicialización en `null`**: Modificado `modbusService.js` para inicializar las entradas en `null`. Esto garantiza que la primera lectura exitosa siempre fuerce una sincronización con el estado real del hardware.
+2. **Resolución Dual de Tablas**: Actualizado `server.js` para que la resolución de una alarma por hardware (Modbus/BACnet) busque y resuelva automáticamente todos los eventos asociados en la tabla `events`.
+3. **Verificación Visual**: Confirmado que al abrir el contacto físico del SOLAE, el edificio OUAD recupera el estado **VERDE (NORMAL)** y la tabla de alertas se limpia instantáneamente sin necesidad de recarga manual.
+
+**Archivos Modificados:**
+- `js/services/modbusService.js`
+- `server.js`
+
 ---
 
 ## 🎉 Conclusión Final
 
-La integración del SOLAE CIE-H12 con el sistema Visor PCI ha sido **completamente exitosa**. El sistema no solo recibe los eventos del hardware en tiempo real, sino que los visualiza correctamente en todos los niveles (Campus y Edificio), con parpadeo del Central (CIE) verificado visualmente en navegador.
+La integración del SOLAE CIE-H12 con el sistema Visor PCI es ahora **robusta y totalmente síncrona**. El sistema maneja correctamente los reinicios "en frío" y asegura que la representación visual en el mapa sea un reflejo fiel del estado físico de los contactos.
 
-**Estado Final:** ✅ OPERATIVO Y SINCRONIZADO
-**Verificación Visual:** Confirmada mediante capturas del subagent (CIE parpadeando con halo dorado).
+**Estado Final:** ✅ OPERATIVO, SÍNCRONO Y VERIFICADO
+**Pruebas de Estrés:** Ciclos de alarma/reposicionamiento realizados con éxito.
 
 ---
 
 **Fecha:** 19 de Enero de 2026  
-**Hora de cierre:** 19:15
-**Resultado:** Éxito Total 🎯🎯🎯
+**Hora de cierre:** 19:40  
+**Resultado:** Éxito Total y Versión Estable 🎯🎯🎯

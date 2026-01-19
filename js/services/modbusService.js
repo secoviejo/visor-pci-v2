@@ -20,7 +20,7 @@ class ModbusService extends EventEmitter {
             port: port,
             connected: false,
             interval: null,
-            inputs: { di0: false, di1: false },
+            inputs: { di0: null, di1: null },
             isSimulator: (ip === '127.0.0.1' || ip === 'localhost')
         };
 
