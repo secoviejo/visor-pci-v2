@@ -790,7 +790,7 @@ modbusService.on('change', (event) => {
 
     } else {
         // Handle "OFF" -> Resolve Alert
-        const elementId = `CIE-${event.port}`;
+        const elementId = `CIE-H12-${event.buildingId}-${event.port}`;
         console.log(`[Hardware Event] Resolving alert for ${elementId}`);
 
         try {
@@ -812,6 +812,8 @@ modbusService.on('change', (event) => {
                     ended_at: now
                 });
                 console.log(`[Socket] Emitted pci:alarm:off for ${elementId}`);
+            } else {
+                console.log(`[Modbus] No active alarm found for ${elementId} to resolve`);
             }
         } catch (e) {
             console.error('Error resolving alert:', e);

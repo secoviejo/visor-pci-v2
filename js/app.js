@@ -309,10 +309,14 @@ window.updateMapVisuals = function () {
     const isSimActive = window.simulator ? window.simulator.isActive : false;
 
     // Check if there are ANY active alarms for the CURRENT building (Real or Simulated)
-    const hasAnyBuildingAlarm = activeAlerts.some(a =>
-        (a.type === 'ALARM' && String(a.buildingId) === String(currentBuildingId)) ||
-        (a.type === 'ALARM' && a.building_name === document.getElementById('bc-building')?.textContent) // Fallback by name if ID missing
-    );
+    // Las alarmas del SOLAE tienen status='ACTIVA' y building_id coincidente
+    const hasAnyBuildingAlarm = activeAlerts.some(a => {
+        // Soportar tanto camelCase (buildingId) como snake_case (building_id)
+        const alertBuildingId = a.buildingId || a.building_id;
+        const matchesBuilding = String(alertBuildingId) === String(currentBuildingId) ||
+            a.building_name === document.getElementById('bc-building')?.textContent;
+        return matchesBuilding && a.status === 'ACTIVA';
+    });
 
     // We also check simulation status derived from activeEvents via API which might not be fully synced in `activeAlerts`
     // locally if they come from different sources, but `window.alerts` should be the truth.

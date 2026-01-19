@@ -78,9 +78,14 @@ class ModbusService extends EventEmitter {
 
     startPolling(buildingId) {
         const clientObj = this.clients.get(buildingId);
-        if (!clientObj || !clientObj.connected) return;
+        if (!clientObj || !clientObj.connected) {
+            console.log(`[Modbus] Cannot start polling for Building ${buildingId}: ${!clientObj ? 'No client object' : 'Not connected'}`);
+            return;
+        }
 
         if (clientObj.interval) clearInterval(clientObj.interval);
+
+        console.log(`[Modbus] Starting polling for Building ${buildingId} (interval: ${this.pollingInterval}ms)`);
 
         clientObj.interval = setInterval(async () => {
             if (!clientObj.connected) return;
@@ -90,12 +95,23 @@ class ModbusService extends EventEmitter {
                 const response = await clientObj.client.readDiscreteInputs(0, 2);
                 const [di0, di1] = response.data;
 
+                // Debug: Log every 10th poll
+                if (!this.pollCount) this.pollCount = {};
+                if (!this.pollCount[buildingId]) this.pollCount[buildingId] = 0;
+                this.pollCount[buildingId]++;
+
+                if (this.pollCount[buildingId] % 10 === 0) {
+                    console.log(`[Modbus] Poll #${this.pollCount[buildingId]} Building ${buildingId}: DI0=${di0}, DI1=${di1}`);
+                }
+
                 if (di0 !== clientObj.inputs.di0) {
+                    console.log(`[Modbus] DI0 changed: ${clientObj.inputs.di0} → ${di0}`);
                     clientObj.inputs.di0 = di0;
                     this.emit('change', { buildingId, port: 0, distinct: 'di0', value: di0, source: 'REAL' });
                 }
 
                 if (di1 !== clientObj.inputs.di1) {
+                    console.log(`[Modbus] DI1 changed: ${clientObj.inputs.di1} → ${di1}`);
                     clientObj.inputs.di1 = di1;
                     this.emit('change', { buildingId, port: 1, distinct: 'di1', value: di1, source: 'REAL' });
                 }
