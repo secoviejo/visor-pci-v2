@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -10,9 +11,6 @@ const multer = require('multer');
 const csv = require('csv-parser');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
-// Load env before services
-require('dotenv').config();
 
 const modbusService = require('./js/services/modbusService');
 const bacnetService = require('./js/services/bacnetService');
@@ -41,6 +39,7 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve static files (Frontend) - Adjust path if needed
 app.use(express.static('public'));
+app.use(express.static(__dirname)); // Serve HTML files in root
 app.use('/uploads', express.static('uploads')); // Uploads folder
 
 // Ensure uploads directory exists
@@ -153,7 +152,53 @@ async function startServer() {
             }
         });
 
-        // 2. Campuses
+        // 2. Status & Stats
+        app.get('/api/status', (req, res) => {
+            res.json({
+                environment: process.env.NODE_ENV === 'production' ? 'cloud' : 'local',
+                hardware_enabled: process.env.ENABLE_HARDWARE === 'true'
+            });
+        });
+
+        app.get('/api/campuses/stats', async (req, res) => {
+            try {
+                const query = `
+                    SELECT 
+                        c.id, c.name, c.description, c.image_filename, c.background_image,
+                        COALESCE(b_count.count, 0) as building_count,
+                        COALESCE(a_count.count, 0) as alarm_count
+                    FROM campuses c
+                    LEFT JOIN (
+                        SELECT campus_id, COUNT(*) as count 
+                        FROM buildings 
+                        GROUP BY campus_id
+                    ) b_count ON c.id = b_count.campus_id
+                    LEFT JOIN (
+                        SELECT campus_id, COUNT(DISTINCT uid) as count
+                        FROM (
+                            SELECT b2.campus_id, d.device_id as uid
+                            FROM devices d
+                            JOIN floors f ON d.floor_id = f.id
+                            JOIN buildings b2 ON f.building_id = b2.id
+                            JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
+                            UNION
+                            SELECT b3.campus_id, a.element_id as uid
+                            FROM alerts a
+                            JOIN buildings b3 ON a.building_id = b3.id
+                            WHERE a.status = 'ACTIVA'
+                        ) combined
+                        GROUP BY campus_id
+                    ) a_count ON c.id = a_count.campus_id
+                `;
+                const stats = await db.query(query);
+                res.json(stats);
+            } catch (e) {
+                console.error('[API] Error fetching campus stats:', e);
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        // 3. Campuses
         app.get('/api/campuses', async (req, res) => {
             try {
                 const campuses = await db.query('SELECT * FROM campuses');
@@ -189,12 +234,22 @@ async function startServer() {
             } catch (e) { res.status(500).json({ error: e.message }); }
         });
 
-        // 3. Buildings
+        // 3. Buildings (With Campus Filtering)
         app.get('/api/buildings', async (req, res) => {
             try {
-                const rows = await db.query('SELECT id, name, campus_id, x, y, modbus_ip, modbus_port FROM buildings');
+                const { campusId } = req.query;
+                let sql = 'SELECT id, name, campus_id, x, y, thumbnail, modbus_ip, modbus_port FROM buildings';
+                const params = [];
+
+                if (campusId) {
+                    sql += ' WHERE campus_id = ?';
+                    params.push(campusId);
+                }
+
+                const rows = await db.query(sql, params);
                 res.json(rows);
             } catch (err) {
+                console.error('[API] Error fetching buildings:', err);
                 res.status(500).json({ error: err.message });
             }
         });
@@ -533,37 +588,7 @@ async function startServer() {
             res.json({ success: true });
         });
 
-        // 10. Campus Stats & Alarms
-        app.get('/api/campuses/stats', async (req, res) => {
-            try {
-                const query = `
-                    SELECT c.id, c.name, c.description, c.image_filename, c.background_image, 
-                        (SELECT COUNT(*) FROM buildings b WHERE b.campus_id = c.id) as building_count,
-                        (
-                            SELECT COUNT(DISTINCT uid) FROM (
-                                SELECT d.device_id as uid
-                                FROM devices d
-                                JOIN floors f ON d.floor_id = f.id
-                                JOIN buildings b2 ON f.building_id = b2.id
-                                JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
-                                WHERE b2.campus_id = c.id
-                                UNION
-                                SELECT a.element_id as uid
-                                FROM alerts a
-                                JOIN buildings b3 ON a.building_id = b3.id
-                                WHERE a.status = 'ACTIVA' AND b3.campus_id = c.id
-                            ) AS combined_alarms
-                        ) as alarm_count 
-                    FROM campuses c
-                `;
-                // MySQL requires alias for subquery in FROM (added AS combined_alarms)
-
-                const stats = await db.query(query);
-                res.json(stats);
-            } catch (e) {
-                res.status(500).json({ error: e.message });
-            }
-        });
+        // 10. Campus Alarms Detail
 
         app.get('/api/buildings/alarms', async (req, res) => {
             try {
