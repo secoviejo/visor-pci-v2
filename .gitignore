@@ -1,9 +1,22 @@
 node_modules/
-pci.db
 *.log
 .env
+.env.production
+.env.*
 
+# Bases de datos
+*.db
+*.sqlite
+backups/
+
+# Temporal
+tmp/
+.temp/
+
+# Carpetas de versiones anteriores
 visor-pci-circe-github/
 visor-pci-v2-fresh/
+
+# Archivos de texto de notas personales
 migrar DB.txt
 publicar.txt

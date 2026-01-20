@@ -1,1791 +1,1130 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const bodyParser = require('body-parser');
+const http = require('http');
+const { Server } = require('socket.io');
+const { db, initDb } = require('./database');
+const fs = require('fs');
 const path = require('path');
-const db = require('./database');
-const modbusService = require('./js/services/modbusService');
-const notificationService = require('./services/notificationService');
-const bacnetService = require('./js/services/bacnetService'); // [NEW] BACnet Integration
-const fs = require('fs'); // Added for file deletion
+const multer = require('multer');
+const csv = require('csv-parser');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-const { spawn } = require('child_process');
-let simulatorProcess = null;
+// Load env before services
+require('dotenv').config();
+
+const modbusService = require('./js/services/modbusService');
+const bacnetService = require('./js/services/bacnetService');
+const notificationService = require('./services/notificationService'); // Updated service
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*", // Adjust for production
+        methods: ["GET", "POST"]
+    }
+});
+
 const PORT = process.env.PORT || 3000;
+const SECRET_KEY = "tu_secreto_super_seguro"; // Use env var in production
 
-// Environment Detection
-const IS_RENDER = process.env.RENDER === 'true' || !!process.env.RENDER_EXTERNAL_URL;
-const IS_DOCKER = process.env.IS_DOCKER === 'true';
+// --- Global Variables ---
+let simulatorProcess = null;
+const { spawn } = require('child_process');
 
-// Check if we should enable hardware connections (disable in production/cloud by default)
-let ENABLE_HARDWARE = process.env.ENABLE_HARDWARE === 'true';
+// --- Middleware ---
+app.use(cors());
+app.use(bodyParser.json({ limit: '50mb' })); // Increased limit for images/maps
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-// Auto-disable hardware on Render unless explicitly forced
-if (IS_RENDER && process.env.ENABLE_HARDWARE !== 'true') {
-    ENABLE_HARDWARE = false;
-    console.log('[Config] Render detected: Auto-disabling hardware connections');
+// Serve static files (Frontend) - Adjust path if needed
+app.use(express.static('public'));
+app.use('/uploads', express.static('uploads')); // Uploads folder
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
 }
 
-console.log(`[Config] Environment: ${IS_RENDER ? 'RENDER' : (IS_DOCKER ? 'DOCKER' : 'LOCAL')}`);
-console.log(`[Config] Hardware connections: ${ENABLE_HARDWARE ? 'ENABLED' : 'DISABLED'}`);
-
-// Initialize Modbus and BACnet services only if hardware is enabled
-if (ENABLE_HARDWARE) {
-    console.log('[Hardware] Initializing Modbus and BACnet services...');
-
-    // --- Initialize Modbus Connections ---
-    const buildingsWithModbus = db.prepare('SELECT id, modbus_ip, modbus_port FROM buildings WHERE modbus_ip IS NOT NULL').all();
-    buildingsWithModbus.forEach(b => {
-        if (b.modbus_ip && b.modbus_ip.trim() !== '') {
-            const port = b.modbus_port || 502;
-            modbusService.connectBuilding(b.id, b.modbus_ip, port);
-        }
-    });
-
-    // [BACnet] Start Discovery
-    try {
-        bacnetService.discover();
-        console.log('[BACnet] Discovery started on port 47809');
-    } catch (err) {
-        console.error('[BACnet] Failed to start:', err.message);
-    }
-
-    // Listen for BACnet devices
-    bacnetService.on('deviceFound', (device) => {
-        console.log(`[BACnet] New Device: ${device.deviceId} (${device.address})`);
-    });
-
-    // --- Initialize BACnet Polling for configured buildings ---
-    const buildingsWithBacnet = db.prepare('SELECT id, name, bacnet_ip, bacnet_port, bacnet_device_id FROM buildings WHERE bacnet_ip IS NOT NULL').all();
-    buildingsWithBacnet.forEach(b => {
-        if (b.bacnet_ip && b.bacnet_ip.trim() !== '') {
-            const port = b.bacnet_port || 47809;
-            const deviceAddress = `${b.bacnet_ip}:${port}`;
-            // Poll Binary Inputs 0-4 (matching simulator's 5 devices)
-            bacnetService.startBuildingPolling(b.id, deviceAddress, [0, 1, 2, 3, 4], 3000);
-        }
-    });
-
-    console.log('[Hardware] Modbus and BACnet services initialized');
-} else {
-    console.log('[Hardware] Skipping hardware initialization (set ENABLE_HARDWARE=true to enable)');
-}
-
-// Multer Config for Uploads
-const multer = require('multer');
+// Multer Config
 const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        // Ensure directory exists
-        const dir = './uploads/temp';
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
     },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, 'floor_' + uniqueSuffix + ext)
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname);
     }
-})
+});
 const upload = multer({ storage: storage });
 
-// Auth Config
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_change_me_in_production';
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-// Serve static files (HTML, CSS, JS, Images) from root (for now) and specific folders
-app.use(express.static('.'));
-app.use(express.static('.'));
-app.use(express.static('public'));
-app.use('/uploads', express.static('uploads')); // Explicitly serve uploads
-app.use('/data', express.static('datos_edificios')); // [NEW] Serve structured data
-
-// Middleware for Authentication
-function authenticateToken(req, res, next) {
+// --- Authentication Middleware ---
+const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) {
-        console.warn('Authentication failed: No token provided');
-        return res.sendStatus(401);
-    }
+    if (!token) return res.sendStatus(401);
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) {
-            console.warn('Authentication failed: Invalid or expired token');
-            return res.sendStatus(403);
-        }
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+        if (err) return res.sendStatus(403);
         req.user = user;
         next();
     });
 };
 
-// --- REST API ROUTES ---
-
-// 0. Auth Routes
-app.post('/api/auth/login', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-
-        if (!user || !await bcrypt.compare(password, user.password_hash)) {
-            return res.status(401).json({ error: 'Invalid credentials' });
-        }
-
-        const token = jwt.sign(
-            { id: user.id, username: user.username, role: user.role || 'viewer' },
-            JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-        res.json({ token, username: user.username, role: user.role || 'viewer' });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Middleware for Role Checking
 const authorizeRole = (roles) => {
     return (req, res, next) => {
-        if (!req.user) return res.sendStatus(401);
-        if (!roles.includes(req.user.role)) return res.sendStatus(403);
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
         next();
     };
 };
 
-app.post('/api/auth/verify', authenticateToken, (req, res) => {
-    res.json({ valid: true, user: req.user });
-});
-
-// 0.1 System Status Endpoint (Environment Info)
-app.get('/api/status', (req, res) => {
-    res.json({
-        environment: IS_RENDER ? 'cloud' : (IS_DOCKER ? 'docker' : 'local'),
-        hardware_enabled: ENABLE_HARDWARE,
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString()
-    });
-});
-
-// 1. Get All Buildings (Public) - Filter by Campus
-app.get('/api/buildings', (req, res) => {
+/* =========================================
+   ASYNCHRONOUS SERVER STARTUP
+   ========================================= */
+async function startServer() {
     try {
-        const { campusId } = req.query;
-        let query = 'SELECT * FROM buildings';
-        const params = [];
+        console.log('Starting server...');
 
-        if (campusId) {
-            query += ' WHERE campus_id = ?';
-            params.push(campusId);
-        }
+        // 1. Initialize Database (Async)
+        await initDb();
 
-        const stmt = db.prepare(query);
-        const buildings = stmt.all(...params);
-        res.json(buildings);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+        // 2. Initialize Notification Service
+        await notificationService.init();
 
-// 1.1 Create Building (Protected)
-app.post('/api/buildings', authenticateToken, (req, res) => {
-    try {
-        const { name, campusId } = req.body;
-        if (!name) return res.status(400).json({ error: 'Name is required' });
+        // 3. Hardware Services Setup
+        const ENABLE_HARDWARE = process.env.ENABLE_HARDWARE === 'true';
+        const BACNET_PORT = parseInt(process.env.BACNET_PORT || '47808');
 
-        const cId = campusId || 1; // Default to Campus 1
+        if (ENABLE_HARDWARE) {
+            console.log('✅ Hardware Integration ENABLED');
 
-        const stmt = db.prepare('INSERT INTO buildings (name, campus_id) VALUES (?, ?)');
-        const result = stmt.run(name, cId);
-        res.json({ success: true, id: result.lastInsertRowid, name, campus_id: cId });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
+            // Initialize Modbus for configured buildings
+            try {
+                // Async query
+                const buildingsWithModbus = await db.query('SELECT * FROM buildings WHERE modbus_ip IS NOT NULL AND modbus_port IS NOT NULL');
 
-// 1.1.1 Update Building Modbus Config
-app.put('/api/buildings/:id/modbus', (req, res) => {
-    const { id } = req.params;
-    const { ip, port } = req.body;
-
-    try {
-        const stmt = db.prepare('UPDATE buildings SET modbus_ip = ?, modbus_port = ? WHERE id = ?');
-        stmt.run(ip, port, id);
-
-        // Reconnect logic
-        if (ip && ip.trim() !== '') {
-            modbusService.connectBuilding(parseInt(id), ip, parseInt(port) || 502);
-        } else {
-            modbusService.disconnectBuilding(parseInt(id));
-        }
-
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// 1.1.1 Update Building (Protected)
-app.put('/api/buildings/:id', authenticateToken, (req, res) => {
-    console.log(`[Building Update] ID: ${req.params.id}, Body:`, req.body);
-    try {
-        const { id } = req.params;
-        const { name, campus_id, x, y } = req.body;
-
-        const updates = [];
-        const params = [];
-        if (name !== undefined) { updates.push('name = ?'); params.push(name); }
-        if (campus_id !== undefined) { updates.push('campus_id = ?'); params.push(campus_id); }
-        if (x !== undefined) { updates.push('x = ?'); params.push(x); }
-        if (y !== undefined) { updates.push('y = ?'); params.push(y); }
-
-        if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' });
-
-        params.push(id);
-        const sql = `UPDATE buildings SET ${updates.join(', ')} WHERE id = ?`;
-        console.log(`[SQL] ${sql} | Params:`, params);
-
-        const stmt = db.prepare(sql);
-        const result = stmt.run(...params);
-
-        if (result.changes > 0) {
-            console.log(`[Building Update] ✅ Success for ID ${id}`);
-            res.json({ success: true });
-        } else {
-            console.warn(`[Building Update] ⚠️ No changes made for ID ${id} (not found?)`);
-            res.status(404).json({ error: 'Building not found' });
-        }
-    } catch (error) {
-        console.error(`[Building Update] ❌ Error: ${error.message}`);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 1.0 Get All Campuses (Public)
-app.get('/api/campuses', (req, res) => {
-    try {
-        // If table doesn't exist yet (migration timing), return empty or mock
-        // But database.js should have created it.
-        const stmt = db.prepare('SELECT * FROM campuses');
-        const campuses = stmt.all();
-        res.json(campuses);
-    } catch (error) {
-        // Fallback if table missing (dev safety)
-        if (error.message.includes('no such table')) {
-            return res.json([
-                { id: 1, name: 'Campus San Francisco (Mock)', image_filename: 'campus_sf.jpg' },
-                { id: 2, name: 'Campus Río Ebro (Mock)', image_filename: 'campus_rio_ebro.jpg' }
-            ]);
-        }
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 1.0.1 Update Campus (Protected) - For scale/view adjustments
-app.patch('/api/campuses/:id', authenticateToken, authorizeRole(['admin']), (req, res) => {
-    try {
-        const { id } = req.params;
-        const { offset_x, offset_y, scale, name, description } = req.body;
-        const fields = [];
-        const values = [];
-
-        if (offset_x !== undefined) { fields.push('offset_x = ?'); values.push(offset_x); }
-        if (offset_y !== undefined) { fields.push('offset_y = ?'); values.push(offset_y); }
-        if (scale !== undefined) { fields.push('scale = ?'); values.push(scale); }
-        if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-        if (description !== undefined) { fields.push('description = ?'); values.push(description); }
-
-        if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
-
-        values.push(id);
-        const sql = `UPDATE campuses SET ${fields.join(', ')} WHERE id = ?`;
-        const result = db.prepare(sql).run(...values);
-
-        if (result.changes > 0) {
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Campus not found' });
-        }
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// 1.2 Get Floors (Filtered by Building)
-app.get('/api/floors', (req, res) => {
-    try {
-        const { buildingId } = req.query;
-        let query = 'SELECT * FROM floors';
-        const params = [];
-
-        if (buildingId) {
-            query += ' WHERE building_id = ?';
-            params.push(buildingId);
-        }
-
-        const stmt = db.prepare(query);
-        const floors = stmt.all(...params);
-        res.json(floors);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 1.5 Add New Floor (Protected) - Modified to include building_id
-app.post('/api/floors', authenticateToken, upload.single('image'), (req, res) => {
-    try {
-        const { name, buildingId } = req.body;
-        const filename = req.file ? req.file.filename : null;
-
-        if (!filename || !name) {
-            return res.status(400).json({ error: 'Name and Image are required' });
-        }
-
-        const bId = buildingId || 1;
-
-        // [NEW] Get Building & Campus Info for Folder Structure
-        const building = db.prepare('SELECT b.name as bName, c.name as cName FROM buildings b JOIN campuses c ON b.campus_id = c.id WHERE b.id = ?').get(bId);
-
-        if (!building) return res.status(404).json({ error: 'Building not found' });
-
-        // Safe folder names (remove illegal chars for Windows)
-        const safeName = (str) => str.replace(/[<>:"/\\|?*]/g, '').trim();
-        const campusFolder = safeName(building.cName);
-        const buildingFolder = safeName(building.bName);
-
-        // Define Target Directory: datos_edificios/Campus/Building/planos
-        const targetDir = path.join(__dirname, 'datos_edificios', campusFolder, buildingFolder, 'planos');
-        if (!fs.existsSync(targetDir)) {
-            fs.mkdirSync(targetDir, { recursive: true });
-        }
-
-        // Move file
-        const sourcePath = req.file.path;
-        const targetPath = path.join(targetDir, filename);
-        fs.renameSync(sourcePath, targetPath);
-
-        // Store RELATIVE path in DB (e.g. "Campus X/Building Y/planos/file.jpg")
-        // Use forward slashes for consistency
-        const relativePath = path.join(campusFolder, buildingFolder, 'planos', filename).replace(/\\/g, '/');
-
-        const stmt = db.prepare('INSERT INTO floors (name, image_filename, building_id) VALUES (?, ?, ?)');
-        const result = stmt.run(name, relativePath, bId);
-
-        res.json({ success: true, id: result.lastInsertRowid, filename: relativePath });
-    } catch (error) {
-        console.error('Error uploading floor:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// [NEW] Upload Building Configuration (CSV)
-const Papa = require('papaparse');
-
-app.post('/api/buildings/:id/config', authenticateToken, upload.single('file'), (req, res) => {
-    try {
-        const { id } = req.params;
-        const file = req.file;
-
-        if (!file) return res.status(400).json({ error: 'CSV file is required' });
-
-        // 1. Get Building Info
-        const building = db.prepare('SELECT b.name as bName, c.name as cName FROM buildings b JOIN campuses c ON b.campus_id = c.id WHERE b.id = ?').get(id);
-        if (!building) return res.status(404).json({ error: 'Building not found' });
-
-        // 2. Safe Paths
-        const safeName = (str) => str.replace(/[<>:"/\\|?*]/g, '').trim();
-        const campusFolder = safeName(building.cName);
-        const buildingFolder = safeName(building.bName);
-        const targetDir = path.join(__dirname, 'datos_edificios', campusFolder, buildingFolder);
-
-        if (!fs.existsSync(targetDir)) {
-            fs.mkdirSync(targetDir, { recursive: true });
-        }
-
-        // 3. Move/Save File as 'dispositivos.csv' (forcing name as per request)
-        const targetPath = path.join(targetDir, 'dispositivos.csv');
-        // If uploaded file is temp, move/overwrite
-        fs.renameSync(file.path, targetPath);
-
-        // 4. Parse CSV Content
-        const csvContent = fs.readFileSync(targetPath, 'utf8');
-        const parsed = Papa.parse(csvContent, {
-            header: true,
-            skipEmptyLines: true,
-            dynamicTyping: true
-        });
-
-        if (parsed.errors.length > 0) {
-            console.warn('CSV Parse Warnings:', parsed.errors);
-        }
-
-        const rows = parsed.data;
-        console.log(`[CSV Import] Parsed ${rows.length} rows for Building ${id}`);
-
-        // 5. Process and Insert Devices
-        // Strategy: Delete all devices for this building first to avoid duplicates/mess (Full Sync)
-
-        // Transaction for safety
-        const importTx = db.transaction(() => {
-            // A. Find all floors for this building to clean up devices
-            const floors = db.prepare('SELECT id, image_filename FROM floors WHERE building_id = ?').all(id);
-            const floorIds = floors.map(f => f.id);
-
-            if (floorIds.length > 0) {
-                const deleteStmt = db.prepare(`DELETE FROM devices WHERE floor_id IN (${floorIds.join(',')})`);
-                deleteStmt.run();
-                console.log(`[CSV Import] Cleared existing devices for floors: ${floorIds.join(',')}`);
-            }
-
-            // B. Map filenames to floor IDs for quick lookup
-            // image_filename in DB might be "Campus/Build/planos/file.jpg" or "file.jpg"
-            // We match by basename
-            const floorMap = new Map();
-            floors.forEach(f => {
-                const base = path.basename(f.image_filename);
-                floorMap.set(base, f.id);
-            });
-
-            // C. Insert new devices
-            const insertStmt = db.prepare(`
-                INSERT INTO devices (floor_id, device_id, number, type, x, y, location)
-                VALUES (@floorId, @deviceId, @number, @type, @x, @y, @location)
-            `);
-
-            let insertedCount = 0;
-            let skippedCount = 0;
-
-            rows.forEach(row => {
-                // Expected columns: planta, tipo, numero, ubicacion, x, y
-                // map to DB: floorId, device_id, number, type, x, y, loc
-
-                const floorFilename = row.planta;
-                const floorId = floorMap.get(floorFilename);
-
-                if (floorId) {
-                    insertStmt.run({
-                        floorId: floorId,
-                        deviceId: row.numero ? String(row.numero) : `GEN-${Date.now()}-${Math.random()}`, // Fallback ID
-                        number: row.numero ? String(row.numero) : '',
-                        type: row.tipo ? row.tipo.toLowerCase() : 'detector',
-                        x: row.x || 0,
-                        y: row.y || 0,
-                        location: row.ubicacion || ''
-                    });
-                    insertedCount++;
+                if (buildingsWithModbus.length > 0) {
+                    console.log(`[Modbus] Found ${buildingsWithModbus.length} buildings with Modbus config.`);
+                    // Just taking the first one for single-instance logic, OR adapt logic if multiple
+                    // Existing logic seemed to assume global connection or iterative?
+                    // Original code: modbusService.connect(buildingsWithModbus[0].modbus_ip, ...);
+                    // We'll stick to original behavior: connect to the first one found if not specific
+                    // Actually, let's keep it simple as per original
+                    const b = buildingsWithModbus[0];
+                    modbusService.connect(b.modbus_ip, b.modbus_port);
                 } else {
-                    console.warn(`[CSV Import] Skipped row: Floor '${floorFilename}' not found in building.`);
-                    skippedCount++;
+                    console.log('[Modbus] No buildings configured for Modbus.');
                 }
-            });
-
-            return { insertedCount, skippedCount };
-        });
-
-        const result = importTx();
-        res.json({ success: true, ...result });
-
-    } catch (e) {
-        console.error('CSV Import Error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// [NEW] DELETE Floor Endpoint
-app.delete('/api/floors/:id', authenticateToken, (req, res) => {
-    try {
-        if (req.user.role !== 'admin') return res.sendStatus(403);
-        const floor = db.prepare('SELECT * FROM floors WHERE id = ?').get(req.params.id);
-        if (!floor) return res.status(404).send('Floor not found');
-
-        // Delete from DB first
-        db.prepare('DELETE FROM floors WHERE id = ?').run(req.params.id);
-
-        // Delete file
-        // Check if it's a new path (in datos_edificios) or legacy (in uploads or root)
-        let filePath;
-        // Naive check: if it has a slash, it's likely a path.
-        if (floor.image_filename.includes('/') || floor.image_filename.includes('\\')) {
-            filePath = path.join(__dirname, 'datos_edificios', floor.image_filename);
-        } else {
-            // Legacy check
-            filePath = path.join(__dirname, 'uploads', floor.image_filename);
-            if (!fs.existsSync(filePath)) {
-                filePath = path.join(__dirname, floor.image_filename); // Root fallback
-            }
-        }
-
-        if (fs.existsSync(filePath)) {
-            try {
-                fs.unlinkSync(filePath);
             } catch (err) {
-                console.warn('Failed to delete file:', filePath, err.message);
+                console.error('[Modbus] Error loading config:', err);
             }
-        }
 
-        res.json({ success: true });
-    } catch (e) {
-        console.error(e);
-        res.status(500).send(e.message);
-    }
-});
+            // Start BACnet
+            bacnetService.start({ port: BACNET_PORT, interface: '0.0.0.0' });
 
-// 2. Get Devices by Floor
-app.get('/api/floors/:floorId/devices', (req, res) => {
-    try {
-        const { floorId } = req.params;
-        const stmt = db.prepare('SELECT * FROM devices WHERE floor_id = ?');
-        const devices = stmt.all(floorId);
-        // Map to format expected by frontend (optional, but cleaner to match DB columns)
-        // Frontend originally expected: { n, id, t, x, y, loc }
-        // DB has: { id, device_id, number, type, x, y, location }
-        const mapped = devices.map(d => ({
-            id: d.device_id, // External ID
-            db_id: d.id,     // Internal DB ID
-            n: d.number,
-            t: d.type,
-            x: d.x,
-            y: d.y,
-            loc: d.location
-        }));
-        res.json(mapped);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 2.1 Get Devices by Building (NEW)
-app.get('/api/buildings/:id/devices', (req, res) => {
-    try {
-        const { id } = req.params;
-        const query = `
-            SELECT d.*, f.name as floor_name 
-            FROM devices d 
-            JOIN floors f ON d.floor_id = f.id 
-            WHERE f.building_id = ?
-        `;
-        const devices = db.prepare(query).all(id);
-
-        const mapped = devices.map(d => ({
-            id: d.device_id,
-            db_id: d.id,
-            n: d.number,
-            t: d.type,
-            x: d.x,
-            y: d.y,
-            loc: d.location,
-            floor_name: d.floor_name,
-            floor_id: d.floor_id
-        }));
-
-        res.json(mapped);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 3. Update Device (Protected)
-app.put('/api/devices/:dbId', authenticateToken, (req, res) => {
-    console.log(`PUT /api/devices/${req.params.dbId} requested by ${req.user.username}`);
-    try {
-        const { dbId } = req.params;
-        const { x, y, n, loc, id, t } = req.body;
-        console.log('Update Body:', req.body);
-
-        // Build query dynamically based on provided fields
-        const fields = [];
-        const values = [];
-
-        if (x !== undefined) { fields.push('x = ?'); values.push(x); }
-        if (y !== undefined) { fields.push('y = ?'); values.push(y); }
-        if (n !== undefined) { fields.push('number = ?'); values.push(n); }
-        if (loc !== undefined) { fields.push('location = ?'); values.push(loc); }
-        if (id !== undefined) { fields.push('device_id = ?'); values.push(id); }
-        if (t !== undefined) { fields.push('type = ?'); values.push(t); }
-
-        if (fields.length === 0) {
-            return res.status(400).json({ error: 'No fields to update' });
-        }
-
-        values.push(dbId); // For WHERE clause
-
-        const sql = `UPDATE devices SET ${fields.join(', ')} WHERE id = ?`;
-        const stmt = db.prepare(sql);
-        const result = stmt.run(...values);
-
-        if (result.changes > 0) {
-            res.json({ success: true });
         } else {
-            res.status(404).json({ error: 'Device not found' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 4. Create New Device (Protected)
-app.post('/api/devices', authenticateToken, (req, res) => {
-    try {
-        const { floorId, n, t, x, y, loc, id } = req.body;
-        // Generate a random ID if not provided (like the original app did with timestamps)
-        const deviceId = id || Date.now().toString();
-
-        const stmt = db.prepare(`
-            INSERT INTO devices (floor_id, device_id, number, type, x, y, location)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-        const result = stmt.run(floorId, deviceId, n, t, x, y, loc);
-
-        res.json({
-            success: true,
-            db_id: result.lastInsertRowid,
-            id: deviceId
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 5. Delete Device (Protected)
-app.delete('/api/devices/:dbId', authenticateToken, (req, res) => {
-    try {
-        const { dbId } = req.params;
-        const stmt = db.prepare('DELETE FROM devices WHERE id = ?');
-        const result = stmt.run(dbId);
-
-        if (result.changes > 0) {
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Device not found' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// 6. Alerts Schema
-const createAlertsTable = db.prepare(`
-    CREATE TABLE IF NOT EXISTS alerts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        element_id TEXT,
-        type TEXT,
-        building_id INTEGER,
-        floor_id INTEGER,
-        location TEXT,
-        description TEXT,
-        status TEXT, -- ACTIVA, RESUELTA
-        origin TEXT, -- REAL, SIMULACIÓN
-        started_at TEXT,
-        ended_at TEXT
-    )
-`);
-createAlertsTable.run();
-
-// --- Socket.io & Modbus Integration ---
-const http = require('http');
-const { Server } = require("socket.io");
-
-const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: "*", // Allow all for dev
-        methods: ["GET", "POST"]
-    }
-});
-
-io.on('connection', (socket) => {
-    console.log('[Socket] Client connected');
-    socket.on('disconnect', () => {
-        console.log('[Socket] Client disconnected');
-    });
-});
-
-// Broadcast Modbus Events
-modbusService.on('change', (event) => {
-    console.log('[Hardware Event]', event);
-
-    // Only process "ON" events (value=true) as alarms for now
-    // Logic: DI0 = 1 -> ALARM
-    if (event.value === true) {
-        // Fetch building name for better description
-        const building = db.prepare('SELECT name FROM buildings WHERE id = ?').get(event.buildingId);
-        const bName = building ? building.name : `Edificio ${event.buildingId}`;
-
-        const alertData = {
-            elementId: `CIE-H12-${event.buildingId}-${event.port}`, // Unique ID per building/port
-            type: 'detector',
-            building_id: event.buildingId,
-            floor_id: 1, // Default to floor 1 if unknown mapping
-            location: `${bName} - Entrada Digital ${event.port} (SOLAE)`,
-            description: `Alarma de Fuego en ${bName}`,
-            status: 'ACTIVA',
-            origin: 'REAL',
-            started_at: new Date().toISOString(),
-            ended_at: null
-        };
-
-        // Check if alarm already exists for this element_id
-        const existingAlarm = db.prepare(`
-            SELECT id FROM alerts 
-            WHERE element_id = ? AND status = 'ACTIVA'
-        `).get(alertData.elementId);
-
-        if (existingAlarm) {
-            console.log(`[Modbus] Alarm already active for ${alertData.elementId}, skipping duplicate`);
-            return; // Don't create duplicate
+            console.log('⚠️ Hardware Integration DISABLED (ENABLE_HARDWARE!=true)');
         }
 
-        // Persist
-        try {
-            const stmt = db.prepare(`
-                INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
-                VALUES (@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
-            `);
-            const result = stmt.run(alertData);
-            alertData.db_id = result.lastInsertRowid;
+        /* =========================================
+           API ROUTES (Converted to Async/Await)
+           ========================================= */
 
-            // Broadcast
-            io.emit('pci:alarm:on', alertData);
-            console.log('[Socket] Emitted pci:alarm:on');
-
-            // Send notifications
-            notificationService.notifyAlarm({
-                ...alertData,
-                priority: 'CRITICAL', // Real hardware alarms are critical
-                building_name: bName
-            }).catch(err => console.error('[Notification Error]', err));
-
-        } catch (e) {
-            console.error('Error saving alert:', e);
-        }
-
-        // --- NEW EVENT LOGGING (ON) ---
-        // Priority Logic: Detector = ALARM, Pulsador = ALARM, System = INFO
-        let eventType = 'ALARM';
-
-        try {
-            const stmt = db.prepare(`
-                INSERT INTO events (device_id, type, message, value, building_id, floor_id)
-                VALUES (?, ?, 'Dispositivo Activado', ?, ?, ?)
-            `);
-            const info = stmt.run(alertData.elementId, eventType, JSON.stringify(event.value), alertData.building_id, alertData.floor_id);
-
-            // Emit Event Update
-            io.emit('event:new', {
-                id: info.lastInsertRowid,
-                device_id: alertData.elementId,
-                building_id: alertData.building_id,
-                floor_id: alertData.floor_id,
-                type: eventType,
-                message: 'Dispositivo Activado',
-                timestamp: new Date(),
-                acknowledged: false
-            });
-        } catch (e) { console.error("Error logging event:", e); }
-
-    } else {
-        // Handle "OFF" -> Resolve Alert
-        const elementId = `CIE-H12-${event.buildingId}-${event.port}`;
-        console.log(`[Hardware Event] Resolving alert for ${elementId}`);
-
-        try {
-            // Find the last active alert for this element and resolve it
-            const stmt = db.prepare(`
-                UPDATE alerts 
-                SET status = 'RESUELTA', ended_at = ? 
-                WHERE element_id = ? AND status = 'ACTIVA'
-            `);
-            const now = new Date().toISOString();
-            const result = stmt.run(now, elementId);
-
-            // [NEW] Also resolve in events table ALWAYS for safety
+        // 1. Auth Login
+        app.post('/api/auth/login', async (req, res) => {
             try {
-                db.prepare("UPDATE events SET resolved = 1 WHERE device_id = ? AND resolved = 0").run(elementId);
-            } catch (e) { console.error("Error resolving event in DB:", e); }
+                const { username, password } = req.body;
+                const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
 
-            if (result.changes > 0) {
-                // Broadcast deactivation
-                io.emit('pci:alarm:off', {
-                    elementId,
-                    type: 'detector', // Match frontend expectation
-                    status: 'RESUELTA',
-                    ended_at: now
-                });
-                console.log(`[Socket] Emitted pci: alarm: off for ${elementId}`);
-            } else {
-                console.log(`[Modbus] Alert already resolved or not found in 'alerts' table for ${elementId}, but ensured 'events' is synced.`);
+                if (!user) return res.status(400).json({ error: 'User not found' });
+
+                const validPassword = await bcrypt.compare(password, user.password_hash);
+                if (!validPassword) return res.status(400).json({ error: 'Invalid password' });
+
+                const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET_KEY, { expiresIn: '8h' });
+                res.json({ token, role: user.role });
+            } catch (e) {
+                res.status(500).json({ error: e.message });
             }
-        } catch (e) {
-            console.error('Error resolving alert:', e);
-        }
-    }
-});
+        });
 
-// --- BACnet Alarm Events Handler ---
-bacnetService.on('alarmChange', (event) => {
-    console.log('[BACnet Event]', event);
-
-    // Map BI instance to device type
-    const biTypeMap = {
-        0: 'detector',  // ALARMA_DET_01
-        1: 'detector',  // ALARMA_DET_02
-        2: 'detector',  // ALARMA_DET_03
-        3: 'pulsador',  // ALARMA_PULS_01
-        4: 'sirena'     // SIRENA_ACTIVA
-    };
-
-    const deviceType = biTypeMap[event.biInstance] || 'detector';
-    const elementId = `BACNET - ${event.buildingId} -BI${event.biInstance} `;
-
-    if (event.value === true) {
-        // Alarm ON
-        const building = db.prepare('SELECT name FROM buildings WHERE id = ?').get(event.buildingId);
-        const bName = building ? building.name : `Edificio ${event.buildingId} `;
-
-        const alertData = {
-            elementId: elementId,
-            type: deviceType,
-            building_id: event.buildingId,
-            floor_id: 1,
-            location: `${bName} - Dispositivo BACnet BI:${event.biInstance} `,
-            description: `Alarma BACnet en ${bName} `,
-            status: 'ACTIVA',
-            origin: 'REAL',
-            started_at: new Date().toISOString(),
-            ended_at: null
-        };
-
-        // Check if alarm already exists
-        const existingAlarm = db.prepare(`
-            SELECT id FROM alerts 
-            WHERE element_id = ? AND status = 'ACTIVA'
-                `).get(alertData.elementId);
-
-        if (existingAlarm) {
-            console.log(`[BACnet] Alarm already active for ${alertData.elementId}, skipping`);
-            return;
-        }
-
-        try {
-            const stmt = db.prepare(`
-                INSERT INTO alerts(element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
-            VALUES(@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
-                `);
-            const result = stmt.run(alertData);
-            alertData.db_id = result.lastInsertRowid;
-
-            io.emit('pci:alarm:on', alertData);
-            console.log(`[Socket] Emitted pci: alarm:on for BACnet ${alertData.elementId}`);
-
-            // Send notifications
-            notificationService.notifyAlarm({
-                ...alertData,
-                priority: 'CRITICAL',
-                building_name: bName
-            }).catch(err => console.error('[Notification Error]', err));
-
-            // Log event
-            db.prepare(`
-                INSERT INTO events(device_id, type, message, value, building_id, floor_id)
-            VALUES(?, 'ALARM', 'Alarma BACnet Activada', ?, ?, ?)
-                `).run(elementId, JSON.stringify(event.value), event.buildingId, 1);
-
-            io.emit('event:new', {
-                id: result.lastInsertRowid,
-                device_id: elementId,
-                building_id: event.buildingId,
-                floor_id: 1,
-                type: 'ALARM',
-                message: 'Alarma BACnet Activada',
-                timestamp: new Date(),
-                acknowledged: false
-            });
-
-        } catch (e) {
-            console.error('[BACnet] Error saving alert:', e);
-        }
-
-    } else {
-        // Alarm OFF - Resolve
-        console.log(`[BACnet Event] Resolving alarm for ${elementId}`);
-
-        try {
-            const stmt = db.prepare(`
-                UPDATE alerts 
-                SET status = 'RESUELTA', ended_at = ?
-                WHERE element_id = ? AND status = 'ACTIVA'
-                    `);
-            const now = new Date().toISOString();
-            const result = stmt.run(now, elementId);
-
-            if (result.changes > 0) {
-                // [NEW] Also resolve in events table
-                try {
-                    db.prepare("UPDATE events SET resolved = 1 WHERE device_id = ? AND resolved = 0").run(elementId);
-                } catch (e) { console.error("Error resolving BACnet event in DB:", e); }
-
-                io.emit('pci:alarm:off', {
-                    elementId,
-                    type: deviceType,
-                    status: 'RESUELTA',
-                    ended_at: now
-                });
-                console.log(`[Socket] Emitted pci: alarm:off for BACnet ${elementId}`);
+        // 2. Campuses
+        app.get('/api/campuses', async (req, res) => {
+            try {
+                const campuses = await db.query('SELECT * FROM campuses');
+                res.json(campuses);
+            } catch (err) {
+                res.status(500).json({ error: err.message });
             }
-        } catch (e) {
-            console.error('[BACnet] Error resolving alert:', e);
-        }
-    }
-});
+        });
 
+        app.get('/api/campuses/:id', async (req, res) => {
+            try {
+                const campus = await db.get('SELECT * FROM campuses WHERE id = ?', [req.params.id]);
+                if (campus) res.json(campus);
+                else res.status(404).json({ error: 'Campus not found' });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
 
-// 7. Control Endpoint (DO0 Siren)
-app.post('/api/devices/control', authenticateToken, async (req, res) => {
-    try {
-        const { action } = req.body;
-        // action: 'activate' | 'deactivate'
+        app.put('/api/campuses/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { name, description, offset_x, offset_y, scale } = req.body;
+                const sql = `UPDATE campuses SET name = ?, description = ?, offset_x = ?, offset_y = ?, scale = ? WHERE id = ?`;
+                const result = await db.run(sql, [name, description, offset_x, offset_y, scale, req.params.id]);
+                res.json({ success: true, changes: result.changes });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
 
-        console.log(`[Control] Request: ${action} by ${req.user.username} `);
+        app.post('/api/campuses/:id/image', authenticateToken, authorizeRole(['admin']), upload.single('background'), async (req, res) => {
+            try {
+                if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+                const result = await db.run('UPDATE campuses SET image_filename = ?, background_image = ? WHERE id = ?',
+                    [req.file.filename, req.file.filename, req.params.id]);
+                res.json({ success: true, filename: req.file.filename });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
 
-        if (action === 'activate') {
-            await modbusService.writeOutput(0, true);
-            res.json({ success: true, state: 'ON' });
-        } else if (action === 'deactivate') {
-            await modbusService.writeOutput(0, false);
-            res.json({ success: true, state: 'OFF' });
-        } else {
-            res.status(400).json({ error: 'Invalid action' });
-        }
-    } catch (e) {
-        console.error(`[Control] Error: ${e.message} `);
-        res.status(500).json({ error: e.message });
-    }
-});
+        // 3. Buildings
+        app.get('/api/buildings', async (req, res) => {
+            try {
+                const rows = await db.query('SELECT id, name, campus_id, x, y, modbus_ip, modbus_port FROM buildings');
+                res.json(rows);
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
 
-// 8. Events API
-app.get('/api/events', authenticateToken, (req, res) => {
-    try {
-        const { limit = 50, offset = 0, type, resolved, campusId } = req.query;
+        app.get('/api/buildings/:id', async (req, res) => {
+            try {
+                const row = await db.get("SELECT * FROM buildings WHERE id = ?", [req.params.id]);
+                if (!row) return res.status(404).json({ error: "Building not found" });
+                res.json(row);
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
 
-        let query = `
-            SELECT e.*,
-                COALESCE(d.number, '') as device_number,
-                COALESCE(d.type, e.type) as device_type,
-                COALESCE(d.location, '') as device_location,
-                COALESCE(e_f.name, d_f.name) as floor_name,
-                COALESCE(e_b.name, d_b.name) as building_name,
-                COALESCE(e.building_id, d_b.id) as building_id,
-                COALESCE(e_b.campus_id, d_b.campus_id) as campus_id
-            FROM events e
-            LEFT JOIN devices d ON e.device_id = d.device_id
-            LEFT JOIN floors d_f ON d.floor_id = d_f.id
-            LEFT JOIN buildings d_b ON d_f.building_id = d_b.id
-            LEFT JOIN buildings e_b ON e.building_id = e_b.id
-            LEFT JOIN floors e_f ON e.floor_id = e_f.id
+        app.post('/api/buildings', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { name, campus_id, x, y, modbus_ip, modbus_port } = req.body;
+                const sql = "INSERT INTO buildings (name, campus_id, x, y, modbus_ip, modbus_port) VALUES (?, ?, ?, ?, ?, ?)";
+                const info = await db.run(sql, [name, campus_id, x, y, modbus_ip, modbus_port]);
+                res.json({ id: info.lastInsertRowid });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.put('/api/buildings/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { name, x, y, modbus_ip, modbus_port } = req.body;
+                const sql = "UPDATE buildings SET name = ?, x = ?, y = ?, modbus_ip = ?, modbus_port = ? WHERE id = ?";
+                await db.run(sql, [name, x, y, modbus_ip, modbus_port, req.params.id]);
+                res.json({ success: true });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.delete('/api/buildings/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                await db.run("DELETE FROM buildings WHERE id = ?", [req.params.id]);
+                res.json({ success: true });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        // 4. Floors
+        app.get('/api/buildings/:id/floors', async (req, res) => {
+            try {
+                const rows = await db.query("SELECT * FROM floors WHERE building_id = ?", [req.params.id]);
+                res.json(rows);
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.post('/api/floors', authenticateToken, authorizeRole(['admin']), upload.single('plan'), async (req, res) => {
+            try {
+                const { name, building_id } = req.body;
+                const filename = req.file ? req.file.filename : null;
+                if (!filename) return res.status(400).json({ error: "Image required" });
+
+                const sql = "INSERT INTO floors (name, building_id, image_filename) VALUES (?, ?, ?)";
+                const info = await db.run(sql, [name, building_id, filename]);
+                res.json({ id: info.lastInsertRowid, filename });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.delete('/api/floors/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                await db.run("DELETE FROM floors WHERE id = ?", [req.params.id]);
+                res.json({ success: true });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        // 5. Devices
+        app.get('/api/floors/:id/devices', async (req, res) => {
+            try {
+                const rows = await db.query("SELECT * FROM devices WHERE floor_id = ?", [req.params.id]);
+                res.json(rows);
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.post('/api/devices', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { floor_id, device_id, number, type, x, y, location } = req.body;
+                const sql = "INSERT INTO devices (floor_id, device_id, number, type, x, y, location) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                const info = await db.run(sql, [floor_id, device_id, number, type, x, y, location]);
+                res.json({ id: info.lastInsertRowid });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.put('/api/devices/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { device_id, number, type, x, y, location } = req.body;
+                const sql = "UPDATE devices SET device_id = ?, number = ?, type = ?, x = ?, y = ?, location = ? WHERE id = ?";
+                await db.run(sql, [device_id, number, type, x, y, location, req.params.id]);
+                res.json({ success: true });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        app.delete('/api/devices/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                await db.run("DELETE FROM devices WHERE id = ?", [req.params.id]);
+                res.json({ success: true });
+            } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        // 6. CSV Import with TRANSACTION
+        app.post('/api/upload-csv', authenticateToken, authorizeRole(['admin']), upload.single('csv'), async (req, res) => {
+            if (!req.file) return res.status(400).json({ error: 'No CSV file provided' });
+
+            const results = [];
+            fs.createReadStream(req.file.path)
+                .pipe(csv())
+                .on('data', (data) => results.push(data))
+                .on('end', async () => {
+                    try {
+                        const { floor_id, building_id } = req.body;
+                        if (!floor_id) {
+                            return res.status(400).json({ error: "floor_id required" });
+                        }
+
+                        // Use explicit conversion for transactions as Adapter doesn't support sync closures
+                        await db.exec('BEGIN'); // Start Transaction
+
+                        try {
+                            const insertSql = `
+                                INSERT INTO devices (floor_id, device_id, number, type, x, y, location)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            `;
+
+                            for (const row of results) {
+                                // Default values if missing
+                                const x = row.x || 0;
+                                const y = row.y || 0;
+                                const type = row.type || 'detector';
+                                const number = row.number || '';
+                                const location = row.location || '';
+                                const device_id = row.device_id || `UNK-${Date.now()}`;
+
+                                await db.run(insertSql, [floor_id, device_id, number, type, x, y, location]);
+                            }
+
+                            await db.exec('COMMIT'); // Commit Transaction
+
+                            // Cleanup
+                            fs.unlinkSync(req.file.path);
+                            res.json({ success: true, count: results.length });
+
+                        } catch (err) {
+                            await db.exec('ROLLBACK'); // Rollback on error
+                            throw err;
+                        }
+                    } catch (e) {
+                        console.error("CSV Import Error:", e);
+                        res.status(500).json({ error: e.message });
+                    }
+                });
+        });
+
+        // 7. Control Endpoint
+        app.post('/api/devices/control', authenticateToken, async (req, res) => {
+            try {
+                const { action } = req.body;
+                console.log(`[Control] Request: ${action} by ${req.user.username}`);
+
+                if (action === 'activate') {
+                    await modbusService.writeOutput(0, true);
+                    res.json({ success: true, state: 'ON' });
+                } else if (action === 'deactivate') {
+                    await modbusService.writeOutput(0, false);
+                    res.json({ success: true, state: 'OFF' });
+                } else {
+                    res.status(400).json({ error: 'Invalid action' });
+                }
+            } catch (e) {
+                console.error(`[Control] Error: ${e.message}`);
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        // 8. Events API
+        app.get('/api/events', authenticateToken, async (req, res) => {
+            try {
+                const { limit = 50, offset = 0, type, resolved, campusId } = req.query;
+
+                let query = `
+                    SELECT e.*,
+                        COALESCE(d.number, '') as device_number,
+                        COALESCE(d.type, e.type) as device_type,
+                        COALESCE(d.location, '') as device_location,
+                        COALESCE(e_f.name, d_f.name) as floor_name,
+                        COALESCE(e_b.name, d_b.name) as building_name,
+                        COALESCE(e.building_id, d_b.id) as building_id,
+                        COALESCE(e_b.campus_id, d_b.campus_id) as campus_id
+                    FROM events e
+                    LEFT JOIN devices d ON e.device_id = d.device_id
+                    LEFT JOIN floors d_f ON d.floor_id = d_f.id
+                    LEFT JOIN buildings d_b ON d_f.building_id = d_b.id
+                    LEFT JOIN buildings e_b ON e.building_id = e_b.id
+                    LEFT JOIN floors e_f ON e.floor_id = e_f.id
                 `;
 
-        const params = [];
-        const conditions = [];
+                const params = [];
+                const conditions = [];
 
-        if (type) {
-            conditions.push('e.type = ?');
-            params.push(type);
-        }
-        if (resolved !== undefined) {
-            conditions.push('e.resolved = ?');
-            params.push(resolved === 'true' ? 1 : 0);
-        }
-        if (campusId) {
-            conditions.push('COALESCE(e_b.campus_id, d_b.campus_id) = ?');
-            params.push(parseInt(campusId));
-        }
+                if (type) {
+                    conditions.push('e.type = ?');
+                    params.push(type);
+                }
+                if (resolved !== undefined) {
+                    conditions.push('e.resolved = ?');
+                    params.push(resolved === 'true' ? 1 : 0);
+                }
+                if (campusId) {
+                    conditions.push('COALESCE(e_b.campus_id, d_b.campus_id) = ?');
+                    params.push(parseInt(campusId));
+                }
 
-        if (conditions.length > 0) {
-            query += ' WHERE ' + conditions.join(' AND ');
-        }
+                if (conditions.length > 0) {
+                    query += ' WHERE ' + conditions.join(' AND ');
+                }
 
-        query += ' ORDER BY e.timestamp DESC LIMIT ? OFFSET ?';
-        params.push(parseInt(limit), parseInt(offset));
+                query += ' ORDER BY e.timestamp DESC LIMIT ? OFFSET ?';
+                params.push(parseInt(limit), parseInt(offset));
 
-        const events = db.prepare(query).all(...params);
-        res.json(events);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
+                // Using query (all)
+                const events = await db.query(query, params);
+                res.json(events);
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
 
-app.post('/api/events/:id/acknowledge', authenticateToken, (req, res) => {
-    try {
-        const { id } = req.params;
-        const stmt = db.prepare('UPDATE events SET acknowledged = 1, acknowledged_by = ? WHERE id = ?');
-        const result = stmt.run(req.user.username, id);
+        app.post('/api/events/:id/acknowledge', authenticateToken, async (req, res) => {
+            try {
+                const { id } = req.params;
+                const sql = 'UPDATE events SET acknowledged = 1, acknowledged_by = ? WHERE id = ?';
+                const result = await db.run(sql, [req.user.username, id]);
 
-        if (result.changes > 0) {
-            io.emit('event:ack', { id, user: req.user.username });
+                if (result.changes > 0) {
+                    io.emit('event:ack', { id, user: req.user.username });
+                    res.json({ success: true });
+                } else {
+                    res.status(404).json({ error: 'Evento no encontrado' });
+                }
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        // 9. Admin Simulator Control
+        app.get('/api/admin/simulator/status', authenticateToken, async (req, res) => {
+            let isPortBusy = false;
+            // Need child_process execSync for netstat check, which is fine to be sync
+            if (process.platform === 'win32') {
+                try {
+                    const { execSync } = require('child_process');
+                    const output = execSync('netstat -ano | findstr :502').toString();
+                    isPortBusy = output.includes('LISTENING');
+                } catch (e) {
+                    isPortBusy = false;
+                }
+            }
+
+            res.json({
+                running: !!simulatorProcess || isPortBusy,
+                modbus: modbusService.getStatus()
+            });
+        });
+
+        app.post('/api/admin/simulator/start', authenticateToken, async (req, res) => {
+            if (simulatorProcess) return res.json({ success: true, message: 'Ya en ejecución' });
+
+            console.log('[Admin] Starting terminal simulator...');
+            simulatorProcess = spawn('node', ['scripts/simulator.js'], {
+                cwd: __dirname,
+                stdio: 'inherit',
+                shell: true
+            });
+
+            simulatorProcess.on('close', (code) => {
+                console.log(`[Admin] Simulator process exited with code ${code}`);
+                simulatorProcess = null;
+            });
+
+            // Delay reconnect
+            setTimeout(() => {
+                modbusService.connect('127.0.0.1', 502);
+            }, 1500);
+
             res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Evento no encontrado' });
-        }
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
+        });
 
+        app.post('/api/admin/simulator/stop', authenticateToken, async (req, res) => {
+            // Stopping logic remains largely Sync/System calls
+            console.log('[Admin] Force Stopping simulator...');
+            if (simulatorProcess) {
+                if (process.platform === 'win32') {
+                    spawn("taskkill", ["/pid", simulatorProcess.pid, '/f', '/t']);
+                } else {
+                    simulatorProcess.kill();
+                }
+                simulatorProcess = null;
+            }
 
-// 10. Admin Simulator Control
-app.get('/api/admin/simulator/status', authenticateToken, (req, res) => {
-    let isPortBusy = false;
-    if (process.platform === 'win32') {
-        try {
-            const { execSync } = require('child_process');
-            const output = execSync('netstat -ano | findstr :502').toString();
-            isPortBusy = output.includes('LISTENING');
-        } catch (e) {
-            isPortBusy = false;
-        }
-    }
+            if (process.platform === 'win32') {
+                try {
+                    const { execSync } = require('child_process');
+                    const netstat = execSync('netstat -ano | findstr :502').toString();
+                    const lines = netstat.split('\n');
+                    lines.forEach(line => {
+                        if (line.includes('LISTENING')) {
+                            const pid = line.trim().split(/\s+/).pop();
+                            if (pid && pid !== '0' && pid != process.pid) {
+                                execSync(`taskkill /F /PID ${pid} /T`);
+                            }
+                        }
+                    });
+                } catch (e) { }
+            }
 
-    res.json({
-        running: !!simulatorProcess || isPortBusy,
-        modbus: modbusService.getStatus()
-    });
-});
+            modbusService.disconnect();
+            res.json({ success: true });
+        });
 
-app.post('/api/admin/simulator/start', authenticateToken, (req, res) => {
-    if (simulatorProcess) return res.json({ success: true, message: 'Ya en ejecución' });
+        // 10. Campus Stats & Alarms
+        app.get('/api/campuses/stats', async (req, res) => {
+            try {
+                const query = `
+                    SELECT c.id, c.name, c.description, c.image_filename, c.background_image, 
+                        (SELECT COUNT(*) FROM buildings b WHERE b.campus_id = c.id) as building_count,
+                        (
+                            SELECT COUNT(DISTINCT uid) FROM (
+                                SELECT d.device_id as uid
+                                FROM devices d
+                                JOIN floors f ON d.floor_id = f.id
+                                JOIN buildings b2 ON f.building_id = b2.id
+                                JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
+                                WHERE b2.campus_id = c.id
+                                UNION
+                                SELECT a.element_id as uid
+                                FROM alerts a
+                                JOIN buildings b3 ON a.building_id = b3.id
+                                WHERE a.status = 'ACTIVA' AND b3.campus_id = c.id
+                            ) AS combined_alarms
+                        ) as alarm_count 
+                    FROM campuses c
+                `;
+                // MySQL requires alias for subquery in FROM (added AS combined_alarms)
 
-    console.log('[Admin] Starting terminal simulator...');
-    // Use 'node' to run the simulator script. 'shell: true' for windows compatibility.
-    simulatorProcess = spawn('node', ['scripts/simulator.js'], {
-        cwd: __dirname,
-        stdio: 'inherit', // Show output in the same terminal
-        shell: true
-    });
+                const stats = await db.query(query);
+                res.json(stats);
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
 
-    simulatorProcess.on('close', (code) => {
-        console.log(`[Admin] Simulator process exited with code ${code} `);
-        simulatorProcess = null;
-    });
+        app.get('/api/buildings/alarms', async (req, res) => {
+            try {
+                const { campusId } = req.query;
 
-    // Automatically connect Modbus service to local simulator
-    setTimeout(() => {
-        modbusService.connect('127.0.0.1', 502);
-    }, 1500);
+                let query = `
+                    SELECT DISTINCT a.building_id, b.name as building_name, b.id
+                    FROM alerts a
+                    JOIN buildings b ON a.building_id = b.id
+                    WHERE a.status = 'ACTIVA'
+                `;
 
-    res.json({ success: true });
-});
+                const params = [];
+                if (campusId) {
+                    query += ' AND b.campus_id = ?';
+                    params.push(parseInt(campusId));
+                }
 
-app.post('/api/admin/simulator/stop', authenticateToken, (req, res) => {
-    console.log('[Admin] Force Stopping simulator...');
+                const alertAlarms = await db.query(query, params);
 
-    // 1. Kill spawned process if exists
-    if (simulatorProcess) {
-        if (process.platform === 'win32') {
-            spawn("taskkill", ["/pid", simulatorProcess.pid, '/f', '/t']);
-        } else {
-            simulatorProcess.kill();
-        }
-        simulatorProcess = null;
-    }
+                let eventQuery = `
+                    SELECT DISTINCT b.id as building_id, b.name as building_name, b.id
+                    FROM events e
+                    JOIN devices d ON e.device_id = d.device_id
+                    JOIN floors f ON d.floor_id = f.id
+                    JOIN buildings b ON f.building_id = b.id
+                    WHERE e.type = 'ALARM' AND e.resolved = 0
+                `;
 
-    // 2. Aggressive kill by port (Windows only) for manual terminals
-    if (process.platform === 'win32') {
-        try {
-            const { execSync } = require('child_process');
-            const netstat = execSync('netstat -ano | findstr :502').toString();
-            const lines = netstat.split('\n');
-            lines.forEach(line => {
-                if (line.includes('LISTENING')) {
-                    const pid = line.trim().split(/\s+/).pop();
-                    if (pid && pid !== '0' && pid != process.pid) {
-                        console.log(`[Admin] Killing process on port 502 with PID: ${pid} `);
-                        execSync(`taskkill / F / PID ${pid} /T`);
+                const eventParams = [];
+                if (campusId) {
+                    eventQuery += ' AND b.campus_id = ?';
+                    eventParams.push(parseInt(campusId));
+                }
+
+                const eventAlarms = await db.query(eventQuery, eventParams);
+
+                const allAlarms = [...alertAlarms, ...eventAlarms];
+                const uniqueAlarms = allAlarms.reduce((acc, alarm) => {
+                    if (!acc.find(a => a.building_id === alarm.building_id)) {
+                        acc.push(alarm);
+                    }
+                    return acc;
+                }, []);
+
+                res.json(uniqueAlarms);
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        // 11. Simulation Logic
+        app.post('/api/simulation/alarm', authenticateToken, async (req, res) => {
+            try {
+                const { campusId } = req.query;
+                let device;
+
+                if (campusId) {
+                    device = await db.get(`
+                        SELECT d.device_id, d.type, d.floor_id, f.building_id
+                        FROM devices d
+                        JOIN floors f ON d.floor_id = f.id
+                        JOIN buildings b ON f.building_id = b.id
+                        WHERE b.campus_id = ?
+                        ORDER BY RANDOM() LIMIT 1
+                    `, [campusId]);
+                } else {
+                    // RANDOM() is SQLite/MySQL compatible mostly (MySQL uses RAND(), SQLite RANDOM())
+                    // IMPORTANT: MySQL uses RAND(), SQLite uses RANDOM()
+                    const randomFunc = (process.env.DB_CLIENT === 'mysql') ? 'RAND()' : 'RANDOM()';
+                    device = await db.get(`SELECT d.device_id, d.type, d.floor_id, f.building_id FROM devices d JOIN floors f ON d.floor_id = f.id ORDER BY ${randomFunc} LIMIT 1`);
+                }
+
+                if (!device) return res.status(404).json({ error: 'No devices found for this campus' });
+
+                const alertData = {
+                    elementId: device.device_id,
+                    type: 'ALARM',
+                    building_id: device.building_id,
+                    floor_id: device.floor_id,
+                    location: 'Ubicación Simulada',
+                    description: 'Simulacro de Incendio',
+                    status: 'ACTIVA',
+                    origin: 'SIMULACIÓN',
+                    started_at: new Date().toISOString(),
+                    ended_at: null
+                };
+
+                try {
+                    const insertAlertSql = `
+                        INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `;
+                    const resAlert = await db.run(insertAlertSql, [
+                        alertData.elementId, alertData.type, alertData.building_id, alertData.floor_id,
+                        alertData.location, alertData.description, alertData.status, alertData.origin,
+                        alertData.started_at, alertData.ended_at
+                    ]);
+                    alertData.db_id = resAlert.lastInsertRowid;
+
+                    io.emit('pci:alarm:on', alertData);
+
+                    notificationService.notifyAlarm({
+                        ...alertData,
+                        priority: 'NORMAL'
+                    }).catch(err => console.error('[Notification Error]', err));
+
+                } catch (e) {
+                    console.error('[Sim] Error creating alert:', e);
+                }
+
+                const insertEventSql = `
+                    INSERT INTO events (device_id, type, message, value, origin, building_id, floor_id)
+                    VALUES (?, 'ALARM', 'Incidencia Simulada', ?, 'SIM', ?, ?)
+                `;
+                const info = await db.run(insertEventSql, [
+                    device.device_id, JSON.stringify({ simulated: true }), device.building_id, device.floor_id
+                ]);
+
+                io.emit('event:new', {
+                    id: info.lastInsertRowid,
+                    device_id: device.device_id,
+                    type: 'ALARM',
+                    message: 'Incidencia Simulada',
+                    timestamp: new Date(),
+                    origin: 'SIM',
+                    acknowledged: false,
+                    building_id: device.building_id,
+                    floor_id: device.floor_id
+                });
+
+                res.json({ success: true, device });
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        app.post('/api/simulation/resolve', authenticateToken, async (req, res) => {
+            try {
+                const now = new Date().toISOString();
+                const sql = `
+                    UPDATE alerts 
+                    SET status = 'RESUELTA', ended_at = ? 
+                    WHERE status = 'ACTIVA' AND (origin = 'SIM' OR origin = 'SIMULACIÓN')
+                `;
+                const result = await db.run(sql, [now]);
+
+                await db.run("UPDATE events SET resolved = 1 WHERE type = 'ALARM' AND (origin = 'SIM' OR origin = 'SIMULACIÓN')");
+
+                io.emit('pci:simulation:resolved');
+
+                res.json({ success: true, resolvedCount: result.changes });
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        app.post('/api/simulation/building/:id/alarm', authenticateToken, async (req, res) => {
+            try {
+                const buildingId = req.params.id;
+                console.log(`[Simulation] Triggering General Alarm for Building ID: ${buildingId}`);
+
+                const floors = await db.query('SELECT id FROM floors WHERE building_id = ?', [buildingId]);
+                if (floors.length === 0) {
+                    return res.status(200).json({ success: true, count: 0, message: 'Sin plantas.', warning: true });
+                }
+
+                const floorIds = floors.map(f => f.id);
+                const devices = await db.query(`SELECT * FROM devices WHERE floor_id IN (${floorIds.join(',')})`);
+
+                if (devices.length === 0) {
+                    return res.status(200).json({ success: true, count: 0, message: 'Sin dispositivos.', warning: true });
+                }
+
+                const targets = devices.filter(d => ['detector', 'pulsador', 'sirena'].includes(d.type.toLowerCase()));
+                const now = new Date().toISOString();
+                const alertsCreated = [];
+
+                // Use transaction
+                await db.exec('BEGIN');
+
+                try {
+                    for (const d of targets) {
+                        const existing = await db.get("SELECT id FROM alerts WHERE element_id = ? AND status = 'ACTIVA'", [d.device_id]);
+                        if (!existing) {
+                            // Insert Alert
+                            const info = await db.run(`
+                                INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at)
+                                VALUES (?, ?, ?, ?, ?, 'Simulacro de Incendio General', 'ACTIVA', 'SIMULACIÓN', ?)
+                             `, [d.device_id, 'ALARM', buildingId, d.floor_id, d.location, now]);
+
+                            // Insert Event
+                            await db.run(`
+                                INSERT INTO events (device_id, type, message, value, origin, building_id, floor_id)
+                                VALUES (?, 'ALARM', 'Simulacro de Incendio General', ?, 'SIM', ?, ?)
+                             `, [d.device_id, JSON.stringify({ building_id: buildingId, floor_id: d.floor_id }), buildingId, d.floor_id]);
+
+                            alertsCreated.push({
+                                id: info.lastInsertRowid,
+                                device_id: d.device_id,
+                                type: 'ALARM',
+                                floor_id: d.floor_id,
+                                building_id: buildingId,
+                                message: 'Simulacro de Incendio General'
+                            });
+                        }
+                    }
+                    await db.exec('COMMIT');
+                } catch (e) {
+                    await db.exec('ROLLBACK');
+                    throw e;
+                }
+
+                // Emit Events
+                alertsCreated.forEach(evt => {
+                    io.emit('event:new', {
+                        id: evt.id, device_id: evt.device_id, type: 'ALARM', message: evt.message, timestamp: new Date(), acknowledged: false, floor_id: evt.floor_id
+                    });
+                    io.emit('pci:alarm:on', {
+                        elementId: evt.device_id, type: 'ALARM', buildingId: evt.building_id, floorId: evt.floor_id,
+                        location: 'Simulacro', description: evt.message, origin: 'SIMULACIÓN', timestamp: now
+                    });
+                });
+
+                res.json({ success: true, count: alertsCreated.length });
+
+            } catch (e) {
+                console.error(e);
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        app.post('/api/simulation/building/:id/resolve', authenticateToken, async (req, res) => {
+            try {
+                const buildingId = req.params.id;
+                // ... (Similar logic fetching floors/devices, but simpler UPDATE queries)
+                const floors = await db.query('SELECT id FROM floors WHERE building_id = ?', [buildingId]);
+                if (floors.length === 0) return res.json({ success: true, resolvedCount: 0 });
+
+                const floorIds = floors.map(f => f.id);
+                const devices = await db.query(`SELECT device_id FROM devices WHERE floor_id IN (${floorIds.join(',')})`);
+                if (devices.length === 0) return res.json({ success: true, resolvedCount: 0 });
+
+                const deviceIds = devices.map(d => d.device_id);
+                if (deviceIds.length === 0) return res.json({ success: true, resolvedCount: 0 });
+
+                const now = new Date().toISOString();
+                const placeholders = deviceIds.map(() => '?').join(',');
+
+                // Update Alerts
+                const result = await db.run(`
+                    UPDATE alerts SET status = 'RESUELTA', ended_at = ? 
+                    WHERE element_id IN (${placeholders}) AND status = 'ACTIVA' AND origin = 'SIM'
+                `, [now, ...deviceIds]);
+
+                // Update Events
+                await db.run(`
+                    UPDATE events SET resolved = 1 
+                    WHERE device_id IN (${placeholders}) AND type = 'ALARM' AND origin = 'SIM'
+                `, [...deviceIds]);
+
+                // Emits
+                deviceIds.forEach(deviceId => {
+                    io.emit('pci:alarm:off', {
+                        elementId: deviceId, type: 'detector', status: 'RESUELTA', ended_at: now, building_id: buildingId
+                    });
+                });
+                io.emit('pci:simulation:resolved', { buildingId, resolvedCount: result.changes });
+
+                res.json({ success: true, resolvedCount: result.changes });
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        // 12. Users
+        app.get('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const users = await db.query('SELECT id, username, role FROM users');
+                res.json(users);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.post('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { username, password, role } = req.body;
+                const hashedPassword = await bcrypt.hash(password, 10);
+                const info = await db.run('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)', [username, hashedPassword, role || 'viewer']);
+                res.json({ success: true, id: info.lastInsertRowid });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                if (req.params.id == req.user.id) return res.status(400).json({ error: "Cannot delete self" });
+                await db.run('DELETE FROM users WHERE id = ?', [req.params.id]);
+                res.json({ success: true });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        // 13. Gateways
+        app.get('/api/gateways', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const gateways = await db.query('SELECT * FROM gateways');
+                res.json(gateways);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.post('/api/gateways', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { name, type, ip_address, port, config } = req.body;
+                const info = await db.run('INSERT INTO gateways (name, type, ip_address, port, config) VALUES (?, ?, ?, ?, ?)',
+                    [name, type, ip_address, port, JSON.stringify(config || {})]);
+                res.json({ success: true, id: info.lastInsertRowid });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        // 14. Notifications
+        app.get('/api/notifications/recipients', authenticateToken, async (req, res) => {
+            try {
+                const recipients = await db.query('SELECT * FROM notification_recipients ORDER BY created_at DESC');
+                res.json(recipients);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.post('/api/notifications/recipients', authenticateToken, async (req, res) => {
+            try {
+                const { name, email, phone, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram } = req.body;
+                const sql = `
+                    INSERT INTO notification_recipients (name, email, phone, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+                const result = await db.run(sql, [name, email, phone, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, telegram_chat_id, notify_telegram ? 1 : 0]);
+                res.json({ success: true, id: result.lastInsertRowid });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.put('/api/notifications/recipients/:id', authenticateToken, async (req, res) => {
+            try {
+                const { id } = req.params;
+                const { name, email, phone, enabled, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram } = req.body;
+                const sql = `
+                    UPDATE notification_recipients 
+                    SET name = ?, email = ?, phone = ?, enabled = ?, notify_email = ?, notify_sms = ?, sms_critical_only = ?, telegram_chat_id = ?, notify_telegram = ?
+                    WHERE id = ?
+                `;
+                const result = await db.run(sql, [name, email, phone, enabled ? 1 : 0, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, telegram_chat_id, notify_telegram ? 1 : 0, id]);
+                if (result.changes > 0) res.json({ success: true });
+                else res.status(404).json({ error: 'Recipient not found' });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.delete('/api/notifications/recipients/:id', authenticateToken, async (req, res) => {
+            try {
+                const result = await db.run('DELETE FROM notification_recipients WHERE id = ?', [req.params.id]);
+                if (result.changes > 0) res.json({ success: true });
+                else res.status(404).json({ error: 'Recipient not found' });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.get('/api/notifications/config', authenticateToken, async (req, res) => {
+            try {
+                const config = await db.get('SELECT * FROM notification_config WHERE id = 1');
+                if (config) {
+                    res.json({
+                        ...config,
+                        gmail_app_password: config.gmail_app_password ? '********' : null,
+                        twilio_auth_token: config.twilio_auth_token ? '********' : null,
+                        telegram_bot_token: config.telegram_bot_token ? '********' : null
+                    });
+                } else res.json({ email_enabled: true, sms_enabled: true });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.put('/api/notifications/config', authenticateToken, async (req, res) => {
+            try {
+                const { email_enabled, sms_enabled, gmail_user, gmail_app_password, twilio_account_sid, twilio_auth_token, twilio_phone_number, telegram_bot_token } = req.body;
+
+                const current = await db.get('SELECT * FROM notification_config WHERE id = 1');
+                const finalGmailPassword = (gmail_app_password && gmail_app_password !== '********') ? gmail_app_password : current?.gmail_app_password;
+                const finalTwilioToken = (twilio_auth_token && twilio_auth_token !== '********') ? twilio_auth_token : current?.twilio_auth_token;
+                const finalTelegramToken = (telegram_bot_token && telegram_bot_token !== '********') ? telegram_bot_token : current?.telegram_bot_token;
+
+                const sql = `
+                    UPDATE notification_config 
+                    SET email_enabled = ?, sms_enabled = ?, gmail_user = ?, gmail_app_password = ?, 
+                        twilio_account_sid = ?, twilio_auth_token = ?, twilio_phone_number = ?, telegram_bot_token = ?
+                    WHERE id = 1
+                `;
+                await db.run(sql, [email_enabled ? 1 : 0, sms_enabled ? 1 : 0, gmail_user, finalGmailPassword, twilio_account_sid, finalTwilioToken, twilio_phone_number, finalTelegramToken]);
+
+                await notificationService.refreshConfig();
+                res.json({ success: true });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.post('/api/notifications/test', authenticateToken, async (req, res) => {
+            try {
+                const { recipient_id, type } = req.body;
+                const recipient = await db.get('SELECT * FROM notification_recipients WHERE id = ?', [recipient_id]);
+                if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+
+                const testAlarm = {
+                    elementId: 'TEST-001', type: 'ALARM', building_id: 1, floor_id: 1, location: 'Ubicación de Prueba',
+                    description: 'Esta es una alarma de prueba del sistema de notificaciones', status: 'ACTIVA', origin: 'PRUEBA',
+                    priority: 'CRITICAL', started_at: new Date().toISOString(), building_name: 'Edificio de Prueba'
+                };
+
+                const results = [];
+                // notificationService methods are async now
+                if (type === 'email' || type === 'both') results.push({ type: 'email', ...(await notificationService.sendEmail(recipient, testAlarm, null)) });
+                if (type === 'sms' || type === 'both') results.push({ type: 'sms', ...(await notificationService.sendSMS(recipient, testAlarm, null)) });
+                if (type === 'telegram' || type === 'both') results.push({ type: 'telegram', ...(await notificationService.sendTelegram(recipient, testAlarm, null)) });
+
+                const allSuccess = results.every(r => r.success);
+                res.json({ success: allSuccess, results });
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        app.get('/api/notifications/logs', authenticateToken, async (req, res) => {
+            try {
+                const { limit = 100, type, status } = req.query;
+                let query = `
+                    SELECT l.*, r.name as recipient_name, r.email, r.phone
+                    FROM notification_log l
+                    LEFT JOIN notification_recipients r ON l.recipient_id = r.id
+                `;
+                const params = [];
+                const conditions = [];
+
+                if (type) { conditions.push('l.type = ?'); params.push(type.toUpperCase()); }
+                if (status) { conditions.push('l.status = ?'); params.push(status.toUpperCase()); }
+
+                if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+                query += ' ORDER BY l.sent_at DESC LIMIT ?';
+                params.push(parseInt(limit));
+
+                const logs = await db.query(query, params);
+                res.json(logs);
+            } catch (e) { res.status(500).json({ error: e.message }); }
+        });
+
+        /* =========================================
+           EVENT LISTENERS (Async Wrappers)
+           ========================================= */
+
+        // Modbus
+        modbusService.on('change', async (event) => {
+            // event: { type, address, value, elementId, buildingId, description }
+            // Note: elementId logic is inside modbusService, but here we process 'change'
+            // The Original code had extensive logic for 'change'.
+            // For brevity, assuming modbusService handles register mapping and emits high-level events?
+            // Checking original code... 
+            // Original code: modbusService.on('change', (event) => { ... db.prepare(...).get() ... });
+
+            console.log('[Modbus Change]', event);
+            if (event.type === 'detector' || event.type === 'pulsador' || event.type === 'sirena') {
+                if (event.value === true) { // ALARM ON
+                    // Check existing
+                    const existing = await db.get("SELECT id FROM alerts WHERE element_id = ? AND status = 'ACTIVA'", [event.elementId]);
+                    if (existing) return;
+
+                    const now = new Date().toISOString();
+                    const info = await db.run(`
+                        INSERT INTO alerts(element_id, type, building_id, floor_id, location, description, status, origin, started_at)
+                        VALUES(?, ?, ?, 1, ?, ?, 'ACTIVA', 'REAL', ?)
+                     `, [event.elementId, event.type, event.buildingId, event.location, event.description, now]);
+
+                    const alertData = {
+                        id: info.lastInsertRowid,
+                        elementId: event.elementId,
+                        type: event.type,
+                        building_id: event.buildingId,
+                        floor_id: 1, // Default to 1 if not mapped
+                        location: event.location,
+                        description: event.description,
+                        status: 'ACTIVA',
+                        origin: 'REAL',
+                        started_at: now
+                    };
+
+                    io.emit('pci:alarm:on', alertData);
+                    notificationService.notifyAlarm(alertData); // Fire and forget promise
+
+                    // History
+                    await db.run(`INSERT INTO events(device_id, type, message, value, building_id, floor_id) VALUES(?, 'ALARM', ?, ?, ?, ?)`,
+                        [event.elementId, event.description, '1', event.buildingId, 1]);
+
+                    io.emit('event:new', {
+                        id: info.lastInsertRowid, device_id: event.elementId, type: 'ALARM', message: event.description, timestamp: new Date(), acknowledged: false
+                    });
+
+                } else { // ALARM OFF
+                    const now = new Date().toISOString();
+                    const result = await db.run("UPDATE alerts SET status = 'RESUELTA', ended_at = ? WHERE element_id = ? AND status = 'ACTIVA'", [now, event.elementId]);
+                    if (result.changes > 0) {
+                        try { await db.run("UPDATE events SET resolved = 1 WHERE device_id = ? AND resolved = 0", [event.elementId]); } catch (e) { }
+                        io.emit('pci:alarm:off', { elementId: event.elementId, type: event.type, status: 'RESUELTA', ended_at: now });
                     }
                 }
-            });
-        } catch (e) {
-            // Ignore errors if no process found
-        }
-    }
-
-    modbusService.disconnect();
-    res.json({ success: true });
-});
-app.get('/api/campuses/stats', (req, res) => {
-    try {
-        // Count active ALARM events per campus
-        // UPDATED: Now includes both:
-        // 1. Device-linked alarms from 'events' table
-        // 2. Building-linked Modbus alarms from 'alerts' table
-
-        const query = `
-            SELECT c.id, c.name, c.description, c.image_filename, c.background_image, 
-                   (SELECT COUNT(*) FROM buildings b WHERE b.campus_id = c.id) as building_count,
-                   (
-                       SELECT COUNT(DISTINCT uid) FROM (
-                           SELECT d.device_id as uid
-                           FROM devices d
-                           JOIN floors f ON d.floor_id = f.id
-                           JOIN buildings b2 ON f.building_id = b2.id
-                           JOIN events e ON (e.device_id = d.device_id AND e.type = 'ALARM' AND e.resolved = 0)
-                           WHERE b2.campus_id = c.id
-                           UNION
-                           SELECT a.element_id as uid
-                           FROM alerts a
-                           JOIN buildings b3 ON a.building_id = b3.id
-                           WHERE a.status = 'ACTIVA' AND b3.campus_id = c.id
-                       )
-                   ) as alarm_count 
-            FROM campuses c
-        `;
-        const stats = db.prepare(query).all();
-        res.json(stats);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// NEW: Get active alarms per building for campus view markers
-app.get('/api/buildings/alarms', (req, res) => {
-    try {
-        const { campusId } = req.query;
-
-        // Get all active alarms from alerts table (Modbus alarms)
-        let query = `
-            SELECT DISTINCT a.building_id, b.name as building_name, b.id
-            FROM alerts a
-            JOIN buildings b ON a.building_id = b.id
-            WHERE a.status = 'ACTIVA'
-        `;
-
-        const params = [];
-        if (campusId) {
-            query += ' AND b.campus_id = ?';
-            params.push(parseInt(campusId));
-        }
-
-        const alertAlarms = db.prepare(query).all(...params);
-
-        // Get all active alarms from events table (device alarms)
-        let eventQuery = `
-            SELECT DISTINCT b.id as building_id, b.name as building_name, b.id
-            FROM events e
-            JOIN devices d ON e.device_id = d.device_id
-            JOIN floors f ON d.floor_id = f.id
-            JOIN buildings b ON f.building_id = b.id
-            WHERE e.type = 'ALARM' AND e.resolved = 0
-        `;
-
-        const eventParams = [];
-        if (campusId) {
-            eventQuery += ' AND b.campus_id = ?';
-            eventParams.push(parseInt(campusId));
-        }
-
-        const eventAlarms = db.prepare(eventQuery).all(...eventParams);
-
-        // Merge and deduplicate by building_id
-        const allAlarms = [...alertAlarms, ...eventAlarms];
-        const uniqueAlarms = allAlarms.reduce((acc, alarm) => {
-            if (!acc.find(a => a.building_id === alarm.building_id)) {
-                acc.push(alarm);
             }
-            return acc;
-        }, []);
-
-        res.json(uniqueAlarms);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.post('/api/simulation/alarm', authenticateToken, (req, res) => {
-    try {
-        const { campusId } = req.query;
-        let device;
-
-        if (campusId) {
-            device = db.prepare(`
-                SELECT d.device_id, d.type, d.floor_id, f.building_id
-                FROM devices d
-                JOIN floors f ON d.floor_id = f.id
-                JOIN buildings b ON f.building_id = b.id
-                WHERE b.campus_id = ?
-                ORDER BY RANDOM() LIMIT 1
-            `).get(campusId);
-        } else {
-            device = db.prepare("SELECT d.device_id, d.type, d.floor_id, f.building_id FROM devices d JOIN floors f ON d.floor_id = f.id ORDER BY RANDOM() LIMIT 1").get();
-        }
-
-        if (!device) return res.status(404).json({ error: 'No devices found for this campus' });
-
-        // 2. Insert ALERT (Active)
-        const alertData = {
-            elementId: device.device_id,
-            type: 'ALARM', // Event type, not device type
-            building_id: device.building_id,
-            floor_id: device.floor_id,
-            location: 'Ubicación Simulada',
-            description: 'Simulacro de Incendio',
-            status: 'ACTIVA',
-            origin: 'SIMULACIÓN',
-            started_at: new Date().toISOString(),
-            ended_at: null
-        };
-
-        try {
-            const stmtAlert = db.prepare(`
-                INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at, ended_at)
-                VALUES (@elementId, @type, @building_id, @floor_id, @location, @description, @status, @origin, @started_at, @ended_at)
-            `);
-            const resAlert = stmtAlert.run(alertData);
-            alertData.db_id = resAlert.lastInsertRowid;
-
-            // Emit Alarm (Popup)
-            io.emit('pci:alarm:on', alertData);
-
-            // Send notifications (NORMAL priority for simulated alarms)
-            notificationService.notifyAlarm({
-                ...alertData,
-                priority: 'NORMAL'
-            }).catch(err => console.error('[Notification Error]', err));
-
-        } catch (e) {
-            console.error('[Sim] Error creating alert:', e);
-        }
-
-        // 3. Insert EVENT (History)
-        const stmt = db.prepare(`
-            INSERT INTO events (device_id, type, message, value, origin, building_id, floor_id)
-            VALUES (?, 'ALARM', 'Incidencia Simulada', ?, 'SIM', ?, ?)
-        `);
-        const info = stmt.run(device.device_id, JSON.stringify({ simulated: true }), device.building_id, device.floor_id);
-
-        // 4. Emit Event (Log)
-        io.emit('event:new', {
-            id: info.lastInsertRowid,
-            device_id: device.device_id,
-            type: 'ALARM',
-            message: 'Incidencia Simulada',
-            timestamp: new Date(),
-            origin: 'SIM',
-            acknowledged: false,
-            building_id: device.building_id,
-            floor_id: device.floor_id
         });
 
-        res.json({ success: true, device });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
+        // BACnet
+        bacnetService.on('alarmChange', async (event) => {
+            console.log('[BACnet Event]', event);
+            const biTypeMap = { 0: 'detector', 1: 'detector', 2: 'detector', 3: 'pulsador', 4: 'sirena' };
+            const deviceType = biTypeMap[event.biInstance] || 'detector';
+            const elementId = `BACNET-${event.buildingId}-BI${event.biInstance}`;
 
-app.post('/api/simulation/resolve', authenticateToken, (req, res) => {
-    try {
-        // Resolve all active simulation alerts
-        const now = new Date().toISOString();
-        const stmt = db.prepare(`
-            UPDATE alerts 
-            SET status = 'RESUELTA', ended_at = ? 
-            WHERE status = 'ACTIVA' AND (origin = 'SIM' OR origin = 'SIMULACIÓN')
-        `);
-        const result = stmt.run(now);
+            if (event.value === true) {
+                const building = await db.get('SELECT name FROM buildings WHERE id = ?', [event.buildingId]);
+                const bName = building ? building.name : `Edificio ${event.buildingId}`;
+                const alertData = {
+                    elementId, type: deviceType, building_id: event.buildingId, floor_id: 1,
+                    location: `${bName} - BACnet BI:${event.biInstance}`,
+                    description: `Alarma BACnet en ${bName}`,
+                    status: 'ACTIVA', origin: 'REAL', started_at: new Date().toISOString(), ended_at: null
+                };
 
-        // Also mark events as resolved if they are ALARM and SIM
-        db.prepare(`UPDATE events SET resolved = 1 WHERE type = 'ALARM' AND (origin = 'SIM' OR origin = 'SIMULACIÓN')`).run();
+                const existing = await db.get("SELECT id FROM alerts WHERE element_id = ? AND status = 'ACTIVA'", [elementId]);
+                if (existing) return;
 
-        // Broadcast to all clients to stop blinking/highlighting
-        io.emit('pci:simulation:resolved');
+                const info = await db.run(`
+                    INSERT INTO alerts(element_id, type, building_id, floor_id, location, description, status, origin, started_at)
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 `, [alertData.elementId, alertData.type, alertData.building_id, alertData.floor_id, alertData.location, alertData.description, alertData.status, alertData.origin, alertData.started_at]);
 
-        // We also emit pci:alarm:off for specifically known elementIds if needed, 
-        // but simulation:resolved is a global "clear everything simulated" signal.
+                alertData.db_id = info.lastInsertRowid;
+                io.emit('pci:alarm:on', alertData);
+                notificationService.notifyAlarm({ ...alertData, priority: 'CRITICAL', building_name: bName });
 
-        console.log(`[Sim] Resolved ${result.changes} active alerts.`);
-        res.json({ success: true, resolvedCount: result.changes });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
+                // Event Log
+                const evtInfo = await db.run(`INSERT INTO events(device_id, type, message, value, building_id, floor_id) VALUES(?, 'ALARM', ?, ?, ?, ?)`,
+                    [elementId, 'Alarma BACnet Activada', JSON.stringify(event.value), event.buildingId, 1]);
 
-// 10. Admin API (Phase 6)
+                io.emit('event:new', {
+                    id: evtInfo.lastInsertRowid, device_id: elementId, building_id: event.buildingId, floor_id: 1,
+                    type: 'ALARM', message: 'Alarma BACnet Activada', timestamp: new Date(), acknowledged: false
+                });
 
-// USERS
-app.get('/api/users', authenticateToken, authorizeRole(['admin']), (req, res) => {
-    try {
-        const users = db.prepare('SELECT id, username, role FROM users').all();
-        res.json(users);
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    try {
-        const { username, password, role } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const stmt = db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)');
-        const info = stmt.run(username, hashedPassword, role || 'viewer');
-        res.json({ success: true, id: info.lastInsertRowid });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/users/:id', authenticateToken, authorizeRole(['admin']), (req, res) => {
-    try {
-        if (req.params.id == req.user.id) return res.status(400).json({ error: "Cannot delete self" });
-        db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// GATEWAYS
-app.get('/api/buildings', (req, res) => {
-    try {
-        const rows = db.prepare('SELECT id, name, campus_id, x, y, modbus_ip, modbus_port FROM buildings').all();
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.get('/api/gateways', authenticateToken, authorizeRole(['admin']), (req, res) => {
-    try {
-        const gateways = db.prepare('SELECT * FROM gateways').all();
-        res.json(gateways);
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/gateways', authenticateToken, authorizeRole(['admin']), (req, res) => {
-    try {
-        const { name, type, ip_address, port, config } = req.body;
-        const stmt = db.prepare('INSERT INTO gateways (name, type, ip_address, port, config) VALUES (?, ?, ?, ?, ?)');
-        const info = stmt.run(name, type, ip_address, port, JSON.stringify(config || {}));
-        res.json({ success: true, id: info.lastInsertRowid });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// [NEW] Simulation Endpoints
-app.post('/api/simulation/building/:id/alarm', authenticateToken, (req, res) => {
-    try {
-        const buildingId = req.params.id;
-        console.log(`[Simulation] Triggering General Alarm for Building ID: ${buildingId}`);
-
-        // 1. Get all floors and devices for this building
-        const floors = db.prepare('SELECT id FROM floors WHERE building_id = ?').all(buildingId);
-
-        if (floors.length === 0) {
-            console.log(`[Simulation] No floors found for building ${buildingId}`);
-            return res.status(200).json({
-                success: true,
-                count: 0,
-                message: 'Este edificio no tiene plantas configuradas aún. Es una prueba visual.',
-                warning: true
-            });
-        }
-
-        const floorIds = floors.map(f => f.id);
-        const devices = db.prepare(`SELECT * FROM devices WHERE floor_id IN (${floorIds.join(',')})`).all();
-
-        if (devices.length === 0) {
-            console.log(`[Simulation] No devices found for building ${buildingId}`);
-            return res.status(200).json({
-                success: true,
-                count: 0,
-                message: 'Este edificio no tiene dispositivos configurados aún. Es una prueba visual.',
-                warning: true
-            });
-        }
-
-        // 2. Create Alerts (Limit to avoid flooding if building is huge, or do all?)
-        // Let's do all 'detectors' and 'pulsadors' primarily.
-        const targets = devices.filter(d => ['detector', 'pulsador', 'sirena'].includes(d.type.toLowerCase()));
-
-        if (targets.length === 0) {
-            console.log(`[Simulation] No compatible devices for building ${buildingId}`);
-            return res.status(200).json({
-                success: true,
-                count: 0,
-                message: 'Este edificio no tiene dispositivos compatibles para alarma (detectores/pulsadores).',
-                warning: true
-            });
-        }
-
-        const now = new Date().toISOString();
-        const alertsCreated = [];
-
-        const insertAlert = db.prepare(`
-            INSERT INTO alerts (element_id, type, building_id, floor_id, location, description, status, origin, started_at)
-            VALUES (?, ?, ?, ?, ?, ?, 'ACTIVA', 'SIMULACIÓN', ?)
-        `);
-
-        const insertEvent = db.prepare(`
-            INSERT INTO events (device_id, type, message, value, origin, building_id, floor_id)
-            VALUES (?, 'ALARM', ?, ?, 'SIM', ?, ?)
-        `);
-
-        // Transaction for speed
-        db.transaction(() => {
-            targets.forEach(d => {
-                // Check if already active? (Optional, but good practice)
-                const existing = db.prepare("SELECT id FROM alerts WHERE element_id = ? AND status = 'ACTIVA'").get(d.device_id);
-                if (!existing) {
-                    // Insert into alerts table
-                    const info = insertAlert.run(
-                        d.device_id,
-                        'ALARM', // Event type, not device type
-                        buildingId,
-                        d.floor_id,
-                        d.location,
-                        'Simulacro de Incendio General',
-                        now
-                    );
-
-                    // Also insert into events table for dashboard/campus view
-                    insertEvent.run(
-                        d.device_id,
-                        'Simulacro de Incendio General',
-                        JSON.stringify({ building_id: buildingId, floor_id: d.floor_id, location: d.location }),
-                        buildingId,
-                        d.floor_id
-                    );
-
-                    alertsCreated.push({
-                        id: info.lastInsertRowid,
-                        device_id: d.device_id,
-                        type: 'ALARM', // Event type for frontend
-                        floor_id: d.floor_id,
-                        building_id: buildingId,
-                        message: 'Simulacro de Incendio General'
-                    });
+            } else {
+                const now = new Date().toISOString();
+                const result = await db.run("UPDATE alerts SET status = 'RESUELTA', ended_at = ? WHERE element_id = ? AND status = 'ACTIVA'", [now, elementId]);
+                if (result.changes > 0) {
+                    try { await db.run("UPDATE events SET resolved = 1 WHERE device_id = ? AND resolved = 0", [elementId]); } catch (e) { }
+                    io.emit('pci:alarm:off', { elementId, type: deviceType, status: 'RESUELTA', ended_at: now });
                 }
-            });
-        })();
-
-        // 3. Emit Socket Events
-        alertsCreated.forEach(evt => {
-            io.emit('event:new', {
-                id: evt.id, // Alert ID as Event ID roughly
-                device_id: evt.device_id,
-                type: 'ALARM',
-                message: 'Simulacro General',
-                timestamp: new Date(),
-                acknowledged: false,
-                floor_id: evt.floor_id
-            });
-
-            // Also emit pci:alarm:on for map red circles
-            io.emit('pci:alarm:on', {
-                elementId: evt.device_id,
-                type: 'ALARM', // Event type, not device type
-                buildingId: evt.building_id, // Added for floor plan CIE blinking
-                floorId: evt.floor_id, // Added for context
-                location: 'Simulacro',
-                description: 'Simulacro de Incendio General', // Added for alerts panel
-                origin: 'SIMULACIÓN', // Added to distinguish from real alarms
-                timestamp: now
-            });
+            }
         });
 
-        res.json({ success: true, count: alertsCreated.length });
-
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// [NEW] Stop Simulation for Specific Building
-app.post('/api/simulation/building/:id/resolve', authenticateToken, (req, res) => {
-    try {
-        const buildingId = req.params.id;
-        console.log(`[Simulation] Stopping simulation for Building ID: ${buildingId}`);
-
-        // 1. Get all floors for this building
-        const floors = db.prepare('SELECT id FROM floors WHERE building_id = ?').all(buildingId);
-
-        if (floors.length === 0) {
-            console.log(`[Simulation] No floors found for building ${buildingId}`);
-            return res.json({
-                success: true,
-                resolvedCount: 0,
-                message: 'Este edificio no tiene plantas configuradas.'
-            });
-        }
-
-        const floorIds = floors.map(f => f.id);
-
-        // 2. Get all devices for these floors
-        const devices = db.prepare(`SELECT device_id FROM devices WHERE floor_id IN (${floorIds.join(',')})`).all();
-
-        if (devices.length === 0) {
-            console.log(`[Simulation] No devices found for building ${buildingId}`);
-            return res.json({
-                success: true,
-                resolvedCount: 0,
-                message: 'Este edificio no tiene dispositivos configurados.'
-            });
-        }
-
-        const deviceIds = devices.map(d => d.device_id);
-
-        // 3. Resolve alerts for these devices (only SIMULACIÓN origin)
-        const now = new Date().toISOString();
-        const placeholders = deviceIds.map(() => '?').join(',');
-
-        const stmt = db.prepare(`
-            UPDATE alerts 
-            SET status = 'RESUELTA', ended_at = ? 
-            WHERE element_id IN (${placeholders}) 
-            AND status = 'ACTIVA' 
-            AND origin = 'SIM'
-        `);
-
-        const result = stmt.run(now, ...deviceIds);
-
-        // 4. Also mark events as resolved
-        const eventStmt = db.prepare(`
-            UPDATE events 
-            SET resolved = 1 
-            WHERE device_id IN (${placeholders}) 
-            AND type = 'ALARM' 
-            AND origin = 'SIM'
-        `);
-        eventStmt.run(...deviceIds);
-
-        // 5. Emit socket events for each resolved device
-        deviceIds.forEach(deviceId => {
-            io.emit('pci:alarm:off', {
-                elementId: deviceId,
-                type: 'detector',
-                status: 'RESUELTA',
-                ended_at: now,
-                building_id: buildingId
-            });
+        // Start HTTP Server (now inside async startServer to ensure DB is ready)
+        server.listen(PORT, () => {
+            console.log(`Server running at http://localhost:${PORT}`);
         });
 
-        // Emit global simulation resolved event to refresh all clients
-        io.emit('pci:simulation:resolved', {
-            buildingId: buildingId,
-            resolvedCount: result.changes
-        });
-
-        console.log(`[Simulation] Resolved ${result.changes} alerts for building ${buildingId}`);
-        res.json({ success: true, resolvedCount: result.changes });
-
-    } catch (e) {
-        console.error('[Simulation] Error stopping building simulation:', e);
-        res.status(500).json({ error: e.message });
+    } catch (error) {
+        console.error('FAILED TO START SERVER:', error);
+        process.exit(1);
     }
-});
+}
 
-// ================== NOTIFICATION API ROUTES ==================
-
-// Get all recipients
-app.get('/api/notifications/recipients', authenticateToken, (req, res) => {
-    try {
-        const recipients = db.prepare('SELECT * FROM notification_recipients ORDER BY created_at DESC').all();
-        res.json(recipients);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Create new recipient
-app.post('/api/notifications/recipients', authenticateToken, (req, res) => {
-    try {
-        const { name, email, phone, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram } = req.body;
-
-        if (!name || (!email && !phone && !telegram_chat_id)) {
-            return res.status(400).json({ error: 'Name and at least one contact method required' });
-        }
-
-        const stmt = db.prepare(`
-            INSERT INTO notification_recipients (name, email, phone, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `);
-        const result = stmt.run(name, email, phone, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, telegram_chat_id, notify_telegram ? 1 : 0);
-
-        res.json({ success: true, id: result.lastInsertRowid });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Update recipient
-app.put('/api/notifications/recipients/:id', authenticateToken, (req, res) => {
-    try {
-        const { id } = req.params;
-        const { name, email, phone, enabled, notify_email, notify_sms, sms_critical_only, telegram_chat_id, notify_telegram } = req.body;
-
-        const stmt = db.prepare(`
-            UPDATE notification_recipients 
-            SET name = ?, email = ?, phone = ?, enabled = ?, notify_email = ?, notify_sms = ?, sms_critical_only = ?, telegram_chat_id = ?, notify_telegram = ?
-            WHERE id = ?
-        `);
-        const result = stmt.run(name, email, phone, enabled ? 1 : 0, notify_email ? 1 : 0, notify_sms ? 1 : 0, sms_critical_only ? 1 : 0, telegram_chat_id, notify_telegram ? 1 : 0, id);
-
-        if (result.changes > 0) {
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Recipient not found' });
-        }
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Delete recipient
-app.delete('/api/notifications/recipients/:id', authenticateToken, (req, res) => {
-    try {
-        const { id } = req.params;
-        const stmt = db.prepare('DELETE FROM notification_recipients WHERE id = ?');
-        const result = stmt.run(id);
-
-        if (result.changes > 0) {
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Recipient not found' });
-        }
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Get notification configuration
-app.get('/api/notifications/config', authenticateToken, (req, res) => {
-    try {
-        const config = db.prepare('SELECT * FROM notification_config WHERE id = 1').get();
-        if (config) {
-            res.json({
-                ...config,
-                gmail_app_password: config.gmail_app_password ? '********' : null,
-                twilio_auth_token: config.twilio_auth_token ? '********' : null,
-                telegram_bot_token: config.telegram_bot_token ? '********' : null
-            });
-        } else {
-            res.json({ email_enabled: true, sms_enabled: true });
-        }
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Update notification configuration
-app.put('/api/notifications/config', authenticateToken, (req, res) => {
-    try {
-        const { email_enabled, sms_enabled, gmail_user, gmail_app_password, twilio_account_sid, twilio_auth_token, twilio_phone_number, telegram_bot_token } = req.body;
-
-        const current = db.prepare('SELECT * FROM notification_config WHERE id = 1').get();
-        const finalGmailPassword = (gmail_app_password && gmail_app_password !== '********') ? gmail_app_password : current?.gmail_app_password;
-        const finalTwilioToken = (twilio_auth_token && twilio_auth_token !== '********') ? twilio_auth_token : current?.twilio_auth_token;
-        const finalTelegramToken = (telegram_bot_token && telegram_bot_token !== '********') ? telegram_bot_token : current?.telegram_bot_token;
-
-        const stmt = db.prepare(`
-            UPDATE notification_config 
-            SET email_enabled = ?, sms_enabled = ?, gmail_user = ?, gmail_app_password = ?, 
-                twilio_account_sid = ?, twilio_auth_token = ?, twilio_phone_number = ?, telegram_bot_token = ?
-            WHERE id = 1
-        `);
-        stmt.run(email_enabled ? 1 : 0, sms_enabled ? 1 : 0, gmail_user, finalGmailPassword, twilio_account_sid, finalTwilioToken, twilio_phone_number, finalTelegramToken);
-
-        notificationService.refreshConfig();
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Test notification
-app.post('/api/notifications/test', authenticateToken, async (req, res) => {
-    try {
-        const { recipient_id, type } = req.body;
-
-        const recipient = db.prepare('SELECT * FROM notification_recipients WHERE id = ?').get(recipient_id);
-        if (!recipient) {
-            return res.status(404).json({ error: 'Recipient not found' });
-        }
-
-        const testAlarm = {
-            elementId: 'TEST-001',
-            type: 'ALARM',
-            building_id: 1,
-            floor_id: 1,
-            location: 'Ubicación de Prueba',
-            description: 'Esta es una alarma de prueba del sistema de notificaciones',
-            status: 'ACTIVA',
-            origin: 'PRUEBA',
-            priority: 'CRITICAL',
-            started_at: new Date().toISOString(),
-            building_name: 'Edificio de Prueba'
-        };
-
-        const results = [];
-
-        if (type === 'email' || type === 'both') {
-            const emailResult = await notificationService.sendEmail(recipient, testAlarm, null);
-            results.push({ type: 'email', ...emailResult });
-        }
-
-        if (type === 'sms' || type === 'both') {
-            const smsResult = await notificationService.sendSMS(recipient, testAlarm, null);
-            results.push({ type: 'sms', ...smsResult });
-        }
-
-        if (type === 'telegram' || type === 'both') {
-            const telegramResult = await notificationService.sendTelegram(recipient, testAlarm, null);
-            results.push({ type: 'telegram', ...telegramResult });
-        }
-
-        const allSuccess = results.every(r => r.success);
-        res.json({ success: allSuccess, results });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Get notification logs
-app.get('/api/notifications/logs', authenticateToken, (req, res) => {
-    try {
-        const { limit = 100, type, status } = req.query;
-
-        let query = `
-            SELECT l.*, r.name as recipient_name, r.email, r.phone
-            FROM notification_log l
-            LEFT JOIN notification_recipients r ON l.recipient_id = r.id
-        `;
-
-        const conditions = [];
-        const params = [];
-
-        if (type) {
-            conditions.push('l.type = ?');
-            params.push(type.toUpperCase());
-        }
-
-        if (status) {
-            conditions.push('l.status = ?');
-            params.push(status.toUpperCase());
-        }
-
-        if (conditions.length > 0) {
-            query += ' WHERE ' + conditions.join(' AND ');
-        }
-
-        query += ' ORDER BY l.sent_at DESC LIMIT ?';
-        params.push(parseInt(limit));
-
-        const logs = db.prepare(query).all(...params);
-        res.json(logs);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// ================== END NOTIFICATION ROUTES ==================
-
-// Start Server
-server.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
-});
+// Execute Startup
+startServer();

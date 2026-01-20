@@ -20,6 +20,7 @@
     "jsonwebtoken": "^9.0.2",
     "modbus-serial": "^8.0.23",
     "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.16.1",
     "nodemailer": "^7.0.12",
     "papaparse": "^5.5.3",
     "socket.io": "^4.8.1",

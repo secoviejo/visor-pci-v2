@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
-const db = require('../database');
+const { db } = require('../database');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,14 +10,18 @@ class NotificationService {
         this.twilioClient = null;
         this.telegramBotToken = null;
         this.emailTemplate = null;
-        this.initializeServices();
+        // Initialization is now explicit and async via init()
         this.loadEmailTemplate();
     }
 
-    initializeServices() {
+    async init() {
+        await this.initializeServices();
+    }
+
+    async initializeServices() {
         try {
             // Get config from database
-            const config = db.prepare('SELECT * FROM notification_config WHERE id = 1').get();
+            const config = await db.get('SELECT * FROM notification_config WHERE id = 1');
 
             if (!config) {
                 console.log('[Notifications] No configuration found');
@@ -130,9 +134,9 @@ class NotificationService {
 
             // Fetch additional data
             const building = alarm.building_id ?
-                db.prepare('SELECT name FROM buildings WHERE id = ?').get(alarm.building_id) : null;
+                await db.get('SELECT name FROM buildings WHERE id = ?', [alarm.building_id]) : null;
             const floor = alarm.floor_id ?
-                db.prepare('SELECT name FROM floors WHERE id = ?').get(alarm.floor_id) : null;
+                await db.get('SELECT name FROM floors WHERE id = ?', [alarm.floor_id]) : null;
 
             const html = this.emailTemplate
                 .replace(/{{PRIORITY}}/g, priority)
@@ -154,20 +158,22 @@ class NotificationService {
             console.log(`[Email] Sent to ${recipient.email}: ${info.messageId}`);
 
             // Log to database
-            db.prepare(`
+            await db.run(`
                 INSERT INTO notification_log (alarm_id, recipient_id, type, status)
                 VALUES (?, ?, 'EMAIL', 'SENT')
-            `).run(alarmId, recipient.id);
+            `, [alarmId, recipient.id]);
 
             return { success: true, messageId: info.messageId };
         } catch (error) {
             console.error(`[Email] Error sending to ${recipient.email}:`, error.message);
 
             // Log failure
-            db.prepare(`
-                INSERT INTO notification_log (alarm_id, recipient_id, type, status, error_message)
-                VALUES (?, ?, 'EMAIL', 'FAILED', ?)
-            `).run(alarmId, recipient.id, error.message);
+            try {
+                await db.run(`
+                    INSERT INTO notification_log (alarm_id, recipient_id, type, status, error_message)
+                    VALUES (?, ?, 'EMAIL', 'FAILED', ?)
+                `, [alarmId, recipient.id, error.message]);
+            } catch (e) { console.error('Error logging email failure:', e); }
 
             return { success: false, error: error.message };
         }
@@ -181,10 +187,10 @@ class NotificationService {
 
         try {
             const building = alarm.building_id ?
-                db.prepare('SELECT name FROM buildings WHERE id = ?').get(alarm.building_id) : null;
+                await db.get('SELECT name FROM buildings WHERE id = ?', [alarm.building_id]) : null;
 
             const floor = alarm.floor_id ?
-                db.prepare('SELECT name FROM floors WHERE id = ?').get(alarm.floor_id) : null;
+                await db.get('SELECT name FROM floors WHERE id = ?', [alarm.floor_id]) : null;
 
             const priority = this.classifyPriority(alarm);
 
@@ -209,20 +215,22 @@ class NotificationService {
             console.log(`[SMS] Sent to ${recipient.phone}: ${result.sid}`);
 
             // Log to database
-            db.prepare(`
+            await db.run(`
                 INSERT INTO notification_log (alarm_id, recipient_id, type, status)
                 VALUES (?, ?, 'SMS', 'SENT')
-            `).run(alarmId, recipient.id);
+            `, [alarmId, recipient.id]);
 
             return { success: true, sid: result.sid };
         } catch (error) {
             console.error(`[SMS] Error sending to ${recipient.phone}:`, error.message);
 
             // Log failure
-            db.prepare(`
-                INSERT INTO notification_log (alarm_id, recipient_id, type, status, error_message)
-                VALUES (?, ?, 'SMS', 'FAILED', ?)
-            `).run(alarmId, recipient.id, error.message);
+            try {
+                await db.run(`
+                    INSERT INTO notification_log (alarm_id, recipient_id, type, status, error_message)
+                    VALUES (?, ?, 'SMS', 'FAILED', ?)
+                `, [alarmId, recipient.id, error.message]);
+            } catch (e) { }
 
             return { success: false, error: error.message };
         }
@@ -241,9 +249,9 @@ class NotificationService {
 
         try {
             const building = alarm.building_id ?
-                db.prepare('SELECT name FROM buildings WHERE id = ?').get(alarm.building_id) : null;
+                await db.get('SELECT name FROM buildings WHERE id = ?', [alarm.building_id]) : null;
             const floor = alarm.floor_id ?
-                db.prepare('SELECT name FROM floors WHERE id = ?').get(alarm.floor_id) : null;
+                await db.get('SELECT name FROM floors WHERE id = ?', [alarm.floor_id]) : null;
 
             const priority = this.classifyPriority(alarm);
             const buildingName = building?.name || alarm.building_name || 'Edificio Desconocido';
@@ -279,20 +287,22 @@ class NotificationService {
 
             console.log(`[Telegram] Sent to ${recipient.name} (${recipient.telegram_chat_id})`);
 
-            db.prepare(`
+            await db.run(`
                 INSERT INTO notification_log (alarm_id, recipient_id, type, status)
                 VALUES (?, ?, 'TELEGRAM', 'SENT')
-            `).run(alarmId, recipient.id);
+            `, [alarmId, recipient.id]);
 
             return { success: true };
 
         } catch (error) {
             console.error(`[Telegram] Error sending to ${recipient.name}:`, error.message);
 
-            db.prepare(`
-                INSERT INTO notification_log (alarm_id, recipient_id, type, status, error_message)
-                VALUES (?, ?, 'TELEGRAM', 'FAILED', ?)
-            `).run(alarmId, recipient.id, error.message);
+            try {
+                await db.run(`
+                    INSERT INTO notification_log (alarm_id, recipient_id, type, status, error_message)
+                    VALUES (?, ?, 'TELEGRAM', 'FAILED', ?)
+                `, [alarmId, recipient.id, error.message]);
+            } catch (e) { }
 
             return { success: false, error: error.message };
         }
@@ -307,14 +317,14 @@ class NotificationService {
             }
 
             // Get system config
-            const config = db.prepare('SELECT * FROM notification_config WHERE id = 1').get();
+            const config = await db.get('SELECT * FROM notification_config WHERE id = 1');
             if (!config) {
                 console.log('[Notify] No configuration found');
                 return { success: false, error: 'Service not configured' };
             }
 
             // Get active recipients
-            const recipients = db.prepare('SELECT * FROM notification_recipients WHERE enabled = 1').all();
+            const recipients = await db.query('SELECT * FROM notification_recipients WHERE enabled = 1');
             if (recipients.length === 0) {
                 console.log('[Notify] No active recipients');
                 return { success: true, message: 'No recipients configured' };
@@ -362,8 +372,8 @@ class NotificationService {
     }
 
     // Method to refresh configuration (when user updates settings)
-    refreshConfig() {
-        this.initializeServices();
+    async refreshConfig() {
+        await this.initializeServices();
         console.log('[Notifications] Configuration refreshed');
     }
 }
