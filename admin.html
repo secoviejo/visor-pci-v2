@@ -71,6 +71,8 @@
                 onclick="switchTab('plans')">Cargar planos edificios</button>
             <button id="tab-notifications" class="px-6 py-2 font-medium text-gray-500 hover:text-blue-600"
                 onclick="switchTab('notifications')">Notificaciones</button>
+            <button id="tab-simulation" class="px-6 py-2 font-medium text-gray-500 hover:text-blue-600"
+                onclick="switchTab('simulation')">Simulación</button>
         </div>
 
         <!-- Users Section -->
@@ -273,6 +275,52 @@
             </div>
         </div>
 
+        <!-- Simulation Section -->
+        <div id="section-simulation" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-red-600 dark:text-red-500">Simulador de Emergencias</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Selecciona un edificio para activar una alarma
+                        general (Simulacro).</p>
+                </div>
+                <button onclick="stopAllSimulations()"
+                    class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md">
+                    <i class="fa fa-stop-circle mr-2"></i> DETENER TODAS
+                </button>
+            </div>
+
+            <div
+                class="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                            <tr>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                    Edificio</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-center">
+                                    Estado</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-center">
+                                    Origen</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 text-right">
+                                    Acciones de Simulación</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sim-buildings-tbody" class="divide-y divide-gray-100 dark:divide-gray-700/50">
+                            <!-- JS Injected -->
+                            <tr>
+                                <td colspan="4" class="px-6 py-12 text-center text-gray-400 font-medium">Cargando
+                                    edificios...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
 
     </main>
 
@@ -352,54 +400,74 @@
                 </div>
             </form>
         </div>
-    </div>
+        <!-- Custom Confirmation Modal (Simulation) -->
+        <div id="confirmSimModal"
+            class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div
+                class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border dark:border-gray-700">
+                <div class="flex items-start mb-4">
+                    <div class="flex-shrink-0">
+                        <i class="fa fa-exclamation-triangle text-red-500 text-3xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2 uppercase">Atención</h3>
+                        <p id="confirmSimMessage" class="text-sm text-gray-600 dark:text-gray-300"></p>
+                    </div>
+                </div>
+                <div class="flex gap-3 justify-end mt-6">
+                    <button id="confirmSimCancel"
+                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded font-medium transition-colors">Cancelar</button>
+                    <button id="confirmSimOk"
+                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium transition-colors">Aceptar</button>
+                </div>
+            </div>
+        </div>
 
+        <script type="module">
+            import * as api from './js/api.js';
+            import * as theme from './js/theme.js';
 
-    <script type="module">
-        import * as api from './js/api.js';
-        import * as theme from './js/theme.js';
+            // Check Auth & Role
+            const user = api.getCurrentUser();
+            if (!user || user.role !== 'admin') {
+                alert('Acceso Denegado. Se requiere rol de Administrador.');
+                window.location.href = 'index.html';
+            }
 
-        // Check Auth & Role
-        const user = api.getCurrentUser();
-        if (!user || user.role !== 'admin') {
-            alert('Acceso Denegado. Se requiere rol de Administrador.');
-            window.location.href = 'index.html';
-        }
+            // Toggle Logic with simple header button
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                theme.toggleTheme();
+            });
 
-        // Toggle Logic with simple header button
-        document.getElementById('theme-toggle').addEventListener('click', () => {
-            theme.toggleTheme();
-        });
+            window.logout = function () {
+                api.logout();
+                window.location.href = 'index.html';
+            };
 
-        window.logout = function () {
-            api.logout();
-            window.location.href = 'index.html';
-        };
+            window.switchTab = function (tab) {
+                document.querySelectorAll('button[id^="tab-"]').forEach(b => b.classList.remove('active-tab'));
+                document.getElementById(`tab-${tab}`).classList.add('active-tab');
 
-        window.switchTab = function (tab) {
-            document.querySelectorAll('button[id^="tab-"]').forEach(b => b.classList.remove('active-tab'));
-            document.getElementById(`tab-${tab}`).classList.add('active-tab');
+                document.getElementById('section-users').classList.add('hidden');
+                document.getElementById('section-gateways').classList.add('hidden');
+                document.getElementById('section-plans').classList.add('hidden');
+                document.getElementById('section-notifications').classList.add('hidden');
+                document.getElementById('section-simulation').classList.add('hidden');
 
-            document.getElementById('section-users').classList.add('hidden');
-            document.getElementById('section-gateways').classList.add('hidden');
-            document.getElementById('section-plans').classList.add('hidden');
-            document.getElementById('section-notifications').classList.add('hidden');
-            // config removed
-            document.getElementById(`section-${tab}`).classList.remove('hidden');
+                document.getElementById(`section-${tab}`).classList.remove('hidden');
 
-            if (tab === 'users') loadUsers();
-            if (tab === 'gateways') { loadGateways(); loadBuildingGateways(); refreshSimStatus(); }
-            if (tab === 'plans') loadBuildingsForPlans();
-            // notifications loads via iframe, no init needed
-            // config needs no load
-        };
+                if (tab === 'users') loadUsers();
+                if (tab === 'gateways') { loadGateways(); loadBuildingGateways(); refreshSimStatus(); }
+                if (tab === 'plans') loadBuildingsForPlans();
+                if (tab === 'simulation') loadSimulationBuildings();
+            };
 
-        // --- USERS ---
-        async function loadUsers() {
-            try {
-                const users = await api.getUsers();
-                const tbody = document.getElementById('users-table');
-                tbody.innerHTML = users.map(u => `
+            // --- USERS ---
+            async function loadUsers() {
+                try {
+                    const users = await api.getUsers();
+                    const tbody = document.getElementById('users-table');
+                    tbody.innerHTML = users.map(u => `
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap">${u.username}</td>
                         <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">${u.role}</span></td>
@@ -408,35 +476,35 @@
                         </td>
                     </tr>
                 `).join('');
-            } catch (e) { console.error(e); }
-        }
+                } catch (e) { console.error(e); }
+            }
 
-        window.handleCreateUser = async function (e) {
-            e.preventDefault();
-            try {
-                const name = document.getElementById('new-user-name').value;
-                const pass = document.getElementById('new-user-pass').value;
-                const role = document.getElementById('new-user-role').value;
-                await api.createUser(name, pass, role);
-                document.getElementById('modal-user').classList.add('hidden');
-                loadUsers();
-            } catch (e) { alert('Error creando usuario'); }
-        };
+            window.handleCreateUser = async function (e) {
+                e.preventDefault();
+                try {
+                    const name = document.getElementById('new-user-name').value;
+                    const pass = document.getElementById('new-user-pass').value;
+                    const role = document.getElementById('new-user-role').value;
+                    await api.createUser(name, pass, role);
+                    document.getElementById('modal-user').classList.add('hidden');
+                    loadUsers();
+                } catch (e) { alert('Error creando usuario'); }
+            };
 
-        window.deleteUser = async function (id) {
-            if (!confirm('¿Seguro que quieres borrar este usuario?')) return;
-            try {
-                await api.deleteUser(id);
-                loadUsers();
-            } catch (e) { alert('Error borrando usuario'); }
-        }
+            window.deleteUser = async function (id) {
+                if (!confirm('¿Seguro que quieres borrar este usuario?')) return;
+                try {
+                    await api.deleteUser(id);
+                    loadUsers();
+                } catch (e) { alert('Error borrando usuario'); }
+            }
 
-        // --- GATEWAYS ---
-        async function loadGateways() {
-            try {
-                const gws = await api.getGateways();
-                const tbody = document.getElementById('gateways-table');
-                tbody.innerHTML = gws.map(g => `
+            // --- GATEWAYS ---
+            async function loadGateways() {
+                try {
+                    const gws = await api.getGateways();
+                    const tbody = document.getElementById('gateways-table');
+                    tbody.innerHTML = gws.map(g => `
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap font-bold">${g.name}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500">${g.type}</td>
@@ -446,94 +514,94 @@
                         </td>
                     </tr>
                 `).join('');
-            } catch (e) { console.error(e); }
-        }
-
-        window.handleCreateGateway = async function (e) {
-            e.preventDefault();
-            try {
-                const gw = {
-                    name: document.getElementById('gw-name').value,
-                    type: document.getElementById('gw-type').value,
-                    ip_address: document.getElementById('gw-ip').value,
-                    port: document.getElementById('gw-port').value
-                };
-                await api.createGateway(gw);
-                document.getElementById('modal-gateway').classList.add('hidden');
-                loadGateways();
-            } catch (e) { alert('Error creando pasarela'); }
-        }
-
-        // --- SIMULATOR ---
-        async function refreshSimStatus() {
-            try {
-                const status = await api.getSimulatorStatus();
-                const badge = document.getElementById('sim-status-badge');
-                const btnStart = document.getElementById('btn-start-sim');
-                const btnStop = document.getElementById('btn-stop-sim');
-
-                if (status.running) {
-                    badge.innerText = 'SIMULADOR ACTIVO';
-                    badge.className = 'px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700 animate-pulse';
-                    btnStart.disabled = true;
-                    btnStart.classList.add('opacity-50', 'cursor-not-allowed');
-                    btnStop.classList.replace('bg-blue-600', 'bg-white'); // Ensure stop button isn't blue while running
-                    btnStop.classList.remove('text-white');
-                    btnStop.classList.add('text-red-500');
-                } else {
-                    // Blue indicates Hardware/Clean mode
-                    badge.innerText = 'MODO HARDWARE';
-                    badge.className = 'px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700';
-                    btnStart.disabled = false;
-                    btnStart.classList.remove('opacity-50', 'cursor-not-allowed');
-                }
-            } catch (e) {
-                console.error('Error refreshing sim status:', e);
+                } catch (e) { console.error(e); }
             }
-        }
 
-        window.handleStartSim = async function () {
-            const btn = document.getElementById('btn-start-sim');
-            btn.innerText = 'Iniciando...';
-            try {
-                await api.startSimulator();
-                setTimeout(refreshSimStatus, 2000);
-            } catch (e) { alert('Error iniciando simulador'); }
-            finally { btn.innerText = 'Habilitar'; }
-        };
+            window.handleCreateGateway = async function (e) {
+                e.preventDefault();
+                try {
+                    const gw = {
+                        name: document.getElementById('gw-name').value,
+                        type: document.getElementById('gw-type').value,
+                        ip_address: document.getElementById('gw-ip').value,
+                        port: document.getElementById('gw-port').value
+                    };
+                    await api.createGateway(gw);
+                    document.getElementById('modal-gateway').classList.add('hidden');
+                    loadGateways();
+                } catch (e) { alert('Error creando pasarela'); }
+            }
 
-        window.handleStopSim = async function () {
-            const btn = document.getElementById('btn-stop-sim');
-            const originalText = btn.innerText;
-            btn.innerText = 'Forzando Paro...';
-            btn.classList.add('bg-blue-600', 'text-white'); // Turn blue during action as requested
-            btn.classList.remove('text-red-500');
+            // --- SIMULATOR ---
+            async function refreshSimStatus() {
+                try {
+                    const status = await api.getSimulatorStatus();
+                    const badge = document.getElementById('sim-status-badge');
+                    const btnStart = document.getElementById('btn-start-sim');
+                    const btnStop = document.getElementById('btn-stop-sim');
 
-            try {
-                await api.stopSimulator();
-                // Keep it blue for a moment if successful
-                btn.innerText = '¡Paro Realizado!';
-                setTimeout(() => {
+                    if (status.running) {
+                        badge.innerText = 'SIMULADOR ACTIVO';
+                        badge.className = 'px-2 py-1 rounded text-xs font-bold bg-green-100 text-green-700 animate-pulse';
+                        btnStart.disabled = true;
+                        btnStart.classList.add('opacity-50', 'cursor-not-allowed');
+                        btnStop.classList.replace('bg-blue-600', 'bg-white'); // Ensure stop button isn't blue while running
+                        btnStop.classList.remove('text-white');
+                        btnStop.classList.add('text-red-500');
+                    } else {
+                        // Blue indicates Hardware/Clean mode
+                        badge.innerText = 'MODO HARDWARE';
+                        badge.className = 'px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-700';
+                        btnStart.disabled = false;
+                        btnStart.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
+                } catch (e) {
+                    console.error('Error refreshing sim status:', e);
+                }
+            }
+
+            window.handleStartSim = async function () {
+                const btn = document.getElementById('btn-start-sim');
+                btn.innerText = 'Iniciando...';
+                try {
+                    await api.startSimulator();
+                    setTimeout(refreshSimStatus, 2000);
+                } catch (e) { alert('Error iniciando simulador'); }
+                finally { btn.innerText = 'Habilitar'; }
+            };
+
+            window.handleStopSim = async function () {
+                const btn = document.getElementById('btn-stop-sim');
+                const originalText = btn.innerText;
+                btn.innerText = 'Forzando Paro...';
+                btn.classList.add('bg-blue-600', 'text-white'); // Turn blue during action as requested
+                btn.classList.remove('text-red-500');
+
+                try {
+                    await api.stopSimulator();
+                    // Keep it blue for a moment if successful
+                    btn.innerText = '¡Paro Realizado!';
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                        btn.classList.remove('bg-blue-600', 'text-white');
+                        btn.classList.add('text-red-500');
+                        refreshSimStatus();
+                    }, 2000);
+                } catch (e) {
+                    alert('Error deteniendo simulador');
                     btn.innerText = originalText;
                     btn.classList.remove('bg-blue-600', 'text-white');
                     btn.classList.add('text-red-500');
-                    refreshSimStatus();
-                }, 2000);
-            } catch (e) {
-                alert('Error deteniendo simulador');
-                btn.innerText = originalText;
-                btn.classList.remove('bg-blue-600', 'text-white');
-                btn.classList.add('text-red-500');
-            }
-        };
+                }
+            };
 
-        // --- BUILDING MODBUS CONFIG ---
-        async function loadBuildingGateways() {
-            try {
-                const buildings = await api.getBuildings();
-                const tbody = document.getElementById('buildings-modbus-table');
+            // --- BUILDING MODBUS CONFIG ---
+            async function loadBuildingGateways() {
+                try {
+                    const buildings = await api.getBuildings();
+                    const tbody = document.getElementById('buildings-modbus-table');
 
-                tbody.innerHTML = buildings.map(b => `
+                    tbody.innerHTML = buildings.map(b => `
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap font-medium dark:text-gray-200">${b.name}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-gray-500">SOLAE / Modbus</td>
@@ -548,54 +616,54 @@
                         </td>
                     </tr>
                 `).join('');
-            } catch (e) { console.error('Error loading building modbus:', e); }
-        }
+                } catch (e) { console.error('Error loading building modbus:', e); }
+            }
 
-        window.saveBuildingModbus = async function (id) {
-            const ip = document.getElementById(`bm-ip-${id}`).value;
-            const port = document.getElementById(`bm-port-${id}`).value;
-            const btn = event.target;
-            const originalText = btn.innerText;
+            window.saveBuildingModbus = async function (id) {
+                const ip = document.getElementById(`bm-ip-${id}`).value;
+                const port = document.getElementById(`bm-port-${id}`).value;
+                const btn = event.target;
+                const originalText = btn.innerText;
 
-            btn.innerText = '...';
+                btn.innerText = '...';
 
-            try {
-                const res = await fetch(`/api/buildings/${id}/modbus`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token')
-                    },
-                    body: JSON.stringify({ ip, port })
-                });
+                try {
+                    const res = await fetch(`/api/buildings/${id}/modbus`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + localStorage.getItem('token')
+                        },
+                        body: JSON.stringify({ ip, port })
+                    });
 
-                if (res.ok) {
-                    btn.innerText = '¡Guardado!';
-                    btn.classList.replace('bg-blue-600', 'bg-green-600');
-                    setTimeout(() => {
+                    if (res.ok) {
+                        btn.innerText = '¡Guardado!';
+                        btn.classList.replace('bg-blue-600', 'bg-green-600');
+                        setTimeout(() => {
+                            btn.innerText = originalText;
+                            btn.classList.replace('bg-green-600', 'bg-blue-600');
+                        }, 2000);
+                    } else {
+                        alert('Error guardando configuración');
                         btn.innerText = originalText;
-                        btn.classList.replace('bg-green-600', 'bg-blue-600');
-                    }, 2000);
-                } else {
-                    alert('Error guardando configuración');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Error de conexión');
                     btn.innerText = originalText;
                 }
-            } catch (e) {
-                console.error(e);
-                alert('Error de conexión');
-                btn.innerText = originalText;
-            }
-        };
+            };
 
-        // --- PLANS ---
-        let currentBuildingId = null;
-        let currentBuildingFloors = [];
+            // --- PLANS ---
+            let currentBuildingId = null;
+            let currentBuildingFloors = [];
 
-        async function loadBuildingsForPlans() {
-            try {
-                const buildings = await api.getBuildings();
-                const list = document.getElementById('buildings-list');
-                list.innerHTML = buildings.map(b => `
+            async function loadBuildingsForPlans() {
+                try {
+                    const buildings = await api.getBuildings();
+                    const list = document.getElementById('buildings-list');
+                    list.innerHTML = buildings.map(b => `
                     <li onclick="selectBuilding(${b.id}, '${b.name}')" 
                         class="p-2 hover:bg-blue-50 dark:hover:bg-gray-700 rounded cursor-pointer flex justify-between items-center group transition-colors ${currentBuildingId === b.id ? 'bg-blue-100 dark:bg-blue-900/50 ring-1 ring-blue-300 dark:ring-blue-700' : 'bg-gray-50 dark:bg-gray-700/50'}">
                         <span class="font-medium group-hover:text-blue-700 dark:text-gray-200 dark:group-hover:text-blue-400">${b.name}</span>
@@ -603,34 +671,34 @@
                     </li>
                 `).join('');
 
-            } catch (e) {
-                console.error(e);
+                } catch (e) {
+                    console.error(e);
+                }
             }
-        }
 
-        window.selectBuilding = async function (id, name) {
-            currentBuildingId = id;
-            document.getElementById('plan-detail-placeholder').classList.add('hidden');
-            document.getElementById('plan-detail-content').classList.remove('hidden');
-            document.getElementById('selected-building-name').innerText = name;
-            document.getElementById('selected-building-id').innerText = id;
+            window.selectBuilding = async function (id, name) {
+                currentBuildingId = id;
+                document.getElementById('plan-detail-placeholder').classList.add('hidden');
+                document.getElementById('plan-detail-content').classList.remove('hidden');
+                document.getElementById('selected-building-name').innerText = name;
+                document.getElementById('selected-building-id').innerText = id;
 
-            // Highlight list item
-            loadBuildingsForPlans(); // Re-render to update highlight (lazy way)
-            loadFloorsForBuilding(id);
-        }
+                // Highlight list item
+                loadBuildingsForPlans(); // Re-render to update highlight (lazy way)
+                loadFloorsForBuilding(id);
+            }
 
-        async function loadFloorsForBuilding(id) {
-            try {
-                currentBuildingFloors = await api.getFloors(id); // Store globally
-                const list = document.getElementById('floors-list');
-                list.innerHTML = currentBuildingFloors.map(f => {
-                    // Determine path based on legacy vs new structure
-                    const isNewStructure = f.image_filename.includes('/') || f.image_filename.includes('\\');
-                    // Legacy files are in root, new files in datos_edificios (mapped to /data)
-                    const src = isNewStructure ? `/data/${f.image_filename}` : `/${f.image_filename}`;
+            async function loadFloorsForBuilding(id) {
+                try {
+                    currentBuildingFloors = await api.getFloors(id); // Store globally
+                    const list = document.getElementById('floors-list');
+                    list.innerHTML = currentBuildingFloors.map(f => {
+                        // Determine path based on legacy vs new structure
+                        const isNewStructure = f.image_filename.includes('/') || f.image_filename.includes('\\');
+                        // Legacy files are in root, new files in datos_edificios (mapped to /data)
+                        const src = isNewStructure ? `/data/${f.image_filename}` : `/${f.image_filename}`;
 
-                    return `
+                        return `
                     <li class="bg-gray-50 border rounded p-2 flex items-center gap-3 justify-between group">
                         <div class="flex items-center gap-3 overflow-hidden">
                             <div class="w-10 h-10 bg-gray-200 rounded overflow-hidden flex-shrink-0 border border-gray-300">
@@ -647,10 +715,10 @@
                     </li>
                 `}).join('');
 
-                // [NEW] Elementos Existentes UI - CSV Upload + [NEW] TABLE
-                const configContainer = document.getElementById('building-config-container');
-                if (configContainer) {
-                    configContainer.innerHTML = `
+                    // [NEW] Elementos Existentes UI - CSV Upload + [NEW] TABLE
+                    const configContainer = document.getElementById('building-config-container');
+                    if (configContainer) {
+                        configContainer.innerHTML = `
                         <div class="mt-6 pt-6 border-t border-gray-200">
                             <h4 class="text-sm font-bold text-gray-700 mb-2">Elementos existentes:</h4>
                             <p class="text-xs text-gray-500 mb-4">Carga masiva de dispositivos (CSV) para este edificio. Sobrescribirá los datos actuales.</p>
@@ -699,53 +767,53 @@
                         </div>
                     `;
 
-                    // Start loading devices
-                    loadBuildingDevices(id);
+                        // Start loading devices
+                        loadBuildingDevices(id);
 
-                    // Setup Drag and Drop for Config
-                    setTimeout(() => {
-                        const dropZoneConfig = document.getElementById('drop-zone-config');
-                        if (dropZoneConfig) {
-                            dropZoneConfig.addEventListener('dragover', (e) => {
-                                e.preventDefault();
-                                dropZoneConfig.classList.add('border-blue-500', 'bg-blue-50');
-                            });
-                            dropZoneConfig.addEventListener('dragleave', (e) => {
-                                e.preventDefault();
-                                dropZoneConfig.classList.remove('border-blue-500', 'bg-blue-50');
-                            });
-                            dropZoneConfig.addEventListener('drop', (e) => {
-                                e.preventDefault();
-                                dropZoneConfig.classList.remove('border-blue-500', 'bg-blue-50');
-                                if (e.dataTransfer.files.length) {
-                                    const fakeInput = { files: e.dataTransfer.files, value: 'dragged' };
-                                    handleConfigUpload(fakeInput);
-                                }
-                            });
-                        }
-                    }, 0);
-                }
+                        // Setup Drag and Drop for Config
+                        setTimeout(() => {
+                            const dropZoneConfig = document.getElementById('drop-zone-config');
+                            if (dropZoneConfig) {
+                                dropZoneConfig.addEventListener('dragover', (e) => {
+                                    e.preventDefault();
+                                    dropZoneConfig.classList.add('border-blue-500', 'bg-blue-50');
+                                });
+                                dropZoneConfig.addEventListener('dragleave', (e) => {
+                                    e.preventDefault();
+                                    dropZoneConfig.classList.remove('border-blue-500', 'bg-blue-50');
+                                });
+                                dropZoneConfig.addEventListener('drop', (e) => {
+                                    e.preventDefault();
+                                    dropZoneConfig.classList.remove('border-blue-500', 'bg-blue-50');
+                                    if (e.dataTransfer.files.length) {
+                                        const fakeInput = { files: e.dataTransfer.files, value: 'dragged' };
+                                        handleConfigUpload(fakeInput);
+                                    }
+                                });
+                            }
+                        }, 0);
+                    }
 
-            } catch (e) { console.error(e); }
-        }
+                } catch (e) { console.error(e); }
+            }
 
-        // [NEW] Helper Functions for Device Table
-        window.loadBuildingDevices = async function (buildingId) {
-            const tbody = document.getElementById('building-devices-table');
-            if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-400"><i class="fa fa-spinner fa-spin"></i> Cargando dispositivos...</td></tr>';
+            // [NEW] Helper Functions for Device Table
+            window.loadBuildingDevices = async function (buildingId) {
+                const tbody = document.getElementById('building-devices-table');
+                if (!tbody) return;
+                tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-400"><i class="fa fa-spinner fa-spin"></i> Cargando dispositivos...</td></tr>';
 
-            try {
-                const devices = await api.getDevicesByBuilding(buildingId);
-                if (devices.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-400">No hay dispositivos registrados</td></tr>';
-                    return;
-                }
+                try {
+                    const devices = await api.getDevicesByBuilding(buildingId);
+                    if (devices.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-4 text-center text-gray-400">No hay dispositivos registrados</td></tr>';
+                        return;
+                    }
 
-                // Sort by ID naturally
-                devices.sort((a, b) => (parseInt(a.n) || 0) - (parseInt(b.n) || 0));
+                    // Sort by ID naturally
+                    devices.sort((a, b) => (parseInt(a.n) || 0) - (parseInt(b.n) || 0));
 
-                tbody.innerHTML = devices.map(d => `
+                    tbody.innerHTML = devices.map(d => `
                     <tr id="row-dev-${d.db_id}" class="hover:bg-gray-50">
                         <td class="px-3 py-2 whitespace-nowrap text-gray-600 font-mono text-xs">${d.id}</td>
                         <td class="px-3 py-2 whitespace-nowrap">
@@ -763,28 +831,28 @@
                     </tr>
                 `).join('');
 
-                // Store mapped data for edit reference if needed, or just rely on DOM for simple edits?
-                // For robust editing, I should attach data to the row or fetch again via inputs.
-                // I'll assume currentBuildingDevices global is safer if I store it.
-                window.currentBuildingDevices = devices;
+                    // Store mapped data for edit reference if needed, or just rely on DOM for simple edits?
+                    // For robust editing, I should attach data to the row or fetch again via inputs.
+                    // I'll assume currentBuildingDevices global is safer if I store it.
+                    window.currentBuildingDevices = devices;
 
-            } catch (e) {
-                console.error('Error loading devices:', e);
-                tbody.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-red-500">Error: ${e.message}</td></tr>`;
-            }
-        };
+                } catch (e) {
+                    console.error('Error loading devices:', e);
+                    tbody.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-red-500">Error: ${e.message}</td></tr>`;
+                }
+            };
 
-        window.enableEditDevice = function (dbId) {
-            const device = window.currentBuildingDevices.find(d => d.db_id === dbId);
-            if (!device) return;
+            window.enableEditDevice = function (dbId) {
+                const device = window.currentBuildingDevices.find(d => d.db_id === dbId);
+                if (!device) return;
 
-            const row = document.getElementById(`row-dev-${dbId}`);
-            if (!row) return;
+                const row = document.getElementById(`row-dev-${dbId}`);
+                if (!row) return;
 
-            // Generate floor options
-            const floorOpts = currentBuildingFloors.map(f => `<option value="${f.id}" ${f.id === device.floor_id ? 'selected' : ''}>${f.name}</option>`).join('');
+                // Generate floor options
+                const floorOpts = currentBuildingFloors.map(f => `<option value="${f.id}" ${f.id === device.floor_id ? 'selected' : ''}>${f.name}</option>`).join('');
 
-            row.innerHTML = `
+                row.innerHTML = `
                 <td class="px-3 py-2"><input type="text" id="edit-id-${dbId}" value="${device.id}" class="w-full border-gray-300 rounded text-xs p-1"></td>
                 <td class="px-3 py-2">
                      <select id="edit-type-${dbId}" class="w-full border-gray-300 rounded text-xs p-1">
@@ -807,42 +875,42 @@
                     <button onclick="loadBuildingDevices(currentBuildingId)" class="text-gray-500 hover:text-gray-700"><i class="fa fa-times"></i></button>
                 </td>
             `;
-        };
+            };
 
-        window.saveDeviceItem = async function (dbId) {
-            try {
-                const updates = {
-                    id: document.getElementById(`edit-id-${dbId}`).value,
-                    t: document.getElementById(`edit-type-${dbId}`).value,
-                    n: document.getElementById(`edit-n-${dbId}`).value,
-                    loc: document.getElementById(`edit-loc-${dbId}`).value,
-                    floorId: document.getElementById(`edit-floor-${dbId}`).value
-                };
+            window.saveDeviceItem = async function (dbId) {
+                try {
+                    const updates = {
+                        id: document.getElementById(`edit-id-${dbId}`).value,
+                        t: document.getElementById(`edit-type-${dbId}`).value,
+                        n: document.getElementById(`edit-n-${dbId}`).value,
+                        loc: document.getElementById(`edit-loc-${dbId}`).value,
+                        floorId: document.getElementById(`edit-floor-${dbId}`).value
+                    };
 
-                await api.updateDevice(dbId, updates);
-                loadBuildingDevices(currentBuildingId); // Reload to formatted view
-            } catch (e) {
-                alert('Error guardando cambios');
-                console.error(e);
-            }
-        };
+                    await api.updateDevice(dbId, updates);
+                    loadBuildingDevices(currentBuildingId); // Reload to formatted view
+                } catch (e) {
+                    alert('Error guardando cambios');
+                    console.error(e);
+                }
+            };
 
-        window.addNewDeviceRow = function () {
-            const tbody = document.getElementById('building-devices-table');
-            if (!tbody) return;
+            window.addNewDeviceRow = function () {
+                const tbody = document.getElementById('building-devices-table');
+                if (!tbody) return;
 
-            // Remove empty message if any
-            if (tbody.innerHTML.includes('No hay dispositivos') || tbody.innerHTML.includes('Cargando')) {
-                tbody.innerHTML = '';
-            }
+                // Remove empty message if any
+                if (tbody.innerHTML.includes('No hay dispositivos') || tbody.innerHTML.includes('Cargando')) {
+                    tbody.innerHTML = '';
+                }
 
-            const floorOpts = currentBuildingFloors.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+                const floorOpts = currentBuildingFloors.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
 
-            const newRow = document.createElement('tr');
-            newRow.className = 'bg-blue-50/50';
-            newRow.id = 'row-new-device';
+                const newRow = document.createElement('tr');
+                newRow.className = 'bg-blue-50/50';
+                newRow.id = 'row-new-device';
 
-            newRow.innerHTML = `
+                newRow.innerHTML = `
                 <td class="px-3 py-2"><input type="text" id="new-id" placeholder="ID (ej: 101)" class="w-full border-gray-300 rounded text-xs p-1"></td>
                 <td class="px-3 py-2">
                      <select id="new-type" class="w-full border-gray-300 rounded text-xs p-1">
@@ -866,254 +934,392 @@
                 </td>
             `;
 
-            tbody.prepend(newRow);
-        };
+                tbody.prepend(newRow);
+            };
 
-        window.saveNewDeviceRow = async function () {
-            try {
-                const device = {
-                    id: document.getElementById('new-id').value.trim(),
-                    t: document.getElementById('new-type').value,
-                    n: document.getElementById('new-n').value.trim(),
-                    loc: document.getElementById('new-loc').value.trim(),
-                    floorId: document.getElementById('new-floor').value,
-                    x: 0,
-                    y: 0
-                };
+            window.saveNewDeviceRow = async function () {
+                try {
+                    const device = {
+                        id: document.getElementById('new-id').value.trim(),
+                        t: document.getElementById('new-type').value,
+                        n: document.getElementById('new-n').value.trim(),
+                        loc: document.getElementById('new-loc').value.trim(),
+                        floorId: document.getElementById('new-floor').value,
+                        x: 0,
+                        y: 0
+                    };
 
-                if (!device.id || !device.floorId) {
-                    return alert('ID y Planta son obligatorios');
-                }
+                    if (!device.id || !device.floorId) {
+                        return alert('ID y Planta son obligatorios');
+                    }
 
-                await api.createDevice(device);
-                loadBuildingDevices(currentBuildingId);
-            } catch (e) {
-                alert('Error creando dispositivo');
-                console.error(e);
-            }
-        };
-
-        window.deleteDeviceItem = async function (dbId) {
-            if (!confirm('¿Eliminar este dispositivo?')) return;
-
-            const row = document.getElementById(`row-dev-${dbId}`);
-            if (row) row.style.opacity = '0.5'; // Visual cue
-
-            try {
-                const res = await api.deleteDevice(dbId);
-                if (res && res.success) {
-                    // Remove from table immediately
-                    if (row) row.remove();
-                    // Also refresh data to be sure
+                    await api.createDevice(device);
                     loadBuildingDevices(currentBuildingId);
-                } else {
-                    alert('No se pudo eliminar el dispositivo. Verifique permisos.');
+                } catch (e) {
+                    alert('Error creando dispositivo');
+                    console.error(e);
+                }
+            };
+
+            window.deleteDeviceItem = async function (dbId) {
+                if (!confirm('¿Eliminar este dispositivo?')) return;
+
+                const row = document.getElementById(`row-dev-${dbId}`);
+                if (row) row.style.opacity = '0.5'; // Visual cue
+
+                try {
+                    const res = await api.deleteDevice(dbId);
+                    if (res && res.success) {
+                        // Remove from table immediately
+                        if (row) row.remove();
+                        // Also refresh data to be sure
+                        loadBuildingDevices(currentBuildingId);
+                    } else {
+                        alert('No se pudo eliminar el dispositivo. Verifique permisos.');
+                        if (row) row.style.opacity = '1';
+                    }
+                } catch (e) {
+                    console.error('Delete error:', e);
+                    alert('Error de conexión al eliminar');
                     if (row) row.style.opacity = '1';
                 }
-            } catch (e) {
-                console.error('Delete error:', e);
-                alert('Error de conexión al eliminar');
-                if (row) row.style.opacity = '1';
-            }
-        };
+            };
 
-        window.exportDevicesToCSV = function () {
-            if (!window.currentBuildingDevices || window.currentBuildingDevices.length === 0) {
-                return alert('No hay dispositivos para exportar');
-            }
-
-            const buildingName = document.getElementById('selected-building-name').innerText;
-            const headers = ['id', 'tipo', 'numero', 'planta', 'ubicacion', 'x', 'y'];
-
-            const rows = window.currentBuildingDevices.map(d => [
-                d.id,
-                d.t,
-                d.n,
-                d.floor_name,
-                `"${d.loc || ''}"`, // Wrap in quotes to handle commas
-                d.x,
-                d.y
-            ]);
-
-            const csvContent = [
-                headers.join(','),
-                ...rows.map(r => r.join(','))
-            ].join('\n');
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-
-            link.setAttribute('href', url);
-            link.setAttribute('download', `dispositivos_${buildingName.replace(/\s+/g, '_')}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        };
-
-        window.handleDeleteFloor = async function (id, evt) {
-            try {
-                console.log('[1] handleDeleteFloor called, id:', id);
-                console.log('[2] Event:', evt);
-
-                if (evt && typeof evt.stopPropagation === 'function') {
-                    evt.stopPropagation();
-                    console.log('[3] Stopped propagation');
+            window.exportDevicesToCSV = function () {
+                if (!window.currentBuildingDevices || window.currentBuildingDevices.length === 0) {
+                    return alert('No hay dispositivos para exportar');
                 }
 
-                console.log('[4] Proceeding with deletion (confirm dialog removed - was being blocked)');
+                const buildingName = document.getElementById('selected-building-name').innerText;
+                const headers = ['id', 'tipo', 'numero', 'planta', 'ubicacion', 'x', 'y'];
 
-                console.log('[5] Calling api.deleteFloor with id:', id);
-                const res = await api.deleteFloor(id);
-                console.log('[6] API response:', res);
+                const rows = window.currentBuildingDevices.map(d => [
+                    d.id,
+                    d.t,
+                    d.n,
+                    d.floor_name,
+                    `"${d.loc || ''}"`, // Wrap in quotes to handle commas
+                    d.x,
+                    d.y
+                ]);
 
-                console.log('[7] Reloading floors...');
-                await loadFloorsForBuilding(currentBuildingId);
-                console.log('[8] Success! Floor deleted.');
+                const csvContent = [
+                    headers.join(','),
+                    ...rows.map(r => r.join(','))
+                ].join('\n');
 
-            } catch (err) {
-                console.error('[ERROR] Exception in handleDeleteFloor:', err);
-                console.error('[ERROR] Stack:', err.stack);
-                alert('Error eliminando planta: ' + err.message);
-            }
-        };
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
 
-        // Drag & Drop Logic
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
+                link.setAttribute('href', url);
+                link.setAttribute('download', `dispositivos_${buildingName.replace(/\s+/g, '_')}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
 
-        console.log('Init Plans Logic:', { dropZone, fileInput });
-
-        dropZone.onclick = () => {
-            console.log('DropZone clicked');
-            fileInput.click();
-        };
-
-        dropZone.ondragover = (e) => {
-            e.preventDefault();
-            dropZone.classList.add('bg-blue-50', 'border-blue-400');
-        };
-
-        dropZone.ondragleave = () => {
-            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
-        };
-
-        dropZone.ondrop = (e) => {
-            console.log('File Dropped');
-            e.preventDefault();
-            dropZone.classList.remove('bg-blue-50', 'border-blue-400');
-            if (e.dataTransfer.files.length) {
-                console.log('Files found in drop:', e.dataTransfer.files);
-                handleFileUpload(e.dataTransfer.files[0]);
-            }
-        };
-
-        fileInput.onchange = (e) => {
-            console.log('FileInput changed', e.target.files);
-            if (e.target.files.length) handleFileUpload(e.target.files[0]);
-        };
-
-        async function handleFileUpload(file) {
-            console.log('Handling file upload:', file.name);
-            // Reset input so change event fires even if same file is selected again
-            document.getElementById('file-input').value = '';
-
-            if (!currentBuildingId) return alert('Selecciona un edificio primero');
-
-            // Get name from input or default to filename
-            const inputName = document.getElementById('new-floor-name').value.trim();
-            const defaultName = file.name.split('.')[0].replace(/[-_]/g, ' ');
-            const name = inputName || defaultName;
-
-            console.log('Using name:', name);
-
-            // Check for duplicate name
-            const existing = currentBuildingFloors.find(f => f.name.toLowerCase() === name.toLowerCase());
-            if (existing) {
-                if (!confirm(`Ya existe una planta llamada "${name}".\n\n¿Estás seguro de que quieres sustituir el plano ? `)) {
-                    document.getElementById('file-input').value = '';
-                    return;
-                }
-                // If yes, delete old one first
+            window.handleDeleteFloor = async function (id, evt) {
                 try {
-                    await api.deleteFloor(existing.id);
-                } catch (e) {
-                    console.error('Error deleting old floor:', e);
-                    return alert('Error al sustituir la planta anterior.');
+                    console.log('[1] handleDeleteFloor called, id:', id);
+                    console.log('[2] Event:', evt);
+
+                    if (evt && typeof evt.stopPropagation === 'function') {
+                        evt.stopPropagation();
+                        console.log('[3] Stopped propagation');
+                    }
+
+                    console.log('[4] Proceeding with deletion (confirm dialog removed - was being blocked)');
+
+                    console.log('[5] Calling api.deleteFloor with id:', id);
+                    const res = await api.deleteFloor(id);
+                    console.log('[6] API response:', res);
+
+                    console.log('[7] Reloading floors...');
+                    await loadFloorsForBuilding(currentBuildingId);
+                    console.log('[8] Success! Floor deleted.');
+
+                } catch (err) {
+                    console.error('[ERROR] Exception in handleDeleteFloor:', err);
+                    console.error('[ERROR] Stack:', err.stack);
+                    alert('Error eliminando planta: ' + err.message);
                 }
-            }
+            };
 
-            try {
-                // Show loading state (could be improved)
-                dropZone.innerHTML = '<i class="fa fa-spinner fa-spin text-4xl text-blue-500"></i><p class="mt-2">Subiendo...</p>';
+            // Drag & Drop Logic
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
 
-                await api.uploadFloor(currentBuildingId, name, file);
+            console.log('Init Plans Logic:', { dropZone, fileInput });
 
-                // Reset Drop Zone
-                dropZone.innerHTML = `
+            dropZone.onclick = () => {
+                console.log('DropZone clicked');
+                fileInput.click();
+            };
+
+            dropZone.ondragover = (e) => {
+                e.preventDefault();
+                dropZone.classList.add('bg-blue-50', 'border-blue-400');
+            };
+
+            dropZone.ondragleave = () => {
+                dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+            };
+
+            dropZone.ondrop = (e) => {
+                console.log('File Dropped');
+                e.preventDefault();
+                dropZone.classList.remove('bg-blue-50', 'border-blue-400');
+                if (e.dataTransfer.files.length) {
+                    console.log('Files found in drop:', e.dataTransfer.files);
+                    handleFileUpload(e.dataTransfer.files[0]);
+                }
+            };
+
+            fileInput.onchange = (e) => {
+                console.log('FileInput changed', e.target.files);
+                if (e.target.files.length) handleFileUpload(e.target.files[0]);
+            };
+
+            async function handleFileUpload(file) {
+                console.log('Handling file upload:', file.name);
+                // Reset input so change event fires even if same file is selected again
+                document.getElementById('file-input').value = '';
+
+                if (!currentBuildingId) return alert('Selecciona un edificio primero');
+
+                // Get name from input or default to filename
+                const inputName = document.getElementById('new-floor-name').value.trim();
+                const defaultName = file.name.split('.')[0].replace(/[-_]/g, ' ');
+                const name = inputName || defaultName;
+
+                console.log('Using name:', name);
+
+                // Check for duplicate name
+                const existing = currentBuildingFloors.find(f => f.name.toLowerCase() === name.toLowerCase());
+                if (existing) {
+                    if (!confirm(`Ya existe una planta llamada "${name}".\n\n¿Estás seguro de que quieres sustituir el plano ? `)) {
+                        document.getElementById('file-input').value = '';
+                        return;
+                    }
+                    // If yes, delete old one first
+                    try {
+                        await api.deleteFloor(existing.id);
+                    } catch (e) {
+                        console.error('Error deleting old floor:', e);
+                        return alert('Error al sustituir la planta anterior.');
+                    }
+                }
+
+                try {
+                    // Show loading state (could be improved)
+                    dropZone.innerHTML = '<i class="fa fa-spinner fa-spin text-4xl text-blue-500"></i><p class="mt-2">Subiendo...</p>';
+
+                    await api.uploadFloor(currentBuildingId, name, file);
+
+                    // Reset Drop Zone
+                    dropZone.innerHTML = `
                     <i class="fa fa-cloud-upload-alt text-4xl text-blue-400 mb-2"></i>
                     <p class="font-medium text-gray-600">Arrastra aquí el plano de la nueva planta</p>
                     <p class="text-xs text-gray-400 mt-1">o haz click para seleccionar (JPG, PNG)</p>
                 `;
 
-                // Refresh list
-                loadFloorsForBuilding(currentBuildingId);
-                document.getElementById('new-floor-name').value = ''; // Clear input
-                alert('Plano subido correctamente!');
-            } catch (e) {
-                alert('Error subiendo el plano: ' + e.message);
-                // Reset drop zone text just in case
-                dropZone.innerHTML = `<p class="text-red-500">Error. Refresca la página.</p>`;
-            }
-        }
-
-        window.handleConfigUpload = async function (input) {
-            const file = input.files[0];
-            if (!file) return;
-
-            if (!confirm(`¿Seguro que deseas cargar "${file.name}" ? Esto sobrescribirá los dispositivos de este edificio.`)) {
-                input.value = '';
-                return;
-            }
-
-            // Show loading
-            const box = document.getElementById('drop-zone-config');
-            const originalContent = box.innerHTML;
-            box.innerHTML = '<div class="py-4"><i class="fa fa-circle-notch fa-spin text-blue-500 text-2xl"></i><p class="text-xs text-blue-500 mt-2 font-bold">Procesando archivo...</p></div>';
-
-            try {
-                const res = await api.uploadBuildingConfig(currentBuildingId, file);
-                if (res.success) {
-                    alert(`Importación completada: \n - Insertados: ${res.insertedCount} \n - Omitidos: ${res.skippedCount}`);
-                    // Optionally reload floors/devices view if we had one visible
-                } else {
-                    alert('Error en la importación');
+                    // Refresh list
+                    loadFloorsForBuilding(currentBuildingId);
+                    document.getElementById('new-floor-name').value = ''; // Clear input
+                    alert('Plano subido correctamente!');
+                } catch (e) {
+                    alert('Error subiendo el plano: ' + e.message);
+                    // Reset drop zone text just in case
+                    dropZone.innerHTML = `<p class="text-red-500">Error. Refresca la página.</p>`;
                 }
-            } catch (e) {
-                console.error(e);
-                alert('Error al cargar la configuración: ' + e.message);
-            } finally {
-                box.innerHTML = originalContent;
-                input.value = '';
             }
-        };
 
-        // Initial load - Load users since the Users tab is active by default
-        loadUsers();
-    </script>
-    <!-- Footer -->
-    <footer
-        class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-8 transition-colors duration-200">
-        <div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p class="text-xs text-gray-500 dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
-                reservados.</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                Desarrollado por Luis Enrique Seco <span class="text-gray-700 dark:text-gray-300 font-bold">UNIDAD DE
-                    SEGURIDAD</span>
-            </p>
-        </div>
-    </footer>
+            window.handleConfigUpload = async function (input) {
+                const file = input.files[0];
+                if (!file) return;
+
+                if (!confirm(`¿Seguro que deseas cargar "${file.name}" ? Esto sobrescribirá los dispositivos de este edificio.`)) {
+                    input.value = '';
+                    return;
+                }
+
+                // Show loading
+                const box = document.getElementById('drop-zone-config');
+                const originalContent = box.innerHTML;
+                box.innerHTML = '<div class="py-4"><i class="fa fa-circle-notch fa-spin text-blue-500 text-2xl"></i><p class="text-xs text-blue-500 mt-2 font-bold">Procesando archivo...</p></div>';
+
+                try {
+                    const res = await api.uploadBuildingConfig(currentBuildingId, file);
+                    if (res.success) {
+                        alert(`Importación completada: \n - Insertados: ${res.insertedCount} \n - Omitidos: ${res.skippedCount}`);
+                        // Optionally reload floors/devices view if we had one visible
+                    } else {
+                        alert('Error en la importación');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Error al cargar la configuración: ' + e.message);
+                } finally {
+                    box.innerHTML = originalContent;
+                    input.value = '';
+                }
+            };
+
+            // --- SIMULATION ---
+            let simProcessing = false;
+
+            async function loadSimulationBuildings() {
+                try {
+                    const buildings = await api.getBuildings();
+                    const tbody = document.getElementById('sim-buildings-tbody');
+
+                    if (buildings.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500 italic">No hay edificios registrados.</td></tr>';
+                        return;
+                    }
+
+                    // Fetch active events to determine status
+                    const activeEvents = await api.getEvents({ resolved: 0, type: 'ALARM' });
+                    const buildingAlarmMap = new Map();
+                    activeEvents.forEach(e => {
+                        if (e.building_id) {
+                            const existing = buildingAlarmMap.get(e.building_id);
+                            if (!existing || (e.origin !== 'SIM' && existing.origin === 'SIM')) {
+                                buildingAlarmMap.set(e.building_id, e);
+                            }
+                        }
+                    });
+
+                    tbody.innerHTML = buildings.map(b => {
+                        const alarm = buildingAlarmMap.get(b.id);
+                        const isAlarmActive = !!alarm;
+                        const statusText = isAlarmActive ? 'INCIDENCIA ACTIVA' : 'SISTEMA NORMAL';
+                        const statusColor = isAlarmActive ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
+
+                        let originHtml = '<span class="text-gray-300 dark:text-gray-700 font-medium text-[10px]">—</span>';
+                        if (isAlarmActive) {
+                            const isSimulated = alarm.origin === 'SIM';
+                            const originText = isSimulated ? 'SIMULADA' : 'REAL';
+                            const originClass = isSimulated ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+                            originHtml = `<span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase ${originClass}">${originText}</span>`;
+                        }
+
+                        return `
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors group">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400 group-hover:bg-red-50 group-hover:text-red-500 transition-colors">
+                                    <i class="fa fa-building text-lg"></i>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-gray-900 dark:text-white">${b.name}</span>
+                                    <span class="text-[10px] font-mono text-gray-400">ID: ${b.id}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="text-[11px] font-bold ${statusColor}">${statusText}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            ${originHtml}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex justify-end gap-2">
+                                <button onclick="confirmSimulation(${b.id}, '${b.name}')" 
+                                    class="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 text-xs font-bold transition-all shadow-sm">
+                                    ACTIVAR
+                                </button>
+                                <button onclick="stopBuildingSimulation(${b.id}, '${name}')" 
+                                    class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg px-4 py-2 text-xs font-bold transition-all shadow-sm">
+                                    DETENER
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `}).join('');
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            function showConfirmSim(message) {
+                return new Promise((resolve) => {
+                    const modal = document.getElementById('confirmSimModal');
+                    const messageEl = document.getElementById('confirmSimMessage');
+                    const okBtn = document.getElementById('confirmSimOk');
+                    const cancelBtn = document.getElementById('confirmSimCancel');
+
+                    messageEl.textContent = message;
+                    modal.classList.remove('hidden');
+
+                    const handleOk = () => { cleanup(); resolve(true); };
+                    const handleCancel = () => { cleanup(); resolve(false); };
+                    const cleanup = () => {
+                        modal.classList.add('hidden');
+                        okBtn.removeEventListener('click', handleOk);
+                        cancelBtn.removeEventListener('click', handleCancel);
+                    };
+
+                    okBtn.addEventListener('click', handleOk);
+                    cancelBtn.addEventListener('click', handleCancel);
+                });
+            }
+
+            window.confirmSimulation = async function (id, name) {
+                if (simProcessing) return;
+                const confirmed = await showConfirmSim(`¿Activar ALARMA GENERAL en "${name}"? Esto generará alertas simuladas.`);
+                if (!confirmed) return;
+
+                simProcessing = true;
+                try {
+                    const res = await api.simulateBuildingAlarm(id);
+                    if (res.success) alert('Simulacro Activado');
+                    else alert('Error: ' + res.error);
+                    loadSimulationBuildings();
+                } catch (e) { console.error(e); }
+                finally { simProcessing = false; }
+            };
+
+            window.stopBuildingSimulation = async function (id, name) {
+                if (simProcessing) return;
+                const confirmed = await showConfirmSim(`¿Detener simulación en "${name}"?`);
+                if (!confirmed) return;
+
+                simProcessing = true;
+                try {
+                    await api.stopBuildingSimulation(id);
+                    loadSimulationBuildings();
+                } catch (e) { console.error(e); }
+                finally { simProcessing = false; }
+            };
+
+            window.stopAllSimulations = async function () {
+                const confirmed = await showConfirmSim('¿Detener TODAS las simulaciones activas?');
+                if (!confirmed) return;
+                try {
+                    await api.resolveAllSimulations();
+                    loadSimulationBuildings();
+                } catch (e) { console.error(e); }
+            };
+
+            // Initial load - Load users since the Users tab is active by default
+            loadUsers();
+        </script>
+        <!-- Footer -->
+        <footer
+            class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4 mt-8 transition-colors duration-200">
+            <div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-xs text-gray-500 dark:text-gray-400">© 2025 Universidad Zaragoza. Todos los derechos
+                    reservados.</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    Desarrollado por Luis Enrique Seco <span class="text-gray-700 dark:text-gray-300 font-bold">UNIDAD
+                        DE
+                        SEGURIDAD</span>
+                </p>
+            </div>
+        </footer>
 </body>
 
 </html>

@@ -23,6 +23,7 @@ Hoy hemos realizado una transición crítica del sistema a un entorno de producc
     - **SMS (Twilio)**.
     - **Telegram**.
 - Mejoras en la integración Modbus/BACnet para el monitoreo real de centrales.
+- **Centralización de Simulación**: Se ha movido la herramienta de "Simulación de Incidencias" al Panel de Administración como una nueva pestaña integrada, eliminando el acceso directo del dashboard para una gestión más segura y organizada.
 
 ### 5. Robustez en el Frontend
 - Implementación de **rutas absolutas** para todos los assets para evitar problemas de resolución de rutas tras el proxy de la universidad.
