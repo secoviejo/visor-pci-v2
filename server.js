@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -6,7 +7,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { db, initDb } = require('./database');
 const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
 const csv = require('csv-parser');
 const bcrypt = require('bcryptjs');
@@ -37,10 +37,14 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' })); // Increased limit for images/maps
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve static files (Frontend) - Adjust path if needed
-app.use(express.static('public'));
-app.use(express.static(__dirname)); // Serve HTML files in root
-app.use('/uploads', express.static('uploads')); // Uploads folder
+// --- Static Files Priority ---
+app.use('/css', express.static(path.join(__dirname, 'css'), { fallthrough: false }));
+app.use('/js', express.static(path.join(__dirname, 'js'), { fallthrough: false }));
+app.use('/img', express.static(path.join(__dirname, 'public', 'img')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
+
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, 'uploads');
@@ -87,48 +91,9 @@ const authorizeRole = (roles) => {
    ========================================= */
 async function startServer() {
     try {
-        console.log('Starting server...');
+        console.log('Starting server in fail-safe mode...');
+        // We moved heavy initialization to the end to ensure the port opens ASAP
 
-        // 1. Initialize Database (Async)
-        await initDb();
-
-        // 2. Initialize Notification Service
-        await notificationService.init();
-
-        // 3. Hardware Services Setup
-        const ENABLE_HARDWARE = process.env.ENABLE_HARDWARE === 'true';
-        const BACNET_PORT = parseInt(process.env.BACNET_PORT || '47808');
-
-        if (ENABLE_HARDWARE) {
-            console.log('✅ Hardware Integration ENABLED');
-
-            // Initialize Modbus for configured buildings
-            try {
-                // Async query
-                const buildingsWithModbus = await db.query('SELECT * FROM buildings WHERE modbus_ip IS NOT NULL AND modbus_port IS NOT NULL');
-
-                if (buildingsWithModbus.length > 0) {
-                    console.log(`[Modbus] Found ${buildingsWithModbus.length} buildings with Modbus config.`);
-                    // Just taking the first one for single-instance logic, OR adapt logic if multiple
-                    // Existing logic seemed to assume global connection or iterative?
-                    // Original code: modbusService.connect(buildingsWithModbus[0].modbus_ip, ...);
-                    // We'll stick to original behavior: connect to the first one found if not specific
-                    // Actually, let's keep it simple as per original
-                    const b = buildingsWithModbus[0];
-                    modbusService.connect(b.modbus_ip, b.modbus_port);
-                } else {
-                    console.log('[Modbus] No buildings configured for Modbus.');
-                }
-            } catch (err) {
-                console.error('[Modbus] Error loading config:', err);
-            }
-
-            // Start BACnet
-            bacnetService.start({ port: BACNET_PORT, interface: '0.0.0.0' });
-
-        } else {
-            console.log('⚠️ Hardware Integration DISABLED (ENABLE_HARDWARE!=true)');
-        }
 
         /* =========================================
            API ROUTES (Converted to Async/Await)
@@ -155,8 +120,9 @@ async function startServer() {
         // 2. Status & Stats
         app.get('/api/status', (req, res) => {
             res.json({
-                environment: process.env.NODE_ENV === 'production' ? 'cloud' : 'local',
-                hardware_enabled: process.env.ENABLE_HARDWARE === 'true'
+                environment: 'cloud',
+                environment_label: 'Sistema en Producción',
+                hardware_enabled: false
             });
         });
 
@@ -332,18 +298,73 @@ async function startServer() {
         app.get('/api/floors/:id/devices', async (req, res) => {
             try {
                 const rows = await db.query("SELECT * FROM devices WHERE floor_id = ?", [req.params.id]);
-                res.json(rows);
+                // Map MySQL column names to frontend expected names
+                const mapped = rows.map(d => ({
+                    ...d,
+                    db_id: d.id,
+                    id: d.device_id,
+                    number: d.number,
+                    type: d.type,
+                    location: d.location,
+                    n: d.number,
+                    t: d.type,
+                    loc: d.location,
+                    x: d.x,
+                    y: d.y,
+                    floor_id: d.floor_id
+                }));
+                res.json(mapped);
             } catch (err) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        // Get all devices for a building (across all floors)
+        app.get('/api/buildings/:id/devices', async (req, res) => {
+            try {
+                const buildingId = req.params.id;
+                const sql = `
+                    SELECT d.*, f.name as floor_name, f.building_id
+                    FROM devices d
+                    JOIN floors f ON d.floor_id = f.id
+                    WHERE f.building_id = ?
+                    ORDER BY f.id, d.id
+                `;
+                const rows = await db.query(sql, [buildingId]);
+                // Map MySQL column names to frontend expected names
+                const mapped = rows.map(d => ({
+                    db_id: d.id,
+                    id: d.device_id,
+                    n: d.number,
+                    t: d.type,
+                    x: d.x,
+                    y: d.y,
+                    loc: d.location,
+                    floor_id: d.floor_id,
+                    floor_name: d.floor_name,
+                    building_id: d.building_id
+                }));
+                res.json(mapped);
+            } catch (err) {
+                console.error('[API] Error fetching building devices:', err);
                 res.status(500).json({ error: err.message });
             }
         });
 
         app.post('/api/devices', authenticateToken, authorizeRole(['admin']), async (req, res) => {
             try {
-                const { floor_id, device_id, number, type, x, y, location } = req.body;
+                // Support both old frontend names and new MySQL names
+                const floor_id = req.body.floor_id || req.body.floorId;
+                const device_id = req.body.device_id || req.body.id;
+                const number = req.body.number || req.body.n;
+                const type = req.body.type || req.body.t;
+                const x = req.body.x || 50;
+                const y = req.body.y || 50;
+                const location = req.body.location || req.body.loc || '';
+
                 const sql = "INSERT INTO devices (floor_id, device_id, number, type, x, y, location) VALUES (?, ?, ?, ?, ?, ?, ?)";
                 const info = await db.run(sql, [floor_id, device_id, number, type, x, y, location]);
-                res.json({ id: info.lastInsertRowid });
+                res.json({ db_id: info.lastInsertRowid, id: info.lastInsertRowid });
             } catch (err) {
                 res.status(500).json({ error: err.message });
             }
@@ -351,11 +372,47 @@ async function startServer() {
 
         app.put('/api/devices/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
             try {
-                const { device_id, number, type, x, y, location } = req.body;
-                const sql = "UPDATE devices SET device_id = ?, number = ?, type = ?, x = ?, y = ?, location = ? WHERE id = ?";
-                await db.run(sql, [device_id, number, type, x, y, location, req.params.id]);
+                // Build dynamic UPDATE query based on provided fields
+                const updates = [];
+                const values = [];
+
+                // Support both old frontend names (n, t, loc, id) and new MySQL names
+                if (req.body.device_id !== undefined || req.body.id !== undefined) {
+                    updates.push('device_id = ?');
+                    values.push(req.body.device_id || req.body.id);
+                }
+                if (req.body.number !== undefined || req.body.n !== undefined) {
+                    updates.push('number = ?');
+                    values.push(req.body.number || req.body.n);
+                }
+                if (req.body.type !== undefined || req.body.t !== undefined) {
+                    updates.push('type = ?');
+                    values.push(req.body.type || req.body.t);
+                }
+                if (req.body.location !== undefined || req.body.loc !== undefined) {
+                    updates.push('location = ?');
+                    values.push(req.body.location || req.body.loc);
+                }
+                if (req.body.x !== undefined) {
+                    updates.push('x = ?');
+                    values.push(req.body.x);
+                }
+                if (req.body.y !== undefined) {
+                    updates.push('y = ?');
+                    values.push(req.body.y);
+                }
+
+                if (updates.length === 0) {
+                    return res.status(400).json({ error: 'No fields to update' });
+                }
+
+                values.push(req.params.id);
+                const sql = `UPDATE devices SET ${updates.join(', ')} WHERE id = ?`;
+
+                await db.run(sql, values);
                 res.json({ success: true });
             } catch (err) {
+                console.error('[API] Error updating device:', err);
                 res.status(500).json({ error: err.message });
             }
         });
@@ -1140,14 +1197,46 @@ async function startServer() {
             }
         });
 
-        // Start HTTP Server (now inside async startServer to ensure DB is ready)
+        // 6. Start HTTP Server IMMEDIATELY to avoid 502 Bad Gateway
         server.listen(PORT, () => {
-            console.log(`Server running at http://localhost:${PORT}`);
+            console.log(`🚀 Visor PCI Server active at http://localhost:${PORT}`);
         });
 
+        // 7. Initialize Database and Services in background
+        try {
+            if (db) {
+                console.log('[Database] Connecting...');
+                await initDb();
+                console.log('✅ Database Ready');
+            } else if (mysqlError) {
+                console.error('❌ Database Initialization failed:', mysqlError);
+            }
+
+            // Notification Service
+            await notificationService.init();
+
+            // Hardware Integration
+            const ENABLE_HARDWARE = process.env.ENABLE_HARDWARE === 'true';
+            if (ENABLE_HARDWARE) {
+                console.log('✅ Hardware Integration ENABLED');
+                const buildingsWithModbus = await db.query('SELECT * FROM buildings WHERE modbus_ip IS NOT NULL AND modbus_port IS NOT NULL');
+                if (buildingsWithModbus.length > 0) {
+                    const b = buildingsWithModbus[0];
+                    modbusService.connect(b.modbus_ip, b.modbus_port);
+                }
+                const BACNET_PORT = parseInt(process.env.BACNET_PORT || '47808');
+                bacnetService.start({ port: BACNET_PORT, interface: '0.0.0.0' });
+            }
+        } catch (dbErr) {
+            console.error('⚠️ Post-startup initialization error:', dbErr.message);
+        }
+
     } catch (error) {
-        console.error('FAILED TO START SERVER:', error);
-        process.exit(1);
+        console.error('CRITICAL ERROR DURING STARTUP:', error);
+        // We still try to listen even on error to provide a diagnostic page if possible
+        if (!server.listening) {
+            server.listen(PORT, () => console.log(`Diagnostic mode on port ${PORT}`));
+        }
     }
 }
 

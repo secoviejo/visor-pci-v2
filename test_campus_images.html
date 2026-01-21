@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Imágenes de Campus</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #2E6DA4;
+            padding-bottom: 10px;
+        }
+
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .test-item {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .test-item h3 {
+            margin-top: 0;
+            color: #2E6DA4;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .status.ok {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status.error {
+            background: #f44336;
+            color: white;
+        }
+
+        .status.loading {
+            background: #FF9800;
+            color: white;
+        }
+
+        img {
+            max-width: 300px;
+            max-height: 200px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .error-img {
+            border-color: #f44336;
+        }
+
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .info {
+            background: #E3F2FD;
+            padding: 15px;
+            border-left: 4px solid #2196F3;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🔍 Test de Imágenes de Campus - Visor PCI</h1>
+
+    <div class="info">
+        <strong>ℹ️ Información:</strong> Esta página prueba si las imágenes de los campus se pueden cargar correctamente
+        desde el servidor.
+    </div>
+
+    <div class="test-section">
+        <h2>1. Test de Conexión al Servidor</h2>
+        <div id="server-test" class="test-item">
+            <span class="status loading">Probando...</span>
+            <p id="server-result">Verificando conexión...</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test de Rutas de Imágenes Directas</h2>
+        <p>Intentando cargar imágenes directamente desde <code>/img/campuses/</code></p>
+        <div id="direct-images"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test de API de Campus</h2>
+        <div id="api-test" class="test-item">
+            <span class="status loading">Cargando...</span>
+            <p id="api-result">Consultando API...</p>
+        </div>
+        <div id="campus-data"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Recomendaciones</h2>
+        <div id="recommendations"></div>
+    </div>
+
+    <script>
+        // Test 1: Conexión al servidor
+        async function testServerConnection() {
+            const testDiv = document.getElementById('server-test');
+            const resultP = document.getElementById('server-result');
+
+            try {
+                const response = await fetch('/api/status');
+                if (response.ok) {
+                    const data = await response.json();
+                    testDiv.querySelector('.status').className = 'status ok';
+                    testDiv.querySelector('.status').textContent = '✅ OK';
+                    resultP.innerHTML = `
+                        <strong>Servidor conectado correctamente</strong><br>
+                        Entorno: ${data.environment || 'desconocido'}<br>
+                        Hardware: ${data.hardware_enabled ? 'Habilitado' : 'Deshabilitado'}
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                testDiv.querySelector('.status').className = 'status error';
+                testDiv.querySelector('.status').textContent = '❌ ERROR';
+                resultP.innerHTML = `<strong>Error de conexión:</strong> ${error.message}`;
+            }
+        }
+
+        // Test 2: Imágenes directas
+        function testDirectImages() {
+            const container = document.getElementById('direct-images');
+            const testImages = [
+                'img/campuses/campus_sf.jpg',
+                'img/campuses/campus_rio_ebro.jpg',
+                'img/campuses/campus_huesca.jpg',
+                'img/campuses/campus_paraiso.jpg',
+                'img/campuses/campus_veterinaria.jpg',
+                'img/campuses/campus_teruel.jpg'
+            ];
+
+            testImages.forEach(src => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'test-item';
+
+                const img = document.createElement('img');
+                img.src = src;
+
+                const statusSpan = document.createElement('span');
+                statusSpan.className = 'status loading';
+                statusSpan.textContent = 'Cargando...';
+
+                const pathCode = document.createElement('code');
+                pathCode.textContent = src;
+
+                img.onload = () => {
+                    statusSpan.className = 'status ok';
+                    statusSpan.textContent = '✅ OK';
+                };
+
+                img.onerror = () => {
+                    statusSpan.className = 'status error';
+                    statusSpan.textContent = '❌ ERROR 404';
+                    img.className = 'error-img';
+                    img.alt = 'No se pudo cargar';
+                };
+
+                itemDiv.appendChild(statusSpan);
+                itemDiv.appendChild(document.createTextNode(' '));
+                itemDiv.appendChild(pathCode);
+                itemDiv.appendChild(document.createElement('br'));
+                itemDiv.appendChild(img);
+
+                container.appendChild(itemDiv);
+            });
+        }
+
+        // Test 3: API de Campus
+        async function testCampusAPI() {
+            const testDiv = document.getElementById('api-test');
+            const resultP = document.getElementById('api-result');
+            const dataDiv = document.getElementById('campus-data');
+
+            try {
+                const response = await fetch('/api/campuses');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const campuses = await response.json();
+
+                testDiv.querySelector('.status').className = 'status ok';
+                testDiv.querySelector('.status').textContent = '✅ OK';
+                resultP.innerHTML = `<strong>API funcionando correctamente</strong><br>Campus encontrados: ${campuses.length}`;
+
+                campuses.forEach(campus => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'test-item';
+
+                    const title = document.createElement('h3');
+                    title.textContent = campus.name;
+                    itemDiv.appendChild(title);
+
+                    const info = document.createElement('pre');
+                    info.textContent = JSON.stringify({
+                        id: campus.id,
+                        image_filename: campus.image_filename,
+                        background_image: campus.background_image
+                    }, null, 2);
+                    itemDiv.appendChild(info);
+
+                    // Intentar cargar la imagen
+                    if (campus.image_filename) {
+                        const img = document.createElement('img');
+                        img.src = campus.image_filename;
+
+                        const statusSpan = document.createElement('span');
+                        statusSpan.className = 'status loading';
+                        statusSpan.textContent = 'Cargando imagen...';
+
+                        img.onload = () => {
+                            statusSpan.className = 'status ok';
+                            statusSpan.textContent = '✅ Imagen cargada';
+                        };
+
+                        img.onerror = () => {
+                            statusSpan.className = 'status error';
+                            statusSpan.textContent = '❌ Imagen no encontrada';
+                            img.className = 'error-img';
+                        };
+
+                        itemDiv.appendChild(statusSpan);
+                        itemDiv.appendChild(document.createElement('br'));
+                        itemDiv.appendChild(img);
+                    } else {
+                        const noImg = document.createElement('p');
+                        noImg.innerHTML = '<span class="status error">❌ Sin imagen</span> No hay image_filename en la base de datos';
+                        itemDiv.appendChild(noImg);
+                    }
+
+                    dataDiv.appendChild(itemDiv);
+                });
+
+            } catch (error) {
+                testDiv.querySelector('.status').className = 'status error';
+                testDiv.querySelector('.status').textContent = '❌ ERROR';
+                resultP.innerHTML = `<strong>Error al consultar API:</strong> ${error.message}`;
+            }
+        }
+
+        // Generar recomendaciones
+        function generateRecommendations() {
+            const container = document.getElementById('recommendations');
+
+            setTimeout(() => {
+                const errors = document.querySelectorAll('.status.error').length;
+
+                if (errors === 0) {
+                    container.innerHTML = `
+                        <div class="test-item" style="background: #E8F5E9;">
+                            <h3 style="color: #4CAF50;">✅ Todo funciona correctamente</h3>
+                            <p>No se detectaron problemas con las imágenes de los campus.</p>
+                            <p>Si aún no ves las imágenes en el dashboard:</p>
+                            <ul>
+                                <li>Limpia la caché del navegador (Ctrl+Shift+R)</li>
+                                <li>Verifica la consola del navegador (F12) para errores JavaScript</li>
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div class="test-item" style="background: #FFEBEE;">
+                            <h3 style="color: #f44336;">❌ Se detectaron ${errors} problemas</h3>
+                            <p><strong>Solución recomendada:</strong></p>
+                            <ol>
+                                <li>Conectarse al servidor vía SSH</li>
+                                <li>Ejecutar: <code>node scripts/fix_campus_images_server.js</code></li>
+                                <li>Reiniciar el servidor: <code>pm2 restart visor-pci</code></li>
+                                <li>Limpiar caché del navegador</li>
+                            </ol>
+                            <p>Para más detalles, consulta: <code>SOLUCION_IMAGENES_CAMPUS.md</code></p>
+                        </div>
+                    `;
+                }
+            }, 3000); // Esperar 3 segundos para que carguen las imágenes
+        }
+
+        // Ejecutar todos los tests
+        window.addEventListener('load', () => {
+            testServerConnection();
+            testDirectImages();
+            testCampusAPI();
+            generateRecommendations();
+        });
+    </script>
+</body>
+
+</html>

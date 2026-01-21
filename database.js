@@ -1,19 +1,27 @@
 const path = require('path');
 
 // Configuration
-const DB_CLIENT = process.env.DB_CLIENT || 'sqlite'; // 'sqlite' or 'mysql'
+const DB_CLIENT = 'mysql'; // Forzado para producción
 
 let db;
+let mysqlError = null;
 
 if (DB_CLIENT === 'mysql') {
-    const MysqlAdapter = require('./js/db/adapters/mysqlAdapter');
-    db = new MysqlAdapter({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'pci_db',
-        port: process.env.DB_PORT || 3306
-    });
+    try {
+        const MysqlAdapter = require('./js/db/adapters/mysqlAdapter');
+        db = new MysqlAdapter({
+            host: 'visor_pci_mysql.unizar.es',
+            user: 'visor_pci',
+            password: 'sO8s+vKbZ4D2VHLJCwBm',
+            database: 'visor_pci_db',
+            port: 1980
+        });
+    } catch (e) {
+        console.error('[Database] CRITICAL: mysql2 dependency is missing!', e.message);
+        mysqlError = e.message;
+        // Fallback to null or a dummy to allow server to start
+        db = null;
+    }
 } else {
     // Default to SQLite
     const SqliteAdapter = require('./js/db/adapters/sqliteAdapter');

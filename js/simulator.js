@@ -111,19 +111,7 @@ export class Simulator {
     }
 
     updateVisuals() {
-        // Map markers logic
-        const allDots = document.querySelectorAll('.hotspot');
-        allDots.forEach(dot => {
-            const id = String(dot.dataset.dbId); // Ensure string type
-            const shouldBlink = this.isActive && this.activeDeviceIds.has(id);
-            if (shouldBlink) {
-                dot.classList.add('blinking');
-            } else {
-                dot.classList.remove('blinking');
-            }
-        });
-
-        // List items logic (sync toggles)
+        // Sincronizar el panel del simulador
         const allItems = this.listContainer.querySelectorAll('.sim-item');
         allItems.forEach(item => {
             const id = item.dataset.id;
@@ -132,6 +120,13 @@ export class Simulator {
         });
 
         this.updateCount();
+
+        // Disparar actualización visual del mapa de forma segura
+        if (window.updateMapVisuals && !window.preventSimSync) {
+            window.preventSimSync = true;
+            window.updateMapVisuals();
+            window.preventSimSync = false;
+        }
     }
 
     renderList(filterText = '') {
@@ -150,7 +145,7 @@ export class Simulator {
             item.className = 'sim-item';
             item.dataset.id = d.db_id;
 
-            const isChecked = this.activeDeviceIds.has(d.db_id.toString());
+            const isChecked = d.db_id ? this.activeDeviceIds.has(d.db_id.toString()) : false;
 
             item.innerHTML = `
                 <div class="sim-item-info">

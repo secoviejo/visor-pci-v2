@@ -1,41 +1,23 @@
-const { db, initDb } = require('./database');
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
-async function analyze() {
-    await initDb();
+async function checkBuildings() {
+    const config = {
+        host: process.env.DB_HOST || 'visor_pci_mysql.unizar.es',
+        port: parseInt(process.env.DB_PORT) || 1980,
+        user: process.env.DB_USER || 'visor_pci',
+        password: process.env.DB_PASSWORD || 'sO8s+vKbZ4D2VHLJCwBm',
+        database: process.env.DB_NAME || 'visor_pci_db'
+    };
 
-    console.log('=== ANÁLISIS DE EDIFICIOS CON DISPOSITIVOS ===\n');
-
-    const buildingsWithDevices = await db.query(`
-        SELECT 
-            b.id, 
-            b.name, 
-            COUNT(DISTINCT f.id) as floor_count,
-            COUNT(d.id) as device_count
-        FROM buildings b
-        LEFT JOIN floors f ON f.building_id = b.id
-        LEFT JOIN devices d ON d.floor_id = f.id
-        WHERE EXISTS (
-            SELECT 1 FROM floors WHERE building_id = b.id
-        )
-        GROUP BY b.id
-        HAVING device_count > 0
-        ORDER BY device_count DESC
-    `);
-
-    console.log('Edificios con dispositivos:');
-    console.table(buildingsWithDevices);
-
-    console.log('\n=== DETALLES EDIFICIO CIRCE (ID 82) ===');
-    const circe = await db.query(`
-        SELECT f.id, f.name, COUNT(d.id) as devices
-        FROM floors f
-        LEFT JOIN devices d ON d.floor_id = f.id
-        WHERE f.building_id = 82
-        GROUP BY f.id
-    `);
-    console.table(circe);
-
-    process.exit(0);
+    try {
+        const connection = await mysql.createConnection(config);
+        const [rows] = await connection.execute('SELECT id, name, thumbnail FROM buildings WHERE thumbnail IS NOT NULL LIMIT 10');
+        console.table(rows);
+        await connection.end();
+    } catch (err) {
+        console.error('Error:', err.message);
+    }
 }
 
-analyze();
+checkBuildings();

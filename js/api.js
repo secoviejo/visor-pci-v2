@@ -130,10 +130,11 @@ export async function uploadBuildingConfig(buildingId, file) {
 }
 
 export async function getFloors(buildingId = null) {
-    let url = `${API_URL}/floors`;
-    if (buildingId) {
-        url += `?buildingId=${buildingId}`;
+    if (!buildingId) {
+        throw new Error('buildingId is required for getFloors');
     }
+    // Correct URL for the backend route app.get('/api/buildings/:id/floors', ...)
+    let url = `${API_URL}/buildings/${buildingId}/floors`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('Error loading floors');
     return res.json();

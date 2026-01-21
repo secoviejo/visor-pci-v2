@@ -29,6 +29,7 @@ window.currentBuildingId = null;
 let currentFloorId = null; // Local copy for internal logic if needed, but better to use window.
 let currentBuildingId = null;
 let devices = [];
+window.currentDevices = []; // Referencia global para el explorador
 let scale = 1, pointX = 0, pointY = 0;
 let isPanning = false, startX = 0, startY = 0;
 let draggingEl = null;
@@ -239,9 +240,9 @@ async function loadFloorData(floorId) {
     const selectedOption = sel.options[sel.selectedIndex];
     const imageName = selectedOption.dataset.image;
 
-    // Load Image
-    const isNewStructure = imageName.includes('/') || imageName.includes('\\');
-    mapImg.src = isNewStructure ? `/data/${imageName}` : `/${imageName}`;
+    // Load Image - handle both old format (filename only) and new format (img/filename)
+    const imagePath = imageName.startsWith('img/') ? `/${imageName}` : `/img/${imageName}`;
+    mapImg.src = imagePath;
 
     mapImg.onload = () => {
         emptyState.style.display = 'none';
@@ -298,7 +299,7 @@ function renderDevices() {
     updateMapVisuals();
 
     // Update global reference for explorer
-    currentDevices = devices;
+    window.currentDevices = devices;
     // Update Sidebar
     if (window.renderSidebarDevices) window.renderSidebarDevices(document.getElementById('sim-filter-input')?.value || '');
 }
@@ -312,43 +313,33 @@ window.updateMapVisuals = function () {
     const isSimActive = window.simulator ? window.simulator.isActive : false;
 
     // Check if there are ANY active alarms for the CURRENT building (Real or Simulated)
-    // Las alarmas del SOLAE tienen status='ACTIVA' y building_id coincidente
     const hasAnyBuildingAlarm = activeAlerts.some(a => {
-        // Soportar tanto camelCase (buildingId) como snake_case (building_id)
         const alertBuildingId = a.buildingId || a.building_id;
-        const matchesBuilding = String(alertBuildingId) === String(currentBuildingId) ||
+        const matchesBuilding = String(alertBuildingId) === String(window.currentBuildingId) ||
             a.building_name === document.getElementById('bc-building')?.textContent;
 
-        // Match both 'ALARM' (simulated/BACnet) and 'detector'/'pulsador' (Hardware/SOLAE)
-        const isCritical = a.type === 'ALARM' || a.type === 'detector' || a.type === 'pulsador';
+        // Match all alarm types: ALARM, detector, pulsador, sirena
+        const isCritical = ['ALARM', 'detector', 'pulsador', 'sirena'].includes(a.type);
 
         return matchesBuilding && a.status === 'ACTIVA' && isCritical;
     });
 
-    // We also check simulation status derived from activeEvents via API which might not be fully synced in `activeAlerts`
-    // locally if they come from different sources, but `window.alerts` should be the truth.
-    // However, `simActiveIds` tracks specific simulated devices.
-
-    // Check if any simulated device belongs to current floor/building? 
-    // Actually, `activeAlerts` includes simulated alerts as well (origin: 'SIMULACIÓN').
-    // So `hasAnyBuildingAlarm` covers both real and simulated if they are in the alerts list.
-
     document.querySelectorAll('.hotspot').forEach(dot => {
         let isBlinking = false;
         const dbId = String(dot.dataset.dbId);
-        const devId = dot.dataset.deviceId; // "CIE-27", "1627..."
+        const devId = dot.dataset.deviceId;
         const isCentral = dot.classList.contains('type-central');
 
-        // 1. Check Simulator (Direct Device hit)
+        // 1. Check Simulator (Direct Device hit) - if simulation is globally ON
         if (isSimActive && simActiveIds.has(dbId)) {
             isBlinking = true;
         }
 
-        // 2. Check Real/Simulated Alerts (Direct Device hit)
+        // 2. Check Alerts (Real or Simulated) - if device is in active alerts list
         if (!isBlinking) {
             const hasAlert = activeAlerts.some(alert =>
                 (alert.elementId == dbId || alert.elementId == devId) &&
-                (alert.type === 'ALARM' || alert.type === 'detector' || alert.type === 'pulsador')
+                ['ALARM', 'detector', 'pulsador', 'sirena'].includes(alert.type)
             );
             if (hasAlert) isBlinking = true;
         }
@@ -365,8 +356,12 @@ window.updateMapVisuals = function () {
         }
     });
 
-    // Sync Simulator UI if needed (optional)
-    if (window.simulator) window.simulator.updateVisuals();
+    // Synchronize simulator checkboxes without triggering a loop
+    if (window.simulator && !window.preventSimSync) {
+        window.preventSimSync = true;
+        window.simulator.updateVisuals();
+        window.preventSimSync = false;
+    }
 }
 
 // ===========================================
@@ -885,7 +880,7 @@ window.renderSidebarDevices = function (filterText = '') {
     if (!listContainer) return;
 
     listContainer.innerHTML = '';
-    const devices = currentDevices || [];
+    const devices = window.currentDevices || [];
 
     // Sort logic (maybe by type or number?)
     const filtered = devices.filter(d => {
@@ -924,11 +919,11 @@ window.renderSidebarDevices = function (filterText = '') {
             <div style="flex:1; display:flex; align-items:center; gap:8px;">
                 ${iconHtml}
                 <div>
-                    <div style="font-weight:bold; font-size:0.9em;">${d.type.toUpperCase()} #${d.number || '?'}</div>
-                    <div style="font-size:0.8em; color:#666;">${d.location || 'Sin ubicación'}</div>
+                    <div style="font-weight:bold; font-size:0.9em;">${(d.t || 'Elemento').toUpperCase()} #${d.n || '?'}</div>
+                    <div style="font-size:0.8em; color:#666;">${d.loc || 'Sin ubicación'}</div>
                 </div>
             </div>
-            <div style="font-family:monospace; font-size:0.8em; color:#999;">${d.device_id || ''}</div>
+            <div style="font-family:monospace; font-size:0.8em; color:#999;">${d.device_id || d.id || ''}</div>
         `;
 
         item.onclick = function () {
@@ -945,7 +940,7 @@ window.renderSidebarDevices = function (filterText = '') {
 
 window.highlightDevice = function (dbId) {
     // 1. Find device
-    const device = currentDevices.find(d => d.id === dbId);
+    const device = window.currentDevices.find(d => d.id === dbId);
     if (!device) return;
 
     // Trigger highlight visual
