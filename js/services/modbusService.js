@@ -125,6 +125,28 @@ class ModbusService extends EventEmitter {
         }, this.pollingInterval);
     }
 
+    // Global connector for all buildings in DB
+    async start(db) {
+        console.log('[Modbus] Starting all building connections...');
+        try {
+            const buildings = await db.query('SELECT id, modbus_ip, modbus_port FROM buildings WHERE modbus_ip IS NOT NULL AND modbus_port IS NOT NULL');
+            console.log(`[Modbus] Found ${buildings.length} buildings with Modbus config.`);
+            for (const b of buildings) {
+                this.connectBuilding(b.id, b.modbus_ip, b.modbus_port || 502);
+            }
+        } catch (e) {
+            console.error('[Modbus] Error during global start:', e.message);
+        }
+    }
+
+    async stop() {
+        console.log('[Modbus] Stopping all connections...');
+        const ids = Array.from(this.clients.keys());
+        for (const id of ids) {
+            await this.disconnectBuilding(id);
+        }
+    }
+
     // Helper for Admin UI status
     getStatus() {
         // Return array/object of all connections

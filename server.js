@@ -14,6 +14,7 @@ const jwt = require('jsonwebtoken');
 
 const modbusService = require('./js/services/modbusService');
 const bacnetService = require('./js/services/bacnetService');
+const connectivityService = require('./js/services/connectivityService');
 const notificationService = require('./services/notificationService'); // Updated service
 
 const app = express();
@@ -31,6 +32,24 @@ const SECRET_KEY = "tu_secreto_super_seguro"; // Use env var in production
 // --- Global Variables ---
 let simulatorProcess = null;
 const { spawn } = require('child_process');
+let isHardwareEnabled = false;
+
+async function startHardwareServices() {
+    console.log('[Hardware] Starting all building connections...');
+    if (db) {
+        await modbusService.start(db);
+        const BACNET_PORT = parseInt(process.env.BACNET_PORT || '47808');
+        await bacnetService.start({ port: BACNET_PORT, interface: '0.0.0.0' }, db);
+        isHardwareEnabled = true;
+    }
+}
+
+async function stopHardwareServices() {
+    console.log('[Hardware] Stopping all hardware services...');
+    await modbusService.stop();
+    await bacnetService.stop();
+    isHardwareEnabled = false;
+}
 
 // --- Middleware ---
 app.use(cors());
@@ -122,7 +141,7 @@ async function startServer() {
             res.json({
                 environment: 'cloud',
                 environment_label: 'Sistema en Producción',
-                hardware_enabled: false
+                hardware_enabled: isHardwareEnabled
             });
         });
 
@@ -593,24 +612,44 @@ async function startServer() {
         app.post('/api/admin/simulator/start', authenticateToken, async (req, res) => {
             if (simulatorProcess) return res.json({ success: true, message: 'Ya en ejecución' });
 
-            console.log('[Admin] Starting terminal simulator...');
-            simulatorProcess = spawn('node', ['scripts/simulator.js'], {
-                cwd: __dirname,
-                stdio: 'inherit',
-                shell: true
-            });
+            console.log('[Admin] Starting headless simulator...');
 
-            simulatorProcess.on('close', (code) => {
-                console.log(`[Admin] Simulator process exited with code ${code}`);
-                simulatorProcess = null;
-            });
+            try {
+                simulatorProcess = spawn('node', ['scripts/simulator_headless.js'], {
+                    cwd: __dirname,
+                    stdio: 'pipe', // No heredar stdio para evitar errores de TTY
+                    shell: false,
+                    detached: false
+                });
 
-            // Delay reconnect
-            setTimeout(() => {
-                modbusService.connect('127.0.0.1', 502);
-            }, 1500);
+                simulatorProcess.stdout.on('data', (data) => {
+                    console.log(`[Simulator] ${data.toString().trim()}`);
+                });
 
-            res.json({ success: true });
+                simulatorProcess.stderr.on('data', (data) => {
+                    console.error(`[Simulator Error] ${data.toString().trim()}`);
+                });
+
+                simulatorProcess.on('error', (err) => {
+                    console.error('[Simulator] Failed to start:', err.message);
+                    simulatorProcess = null;
+                });
+
+                simulatorProcess.on('close', (code) => {
+                    console.log(`[Admin] Simulator process exited with code ${code}`);
+                    simulatorProcess = null;
+                });
+
+                // Delay para que el simulador se inicie antes de conectar
+                setTimeout(() => {
+                    modbusService.connectBuilding(0, '127.0.0.1', 502);
+                }, 2000);
+
+                res.json({ success: true });
+            } catch (e) {
+                console.error('[Admin] Error starting simulator:', e);
+                res.status(500).json({ success: false, error: e.message });
+            }
         });
 
         app.post('/api/admin/simulator/stop', authenticateToken, async (req, res) => {
@@ -643,6 +682,49 @@ async function startServer() {
 
             modbusService.disconnect();
             res.json({ success: true });
+        });
+
+        // 9.b Dynamic Hardware Control
+        app.get('/api/admin/hardware/status', authenticateToken, authorizeRole(['admin']), (req, res) => {
+            res.json({ enabled: isHardwareEnabled });
+        });
+
+        app.post('/api/admin/hardware/toggle', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+            try {
+                const { enabled } = req.body;
+                console.log(`[Admin] Hardware Toggle Request: ${enabled}`);
+
+                if (enabled && !isHardwareEnabled) {
+                    await startHardwareServices();
+                } else if (!enabled && isHardwareEnabled) {
+                    await stopHardwareServices();
+                }
+
+                res.json({ success: true, enabled: isHardwareEnabled });
+            } catch (e) {
+                console.error('[Admin] Hardware Toggle Error:', e);
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        // 9.c Device Connectivity Check
+        app.get('/api/devices/connectivity', async (req, res) => {
+            try {
+                const result = await connectivityService.checkAllBuildings(db);
+                res.json(result);
+            } catch (e) {
+                console.error('[Connectivity] Error:', e);
+                res.status(500).json({ error: e.message });
+            }
+        });
+
+        app.get('/api/devices/connectivity/:buildingId', async (req, res) => {
+            try {
+                const result = await connectivityService.checkBuilding(db, req.params.buildingId);
+                res.json(result);
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
         });
 
         // 10. Campus Alarms Detail
@@ -1216,16 +1298,9 @@ async function startServer() {
             await notificationService.init();
 
             // Hardware Integration
-            const ENABLE_HARDWARE = process.env.ENABLE_HARDWARE === 'true';
-            if (ENABLE_HARDWARE) {
-                console.log('✅ Hardware Integration ENABLED');
-                const buildingsWithModbus = await db.query('SELECT * FROM buildings WHERE modbus_ip IS NOT NULL AND modbus_port IS NOT NULL');
-                if (buildingsWithModbus.length > 0) {
-                    const b = buildingsWithModbus[0];
-                    modbusService.connect(b.modbus_ip, b.modbus_port);
-                }
-                const BACNET_PORT = parseInt(process.env.BACNET_PORT || '47808');
-                bacnetService.start({ port: BACNET_PORT, interface: '0.0.0.0' });
+            isHardwareEnabled = process.env.ENABLE_HARDWARE === 'true';
+            if (isHardwareEnabled) {
+                await startHardwareServices();
             }
         } catch (dbErr) {
             console.error('⚠️ Post-startup initialization error:', dbErr.message);

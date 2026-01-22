@@ -127,6 +127,57 @@ class BacnetService extends EventEmitter {
         }
     }
 
+    async start(config = {}, db = null) {
+        console.log('[BACnet] Starting service...');
+        if (!this.client || this.client._closed) {
+            // Re-initialize client if it was closed
+            this.localPort = config.port || 47810;
+            this.client = new bacnet({
+                port: this.localPort,
+                apduTimeout: 6000,
+                interface: config.interface || '0.0.0.0'
+            });
+            // Re-attach listeners
+            this.client.on('iAm', (device) => {
+                if (!this.devices.has(device.deviceId)) {
+                    this.devices.set(device.deviceId, device);
+                    this.emit('deviceFound', device);
+                }
+            });
+            this.client.on('error', (err) => console.error('[BACnet] Error:', err));
+        }
+
+        if (db) {
+            // Optionally auto-start polling for buildings in DB with bacnet config
+            try {
+                const buildings = await db.query('SELECT id, bacnet_ip FROM buildings WHERE bacnet_ip IS NOT NULL');
+                for (const b of buildings) {
+                    // Default poll BIs 0-4
+                    this.startBuildingPolling(b.id, b.bacnet_ip, [0, 1, 2, 3, 4]);
+                }
+            } catch (e) { console.error('[BACnet] Start error:', e); }
+        }
+
+        this.discover();
+    }
+
+    stop() {
+        console.log('[BACnet] Stopping service...');
+        if (this.discoveryInterval) clearInterval(this.discoveryInterval);
+
+        // Stop all polling
+        for (const buildingId of this.pollingIntervals.keys()) {
+            this.stopBuildingPolling(buildingId);
+        }
+
+        if (this.client) {
+            try {
+                this.client.close();
+                this.client._closed = true;
+            } catch (e) { }
+        }
+    }
+
     // Get current alarm states for a building
     getBuildingAlarmStates(buildingId) {
         return this.buildingStates.get(buildingId) || {};

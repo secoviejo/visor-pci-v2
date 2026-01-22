@@ -361,6 +361,32 @@ export async function stopSimulator() {
     return res.json();
 }
 
+export async function getHardwareStatus() {
+    const headers = getHeaders();
+    const res = await fetch(`${API_URL}/admin/hardware/status`, { headers });
+    if (!res.ok) throw new Error('Error getting hardware status');
+    return res.json();
+}
+
+export async function toggleHardware(enabled) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/admin/hardware/toggle`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ enabled })
+    });
+    if (!res.ok) throw new Error('Error toggling hardware');
+    return res.json();
+}
+
+export async function getDeviceConnectivity() {
+    const res = await fetch(`${API_URL}/devices/connectivity`);
+    if (!res.ok) throw new Error('Error getting device connectivity');
+    return res.json();
+}
+
+
 export async function simulateBuildingAlarm(buildingId) {
     const headers = getHeaders();
     const res = await fetch(`${API_URL}/simulation/building/${buildingId}/alarm`, {
@@ -532,6 +558,9 @@ window.api = {
     getSimulatorStatus,
     startSimulator,
     stopSimulator,
+    getHardwareStatus,
+    toggleHardware,
+    getDeviceConnectivity,
     simulateBuildingAlarm,
     resolveAllSimulations,
     stopBuildingSimulation,

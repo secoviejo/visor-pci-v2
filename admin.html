@@ -173,10 +173,27 @@
             </div>
 
             <!-- New Section: Buildings Modbus Config -->
-            <div class="mt-8 mb-4">
-                <h2 class="text-lg font-semibold">Configuración de Centrales por Edificio</h2>
-                <p class="text-sm text-gray-500 mb-2">Asigna la IP de la central (SOLAE) correspondiente a cada
-                    edificio.</p>
+            <div class="mt-8 mb-4 flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold dark:text-gray-200">Configuración de Centrales por Edificio</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Asigna la IP de la central (SOLAE)
+                        correspondiente a cada
+                        edificio.</p>
+                </div>
+                <div
+                    class="flex items-center gap-3 bg-gray-100 dark:bg-gray-800 p-2 px-4 rounded-lg shadow-inner border dark:border-gray-700">
+                    <span class="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-tighter">Modo
+                        Hardware</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="hardware-toggle" class="sr-only peer"
+                            onchange="handleHardwareToggle()">
+                        <div
+                            class="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600">
+                        </div>
+                    </label>
+                    <span id="hardware-status-label"
+                        class="text-[10px] font-black text-gray-400 uppercase w-8">OFF</span>
+                </div>
             </div>
             <div class="bg-white dark:bg-gray-800 rounded shadow overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -457,10 +474,41 @@
                 document.getElementById(`section-${tab}`).classList.remove('hidden');
 
                 if (tab === 'users') loadUsers();
-                if (tab === 'gateways') { loadGateways(); loadBuildingGateways(); refreshSimStatus(); }
+                if (tab === 'gateways') { loadGateways(); loadBuildingGateways(); refreshSimStatus(); initHardwareToggle(); }
                 if (tab === 'plans') loadBuildingsForPlans();
                 if (tab === 'simulation') loadSimulationBuildings();
             };
+
+            // --- HARDWARE TOGGLE ---
+            async function initHardwareToggle() {
+                try {
+                    const status = await api.getHardwareStatus();
+                    const toggle = document.getElementById('hardware-toggle');
+                    const label = document.getElementById('hardware-status-label');
+
+                    toggle.checked = status.enabled;
+                    label.innerText = status.enabled ? 'ON' : 'OFF';
+                    label.className = status.enabled ? 'text-[10px] font-black text-green-500 uppercase w-8' : 'text-[10px] font-black text-gray-400 uppercase w-8';
+                } catch (e) { console.error('Error init hardware toggle:', e); }
+            }
+
+            window.handleHardwareToggle = async function () {
+                const toggle = document.getElementById('hardware-toggle');
+                const label = document.getElementById('hardware-status-label');
+                const originalState = !toggle.checked;
+
+                label.innerText = '...';
+
+                try {
+                    const res = await api.toggleHardware(toggle.checked);
+                    label.innerText = res.enabled ? 'ON' : 'OFF';
+                    label.className = res.enabled ? 'text-[10px] font-black text-green-500 uppercase w-8' : 'text-[10px] font-black text-gray-400 uppercase w-8';
+                } catch (e) {
+                    alert('Error cambiando modo hardware');
+                    toggle.checked = originalState;
+                    label.innerText = originalState ? 'ON' : 'OFF';
+                }
+            }
 
             // --- USERS ---
             async function loadUsers() {
