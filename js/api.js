@@ -256,6 +256,12 @@ export async function controlDevice(action) {
     return res.json();
 }
 
+export async function getActiveAlerts() {
+    const res = await fetch(`${API_URL}/alerts/active`);
+    if (!res.ok) throw new Error('Error loading active alerts');
+    return res.json();
+}
+
 export async function getEvents(filters = {}) {
     let url = `${API_URL}/events`;
     const params = new URLSearchParams();
@@ -548,6 +554,7 @@ window.api = {
     updateDevice,
     deleteDevice,
     controlDevice,
+    getActiveAlerts,
     getEvents,
     acknowledgeEvent,
     getUsers,

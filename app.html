@@ -121,6 +121,30 @@
             transform: rotate(180deg);
         }
 
+        /* BLINKING ANIMATION (Critical for Alarms) */
+        @keyframes blink-animation {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                filter: brightness(1);
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.4);
+                filter: brightness(5) drop-shadow(0 0 10px yellow);
+                z-index: 1000;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                filter: brightness(1);
+            }
+        }
+
+        .hotspot.blinking {
+            animation: blink-animation 0.8s infinite ease-in-out !important;
+            z-index: 500 !important;
+        }
+
         /* Scrollbar styling */
         ::-webkit-scrollbar {
             width: 8px;

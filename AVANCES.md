@@ -6,17 +6,16 @@ Hoy se ha centrado el trabajo en alcanzar la **MÁXIMA FIABILIDAD TÉCNICA** y l
 
 ### 1. Robustez en Comunicaciones Modbus (CRÍTICO)
 - **Lectura Estable**: Los dispositivos Modbus ahora se leen correctamente, superando los fallos de comunicación previos.
-- **Gestión de Configuración**: Corregida la edición de IPs y puertos; el sistema actualiza las conexiones en tiempo real.
-- **Supervisión de Red**: Implementado un sistema de **Ping/Conectividad** que monitoriza el estado de cada central 24/7.
+- **Sincronización de Alarmas**: Implementada la carga de alertas activas desde la DB al iniciar el visor, asegurando que nada se pierda tras un refresco del navegador.
+- **Supervisión de Red**: Sistema de **Ping** en tiempo real para monitorizar la conectividad de todas las centrales.
 
 ### 2. UI/UX Premium (Modo Oscuro & Tailwind)
-- **Refactorización Total**: El visor es ahora un entorno oscuro premium basado en Tailwind CSS, libre de CSS legado conflictivo.
-- **Controles Oscuros**: Arreglados los desplegables (`select`) y scrollbars para una legibilidad perfecta en negro.
-- **Dashboard Visual**: Tarjetas de campus rediseñadas con fotos maximizadas y mayor limpieza estética.
+- **Refactorización Total**: El visor es ahora un entorno oscuro premium basado en Tailwind CSS.
+- **Dashboard Compacto**: Ajuste de las tarjetas de estadísticas para una disposición más limpia y profesional.
+- **Visualización CIE**: Lógica de parpadeo integrada que vincula el estado de las centrales físicas con las alarmas del edificio.
 
 ### 3. Mapa Dinámico Adaptativo
-- **Auto-Resize**: El mapa se re-encuadra y maximiza su escala automáticamente al colapsar o expandir paneles laterales e inferiores.
-- **Respuesta Instantánea**: Interacción fluida sin necesidad de centrar el mapa manualmente tras cambios en la interfaz.
+- **Auto-Resize**: El mapa se re-encuadra y maximiza su escala automáticamente al colapsar o expandir paneles.
 
 ---
-**Resultado:** El sistema es ahora capaz de monitorizar hardware real con total confianza mientras ofrece una experiencia de usuario de nivel profesional.
+**Resultado:** El sistema es ahora capaz de monitorizar hardware real con total confianza mientras ofrece una experiencia de usuario de nivel profesional y alta eficiencia visual.

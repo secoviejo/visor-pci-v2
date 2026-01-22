@@ -46,6 +46,7 @@ window.addEventListener('load', async () => {
     const alertPanel = document.getElementById('alerts-panel');
     if (alertPanel) {
         alertSystem.init(alertPanel);
+        alertSystem.syncWithServer();
     }
 
     // Listen for Alerts
@@ -315,8 +316,9 @@ window.updateMapVisuals = function () {
     // Check if there are ANY active alarms for the CURRENT building (Real or Simulated)
     const hasAnyBuildingAlarm = activeAlerts.some(a => {
         const alertBuildingId = a.buildingId || a.building_id;
+        const alertBuildingName = a.buildingName || a.building_name;
         const matchesBuilding = String(alertBuildingId) === String(window.currentBuildingId) ||
-            a.building_name === document.getElementById('bc-building')?.textContent;
+            (alertBuildingName && alertBuildingName === document.getElementById('bc-building')?.textContent);
 
         // Match all alarm types: ALARM, detector, pulsador, sirena
         const isCritical = ['ALARM', 'detector', 'pulsador', 'sirena'].includes(a.type);

@@ -17,6 +17,27 @@ export class AlertSystem {
         this.render();
     }
 
+    async syncWithServer() {
+        try {
+            const activeAlerts = await window.api.getActiveAlerts();
+
+            // Merge logic: real alerts from server take precedence or complement localStorage
+            // For simplicity, let's refresh ACTIVA alerts from server and keep historical RESUELTA from localStorage
+            const historical = this.alerts.filter(a => a.status !== 'ACTIVA');
+
+            // Ensure server-side alerts are marked properly (they already are from the API mapped fields)
+            this.alerts = [...activeAlerts, ...historical];
+
+            this.saveState();
+            this.render();
+
+            // Trigger visual update in app if available
+            if (window.updateMapVisuals) window.updateMapVisuals();
+        } catch (e) {
+            console.error("[AlertSystem] Failed to sync with server:", e);
+        }
+    }
+
     init(panelElement) {
         this.panel = panelElement;
         this.tableBody = this.panel.querySelector('#alerts-table-body');
@@ -142,7 +163,7 @@ export class AlertSystem {
                 : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800';
 
             row.innerHTML = `
-                <td class="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200 group-hover:text-blue-500 transition-colors">${alert.buildingId}</td>
+                <td class="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200 group-hover:text-blue-500 transition-colors">${alert.buildingName || alert.buildingId}</td>
                 <td class="px-4 py-3">${alert.floorId}</td>
                 <td class="px-4 py-3 font-mono text-gray-500">${alert.elementId}</td>
                 <td class="px-4 py-3 uppercase text-[10px] tracking-wide">${alert.type}</td>

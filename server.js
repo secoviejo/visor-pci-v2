@@ -605,6 +605,32 @@ async function startServer() {
             }
         });
 
+        // 7.b Active Alerts API
+        app.get('/api/alerts/active', async (req, res) => {
+            try {
+                const sql = `
+                    SELECT a.*, b.name as building_name 
+                    FROM alerts a
+                    LEFT JOIN buildings b ON a.building_id = b.id
+                    WHERE a.status = 'ACTIVA' 
+                    ORDER BY a.started_at DESC
+                `;
+                const alerts = await db.query(sql);
+                // Map to frontend expectation
+                const mapped = alerts.map(a => ({
+                    ...a,
+                    buildingId: a.building_id,
+                    buildingName: a.building_name,
+                    floorId: a.floor_id,
+                    elementId: a.element_id,
+                    startedAt: a.started_at
+                }));
+                res.json(mapped);
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+
         // 8. Events API
         app.get('/api/events', authenticateToken, async (req, res) => {
             try {
