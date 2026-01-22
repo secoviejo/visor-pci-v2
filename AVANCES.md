@@ -1,21 +1,22 @@
 # Avances del Proyecto - Visor PCI (22 de Enero 2026)
 
-Hoy se ha centrado el trabajo en la **EXCELENCIA VISUAL** y la **INTERACTIVIDAD DINÁMICA**, logrando una interfaz premium y un mapa que responde inteligentemente al entorno.
+Hoy se ha centrado el trabajo en alcanzar la **MÁXIMA FIABILIDAD TÉCNICA** y la **EXCELENCIA VISUAL**, consolidando la comunicación con el hardware real y simplificando la interfaz.
 
-## 🚀 Hitos de Hoy (UI & UX)
+## 🚀 Hitos de Hoy
 
-### 1. Refactorización Total a Tailwind (Modo Oscuro)
-- El visor (`app.html`) ahora es 100% Tailwind CSS. Se ha eliminado todo el CSS legado que causaba conflictos de color.
-- Los paneles del **Simulador** y **Alertas** han sido rediseñados para integrarse en el tema oscuro con efectos de desenfoque y tipografía moderna.
-- Corrección definitiva de los desplegables (`select`) que no eran legibles en modo oscuro.
+### 1. Robustez en Comunicaciones Modbus (CRÍTICO)
+- **Lectura Estable**: Los dispositivos Modbus ahora se leen correctamente, superando los fallos de comunicación previos.
+- **Gestión de Configuración**: Corregida la edición de IPs y puertos; el sistema actualiza las conexiones en tiempo real.
+- **Supervisión de Red**: Implementado un sistema de **Ping/Conectividad** que monitoriza el estado de cada central 24/7.
 
-### 2. Auto-Resize Inteligente del Mapa
-- Implementación de un sistema que detecta cambios de tamaño en el viewport (al abrir/cerrar menús).
-- El mapa ahora **se centra y maximiza automáticamente** para aprovechar siempre el 100% del espacio disponible tras cualquier cambio en la UI.
+### 2. UI/UX Premium (Modo Oscuro & Tailwind)
+- **Refactorización Total**: El visor es ahora un entorno oscuro premium basado en Tailwind CSS, libre de CSS legado conflictivo.
+- **Controles Oscuros**: Arreglados los desplegables (`select`) y scrollbars para una legibilidad perfecta en negro.
+- **Dashboard Visual**: Tarjetas de campus rediseñadas con fotos maximizadas y mayor limpieza estética.
 
-### 3. Rediseño del Dashboard
-- Las tarjetas de los campus en la pantalla principal tienen ahora fotos más grandes e información más compacta y legible.
+### 3. Mapa Dinámico Adaptativo
+- **Auto-Resize**: El mapa se re-encuadra y maximiza su escala automáticamente al colapsar o expandir paneles laterales e inferiores.
+- **Respuesta Instantánea**: Interacción fluida sin necesidad de centrar el mapa manualmente tras cambios en la interfaz.
 
 ---
-*Para ver el detalle técnico de ayer (21 Ene), ver el historial del archivo.*
-
+**Resultado:** El sistema es ahora capaz de monitorizar hardware real con total confianza mientras ofrece una experiencia de usuario de nivel profesional.
