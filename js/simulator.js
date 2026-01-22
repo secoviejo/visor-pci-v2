@@ -142,19 +142,22 @@ export class Simulator {
             }
 
             const item = document.createElement('div');
-            item.className = 'sim-item';
+            // Tailwind classes: flex row, padding, border, hover effect
+            item.className = 'flex items-center justify-between p-3 border-b border-slate-800 hover:bg-slate-800/50 transition-colors group';
             item.dataset.id = d.db_id;
 
             const isChecked = d.db_id ? this.activeDeviceIds.has(d.db_id.toString()) : false;
 
+            // Updated HTML structure with Tailwind classes
             item.innerHTML = `
-                <div class="sim-item-info">
-                    <span class="sim-id">${d.n}</span>
-                    <span class="sim-type">${d.t}</span>
+                <div class="flex flex-col">
+                    <span class="font-bold text-white text-xs group-hover:text-blue-400 transition-colors">${d.n}</span>
+                    <span class="text-[10px] text-gray-500 uppercase tracking-wider">${d.t}</span>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" ${isChecked ? 'checked' : ''}>
-                    <span class="slider round"></span>
+                <!-- Custom Tailwind Toggle -->
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" ${isChecked ? 'checked' : ''} class="sr-only peer">
+                    <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
             `;
 

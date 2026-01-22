@@ -1,85 +1,46 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visor de Detectores de Incendio - Edificio CIRCE</title>
-    <!-- Intentamos cargar, pero el inline de abajo asegura que funcione si esto falla -->
+
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+
+    <!-- Custom legacy styles (kept for specific map markers logic) -->
+    <!-- We keep style.css for .hotspot definitions primarily, but override everything else -->
     <link rel="stylesheet" href="/css/style.css">
     <link rel="stylesheet" href="/css/simulator.css">
     <link rel="stylesheet" href="/css/alerts.css">
-    <link rel="stylesheet" href="/css/dark-mode.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'zaragoza-blue': '#2E6DA4',
+                        'zaragoza-dark': '#333333',
+                    },
+                    fontFamily: {
+                        sans: ['Segoe UI', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
 
     <style>
-        /* Estilos de emergencia para asegurar modo oscuro si falla el CSS externo */
-        :root {
-            --bg-color: #1a1a1a;
-            --panel-bg: #242424;
-            --text-color: #e0e0e0;
-            --accent-color: #2E6DA4;
-            --detector-color: #ef4444;
-            --pulsador-color: #3b82f6;
-            --sirena-color: #f59e0b;
-        }
+        /* Minimal essential styles to bridge Legacy JS and New Tailwind UI */
 
-        body.dark,
-        html.dark {
-            background-color: #0f172a !important;
-            color: #f8fafc !important;
-        }
-
-        header {
-            background: #1e293b !important;
-            border-bottom: 1px solid #334155 !important;
-            color: white !important;
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            height: 70px;
-        }
-
-        .btn-primary {
-            background: #3b82f6 !important;
-            border: none !important;
-            color: white !important;
-            cursor: pointer;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-weight: 500;
-        }
-
-        .btn-outline {
-            background: #334155 !important;
-            color: white !important;
-            border: 1px solid #475569 !important;
-            padding: 8px 16px;
-            border-radius: 6px;
-        }
-
-        #simulator-panel {
-            background: #1e293b !important;
-            border-left: 1px solid #334155 !important;
-            color: white !important;
-        }
-
-        .sim-item {
-            border-bottom: 1px solid #334155 !important;
-        }
-
-        .sim-item:hover {
-            background: #334155 !important;
-        }
-
-        #viewport {
-            background-color: #020617 !important;
-        }
-
-        /* Elementos PCI (Hotspots) */
+        /* Map Hotspots need absolutes which we control here or via JS */
         .hotspot {
             position: absolute;
-            width: 22px;
-            height: 22px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background-color: var(--detector-color);
             color: white;
@@ -92,31 +53,40 @@
             z-index: 10;
             border: 2px solid white;
             transform: translate(-50%, -50%);
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
-            transition: transform 0.2s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         .hotspot:hover {
             transform: translate(-50%, -50%) scale(1.3);
-            z-index: 20;
+            z-index: 50;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Color definitions for legacy JS reliance */
+        :root {
+            --detector-color: #ef4444;
+            --pulsador-color: #3b82f6;
+            --sirena-color: #f59e0b;
+            --central-color: #8b5cf6;
         }
 
         .type-detector {
-            background-color: #ef4444 !important;
+            background-color: var(--detector-color) !important;
         }
 
         .type-pulsador {
-            background-color: #3b82f6 !important;
+            background-color: var(--pulsador-color) !important;
             border-radius: 4px !important;
         }
 
         .type-sirena {
-            background-color: #f59e0b !important;
-            border: 2px solid #000 !important;
+            background-color: var(--sirena-color) !important;
+            border: 2px solid #333 !important;
         }
 
         .type-central {
-            background-color: #8b5cf6 !important;
+            background-color: var(--central-color) !important;
             border-radius: 2px !important;
         }
 
@@ -125,26 +95,67 @@
             border: 2px dashed white !important;
         }
 
-        /* Ajustes de Layout */
-        #map-container {
-            position: relative;
-            display: inline-block;
+        /* Force browser to use dark system controls (scrollbars, select dropdowns, etc.) */
+        html.dark {
+            color-scheme: dark;
         }
 
-        #plano-img {
-            max-width: 100%;
-            display: block;
+        /* Ensure select options are visible in all browsers */
+        select option {
+            background-color: #1e293b;
+            /* bg-slate-800 */
+            color: white;
         }
 
-        .header-logo img {
-            height: 40px !important;
-            width: auto;
+        /* Alerts Panel Minimized State */
+        #alerts-panel.minimized {
+            height: 48px !important;
+            /* Tailwind h-12 */
         }
 
-        header h1 {
-            font-size: 1.25rem !important;
-            margin: 0 15px !important;
-            white-space: nowrap;
+        #alerts-panel.minimized .alerts-content {
+            display: none;
+        }
+
+        #alerts-panel.minimized #btn-toggle-panel {
+            transform: rotate(180deg);
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(16, 185, 129, 0.9);
+            color: white;
+            padding: 10px 25px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
         }
     </style>
 
@@ -157,8 +168,11 @@
         window.toggleFilter = function (type) {
             console.log("Toggle filter:", type);
             const btn = document.getElementById('filter-' + type);
-            if (btn) btn.classList.toggle('btn-primary');
-            if (btn) btn.classList.toggle('btn-outline');
+            // Toggle tailwind classes visually
+            if (btn) {
+                btn.classList.toggle('opacity-50');
+                btn.classList.toggle('grayscale');
+            }
 
             const dots = document.querySelectorAll('.type-' + type);
             dots.forEach(d => {
@@ -169,184 +183,305 @@
     </script>
 </head>
 
-<body>
+<body
+    class="bg-slate-50 dark:bg-slate-950 h-screen flex flex-col font-sans overflow-hidden text-slate-800 dark:text-slate-200">
 
-    <header>
-        <div class="header-logo">
-            <img src="/logo_sec.png" alt="Universidad de Zaragoza" style="height: 50px;">
+    <!-- HEADER -->
+    <header
+        class="bg-slate-900 border-b border-slate-700 h-16 flex items-center justify-between px-6 shadow-md z-50 relative shrink-0">
+        <div class="flex items-center gap-4">
+            <img src="/logo_sec.png" alt="Universidad de Zaragoza" class="h-10 w-auto">
+            <h1 class="text-lg font-bold text-white hidden md:block">Instalación PCI - CIRCE</h1>
         </div>
-        <div>
-            <h1>Instalación PCI - CIRCE</h1>
-        </div>
-        <div class="controls">
-            <button id="theme-toggle" class="btn btn-outline" style="min-width: 40px; padding: 5px 10px;"
-                title="Cambiar Tema">
+
+        <div class="flex items-center gap-2">
+            <!-- Mode Toggle -->
+            <button id="theme-toggle"
+                class="p-2 rounded-lg bg-slate-800 text-gray-400 hover:text-white hover:bg-slate-700 transition-colors">
                 <i class="fa-solid fa-moon"></i>
             </button>
-            <button id="btn-login" class="btn btn-outline" onclick="window.location.href='index.html'">🔑 Login</button>
-            <button id="btn-logout" class="btn btn-outline" onclick="performLogout()" style="display: none;">🔒
-                Logout</button>
+            <button id="btn-login"
+                class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors border border-slate-600"
+                onclick="window.location.href='index.html'">
+                <i class="fa fa-key mr-1"></i> Login
+            </button>
+            <button id="btn-logout"
+                class="px-4 py-2 bg-red-900/50 hover:bg-red-800 text-red-200 rounded-lg text-sm font-medium transition-colors border border-red-800 hidden"
+                onclick="performLogout()">
+                <i class="fa fa-lock mr-1"></i> Logout
+            </button>
         </div>
-        <div class="controls" id="admin-controls"
-            style="display: none; border-left: 1px solid #ccc; padding-left: 10px; margin-left: 10px;">
-            <select id="building-select" class="form-control">
-                <option value="">Cargando edificios...</option>
-            </select>
-            <button class="btn btn-outline" onclick="openAddBuildingModal()" title="Nuevo Edificio">➕🏢</button>
 
-            <select id="floor-select" class="form-control">
-                <option>Selecciona Planta</option>
-            </select>
-            <button class="btn btn-outline" onclick="openAddFloorModal()" title="Nueva Planta">➕🖼️</button>
-            <button class="btn btn-primary" onclick="openAddModal()">➕ Elemento</button>
-            <button class="btn btn-outline" onclick="toggleEventsPanel()">📋 Eventos</button>
-        </div>
-        <div class="controls">
-            <!-- Common controls -->
-            <div
-                style="display: flex; gap: 5px; margin-right: 15px; border-right: 1px solid #ddd; padding-right: 15px;">
-                <button id="filter-detector" class="btn btn-primary" onclick="toggleFilter('detector')"
-                    title="Ocultar/Mostrar Detectores" style="font-size: 0.8rem; padding: 4px 10px;">Detectores</button>
-                <button id="filter-pulsador" class="btn btn-primary" onclick="toggleFilter('pulsador')"
-                    title="Ocultar/Mostrar Pulsadores" style="font-size: 0.8rem; padding: 4px 10px;">Pulsadores</button>
-                <button id="filter-sirena" class="btn btn-primary" onclick="toggleFilter('sirena')"
-                    title="Ocultar/Mostrar Sirenas" style="font-size: 0.8rem; padding: 4px 10px;">Sirenas</button>
-                <button id="filter-central" class="btn btn-primary" onclick="toggleFilter('central')"
-                    title="Ocultar/Mostrar Centrales" style="font-size: 0.8rem; padding: 4px 10px;">Centrales</button>
+        <!-- Admin Toolbar (Hidden by default) -->
+        <div class="controls flex items-center gap-2 ml-4 pl-4 border-l border-slate-700 hidden" id="admin-controls">
+            <div class="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
+                <select id="building-select"
+                    class="bg-transparent text-white text-xs border-none focus:ring-0 cursor-pointer max-w-[120px]">
+                    <option value="">Cargando...</option>
+                </select>
+                <button class="p-1 hover:bg-slate-600 rounded text-blue-400" onclick="openAddBuildingModal()"
+                    title="Nuevo Edificio">
+                    <i class="fa fa-plus-circle"></i>
+                </button>
             </div>
 
-            <select id="building-select-public" class="form-control">
-                <option value="">Cargando edificios...</option>
+            <div class="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700">
+                <select id="floor-select"
+                    class="bg-transparent text-white text-xs border-none focus:ring-0 cursor-pointer max-w-[120px]">
+                    <option>Planta</option>
+                </select>
+                <button class="p-1 hover:bg-slate-600 rounded text-green-400" onclick="openAddFloorModal()"
+                    title="Nueva Planta">
+                    <i class="fa fa-plus-circle"></i>
+                </button>
+            </div>
+
+            <button
+                class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shadow-sm transition-all whitespace-nowrap"
+                onclick="openAddModal()">
+                <i class="fa fa-plus mr-1"></i> Elemento
+            </button>
+            <button
+                class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-gray-300 rounded-lg text-xs font-bold border border-slate-600 whitespace-nowrap"
+                onclick="toggleEventsPanel()">
+                <i class="fa fa-list mr-1"></i> Eventos
+            </button>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Filter Toggles -->
+            <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+                <button id="filter-detector"
+                    class="px-2 py-1 text-[10px] font-bold uppercase rounded hover:bg-slate-700 text-red-400 transition-colors"
+                    onclick="toggleFilter('detector')" title="Detectores">Det</button>
+                <button id="filter-pulsador"
+                    class="px-2 py-1 text-[10px] font-bold uppercase rounded hover:bg-slate-700 text-blue-400 transition-colors"
+                    onclick="toggleFilter('pulsador')" title="Pulsadores">Pul</button>
+                <button id="filter-sirena"
+                    class="px-2 py-1 text-[10px] font-bold uppercase rounded hover:bg-slate-700 text-amber-400 transition-colors"
+                    onclick="toggleFilter('sirena')" title="Sirenas">Sir</button>
+                <button id="filter-central"
+                    class="px-2 py-1 text-[10px] font-bold uppercase rounded hover:bg-slate-700 text-purple-400 transition-colors"
+                    onclick="toggleFilter('central')" title="Centrales">CIE</button>
+            </div>
+
+            <!-- Public Selects -->
+            <select id="building-select-public"
+                class="bg-slate-800 text-white text-xs border border-slate-600 rounded px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none max-w-[150px]">
+                <option value="">Cargando...</option>
             </select>
-            <select id="floor-select-public" class="form-control">
-                <option>Selecciona Planta</option>
+            <select id="floor-select-public"
+                class="bg-slate-800 text-white text-xs border border-slate-600 rounded px-2 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none max-w-[150px]">
+                <option>Planta</option>
             </select>
-            <button class="btn btn-outline" onclick="resetView()">🎯 Centrar</button>
+
+            <button
+                class="p-2 bg-red-600 text-white rounded-lg hover:bg-red-500 shadow-md transition-all text-xs font-bold whitespace-nowrap"
+                onclick="resetView()">
+                <i class="fa fa-crosshairs"></i> Centrar
+            </button>
         </div>
     </header>
 
+    <!-- BREADCRUMBS -->
     <div id="breadcrumbs"
-        style="background: #f9f9f9; padding: 10px 20px; border-bottom: 1px solid #ddd; font-size: 0.9em; display: flex; align-items: center; gap: 8px;">
-        <a href="dashboard.html" style="text-decoration: none; color: #2E6DA4;"><i class="fa fa-home"></i> Inicio</a>
-        <span style="color: #999;">/</span>
-        <a href="javascript:void(0)" id="bc-campus" style="text-decoration: none; color: #666;">Campus</a>
-        <span style="color: #999;">/</span>
-        <span id="bc-building" style="color: #333; font-weight: bold;">Edificio...</span>
-        <!-- Optional Floor Breadcrumb if needed -->
+        class="bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 py-2 px-6 text-sm flex items-center gap-2 shrink-0">
+        <a href="dashboard.html" class="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"><i
+                class="fa fa-home"></i> Inicio</a>
+        <span class="text-gray-400">/</span>
+        <a href="javascript:void(0)" id="bc-campus"
+            class="text-gray-600 dark:text-gray-300 hover:text-blue-500">Campus</a>
+        <span class="text-gray-400">/</span>
+        <span id="bc-building" class="font-bold text-gray-800 dark:text-white">Edificio...</span>
     </div>
 
     <div class="toast" id="toast">✅ Acción realizada</div>
 
-    <div id="main-container" style="display: flex; flex: 1; overflow: hidden; position: relative;">
+    <!-- MAIN CONTENT -->
+    <div id="main-container" class="flex flex-1 relative overflow-hidden">
+
         <!-- VIEWPORT (MAPA) -->
         <div id="viewport"
-            style="flex: 1; position: relative; overflow: hidden; background-color: #e5e5e5; display: flex; align-items: center; justify-content: center;">
-            <div id="empty-state">
+            class="flex-1 relative overflow-hidden bg-gray-200 dark:bg-[#020617] flex items-center justify-center cursor-grab">
+            <!-- Decorative grid -->
+            <div class="absolute inset-0 opacity-5 pointer-events-none"
+                style="background-image: radial-gradient(#94a3b8 1px, transparent 1px); background-size: 20px 20px;">
+            </div>
+
+            <div id="empty-state" class="text-gray-400 text-lg font-light">
                 <h3>Cargando sistema...</h3>
             </div>
 
-            <div id="map-container">
-                <img id="plano-img" src="" alt="Plano">
+            <div id="map-container" class="relative inline-block transition-transform duration-100 ease-out">
+                <img id="plano-img" src="" alt="Plano" class="max-w-none block pointer-events-none">
                 <!-- Puntos renderizados dinámicamente -->
             </div>
 
-            <div class="legend">
-                <div class="legend-item" style="color:#666; font-style:italic; margin-bottom:10px;">
-                    Mantén pulsado para mover
+            <!-- LEGEND -->
+            <div
+                class="absolute bottom-4 right-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur p-3 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 text-xs pointer-events-none">
+                <div class="italic text-gray-500 dark:text-gray-400 mb-2">Mantén pulsado para mover</div>
+                <div class="flex items-center mb-1 text-gray-700 dark:text-gray-300">
+                    <div class="w-3 h-3 rounded-full bg-red-500 mr-2 border border-black/10"></div>Detector
                 </div>
-                <div class="legend-item">
-                    <div class="legend-dot circle" style="background:var(--detector-color)"></div>Detector
+                <div class="flex items-center mb-1 text-gray-700 dark:text-gray-300">
+                    <div class="w-3 h-3 rounded bg-blue-500 mr-2 border border-black/10"></div>Pulsador
                 </div>
-                <div class="legend-item">
-                    <div class="legend-dot square" style="background:var(--pulsador-color)"></div>Pulsador
+                <div class="flex items-center mb-1 text-gray-700 dark:text-gray-300">
+                    <div class="w-3 h-3 rounded-full bg-yellow-500 border border-black mr-2"></div>Sirena
                 </div>
-                <div class="legend-item">
-                    <div class="legend-dot circle" style="background:var(--sirena-color); border:1px solid #333"></div>
-                    Sirena
-                </div>
-                <div class="legend-item">
-                    <div class="legend-dot square" style="background:var(--central-color)"></div>
-                    Central
+                <div class="flex items-center text-gray-700 dark:text-gray-300">
+                    <div class="w-3 h-3 rounded bg-purple-500 mr-2 border border-black/10"></div>Central
                 </div>
             </div>
         </div>
 
-        <!-- SIMULATOR PANEL (Refactored to Explorer) -->
-        <!-- SIMULATOR PANEL (Refactored to Explorer) -->
-        <div id="simulator-panel">
+        <!-- SIMULATOR PANEL -->
+        <div id="simulator-panel"
+            class="w-80 bg-slate-900 border-l border-slate-700 flex flex-col shadow-xl z-40 transition-all duration-300 transform translate-x-0">
             <!-- Collapse/Expand Button -->
-            <button class="panel-collapse-btn" id="panel-collapse-btn" onclick="toggleSimulatorPanel()"
-                title="Minimizar/Expandir Panel">
+            <button
+                class="absolute -left-3 top-1/2 bg-slate-700 text-white p-1 rounded-full shadow-md hover:bg-slate-600 transition-colors border border-slate-600 z-50 w-6 h-6 flex items-center justify-center text-xs"
+                id="panel-collapse-btn" onclick="toggleSimulatorPanel()" title="Minimizar/Expandir Panel">
                 <i class="fa-solid fa-chevron-right"></i>
             </button>
 
             <!-- Wrapper for content to maintain width during animation -->
-            <div class="sim-content-wrapper">
-                <div class="sim-header">
-                    <h3>Explorador & Simulador</h3>
-                    <button id="sim-toggle-global" class="btn btn-outline"
-                        style="width: 100%; justify-content: center; font-size: 0.8rem; margin-top: 5px;">Simulación
-                        OFF</button>
+            <div class="flex flex-col h-full overflow-hidden">
+                <div class="p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm">
+                    <h3 class="text-white font-bold text-sm mb-2"><i
+                            class="fa-solid fa-microchip mr-2 text-blue-400"></i>Explorador & Simulador</h3>
+                    <button id="sim-toggle-global"
+                        class="w-full text-xs py-1.5 rounded bg-slate-800 border border-slate-600 text-gray-300 hover:text-white hover:border-slate-500 transition-all font-mono">
+                        Simulación OFF
+                    </button>
                 </div>
 
-                <div class="sim-controls">
-                    <input type="text" id="sim-filter-input" placeholder="Buscar ID o Tipo..." class="form-control"
-                        style="width: 100%; margin-bottom: 8px;">
-                    <div style="display: flex; gap: 5px;">
-                        <button id="sim-btn-all" class="btn btn-primary" style="flex: 1; font-size: 0.75rem;">Activar
+                <div class="p-3 bg-slate-800/30 border-b border-slate-800">
+                    <input type="text" id="sim-filter-input" placeholder="Buscar ID o Tipo..."
+                        class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-blue-500 outline-none mb-2">
+                    <div class="flex gap-2">
+                        <button id="sim-btn-all"
+                            class="flex-1 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold uppercase tracking-wider transition-colors">Activar
                             Todo</button>
-                        <button id="sim-btn-none" class="btn btn-outline"
-                            style="flex: 1; font-size: 0.75rem;">Desactivar</button>
+                        <button id="sim-btn-none"
+                            class="flex-1 py-1 bg-slate-700 hover:bg-slate-600 text-gray-300 rounded text-[10px] font-bold uppercase tracking-wider transition-colors">Desactivar</button>
                     </div>
                 </div>
 
-                <div id="sim-list-container">
+                <div id="sim-list-container"
+                    class="flex-1 overflow-y-auto p-0 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
                     <!-- Items injected by JS -->
+                    <div class="p-8 text-center text-gray-500 text-xs italic">Cargando dispositivos...</div>
                 </div>
 
-                <div class="sim-footer">
-                    Activos: <span id="sim-active-count">0 / 0</span>
+                <div
+                    class="p-2 border-t border-slate-800 bg-slate-900 text-[10px] text-gray-500 flex justify-between px-4">
+                    <span>STATUS</span>
+                    <span id="sim-active-count" class="font-mono text-blue-400">0 / 0</span>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- EVENTS HISTORY PANEL (Floating) -->
+    <div id="events-panel"
+        class="absolute right-80 top-20 w-80 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 shadow-2xl rounded-lg hidden flex-col max-h-[500px] z-50 overflow-hidden">
+        <div
+            class="flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-slate-700/50 border-b border-gray-200 dark:border-slate-600">
+            <h3 class="text-sm font-bold text-gray-800 dark:text-white"><i
+                    class="fa-solid fa-clock-rotate-left mr-2 text-gray-500"></i>Historial de Eventos</h3>
+            <button
+                onclick="document.getElementById('events-panel').classList.add('hidden'); document.getElementById('events-panel').style.display = 'none';"
+                class="text-gray-400 hover:text-red-500 transition-colors">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+        <div class="events-list overflow-y-auto flex-1 p-2 bg-white dark:bg-slate-800" id="events-list">
+            <div class="text-center text-gray-400 py-8 text-xs">Cargando...</div>
+        </div>
     </div>
 
-    <!-- EVENTS HISTORY PANEL -->
-    <div id="events-panel"
-        style="position:absolute; right:320px; top:80px; width:300px; background:white; border:1px solid #ccc; box-shadow:-2px 0 10px rgba(0,0,0,0.1); display:none; flex-direction:column; max-height:calc(100% - 160px); z-index: 1000;">
+    <!-- ALERTS PANEL (Bottom) -->
+    <div id="alerts-panel"
+        class="fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 shadow-[0_-5px_20px_rgba(0,0,0,0.3)] z-[60] transition-all duration-300 h-72 flex flex-col">
         <div
-            style="padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc; display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="margin:0; font-size:1rem;">Historial de Eventos</h3>
-            <button onclick="document.getElementById('events-panel').style.display='none'"
-                style="background:none; border:none; cursor:pointer; font-size:1.2rem;">×</button>
+            class="alerts-header flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-slate-950 border-b border-gray-200 dark:border-slate-800 h-12 shrink-0">
+            <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-red-500"></i> Alertas del Sistema
+            </h3>
+            <div class="alerts-actions flex items-center gap-2">
+                <select id="alert-filter-select" onchange="alerts.setFilter(this.value)"
+                    class="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-none">
+                    <option value="ALL">Todas</option>
+                    <option value="ACTIVA">Activas</option>
+                    <option value="RESUELTA">Resueltas</option>
+                </select>
+                <button id="btn-refresh-alerts" onclick="alerts.refreshSummary()"
+                    class="p-1 text-gray-500 hover:text-blue-500 transition-colors" title="Sincronizar">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+                <button id="btn-clear-resolved" onclick="alerts.clearResolved()"
+                    class="text-xs bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 px-2 py-1.5 rounded transition-colors">
+                    Limpiar Resueltas
+                </button>
+                <button id="btn-toggle-panel"
+                    onclick="document.getElementById('alerts-panel').classList.toggle('minimized')"
+                    class="ml-2 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-slate-800 transition-all">
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+            </div>
         </div>
-        <div class="events-list" id="events-list" style="overflow-y:auto; flex:1; padding:10px;">
-            <div style="text-align:center; color:#999; padding:20px;">Cargando...</div>
+        <div class="alerts-content flex-1 overflow-auto bg-white dark:bg-slate-900 p-0">
+            <table class="w-full text-sm text-left border-collapse">
+                <thead
+                    class="bg-gray-50 dark:bg-slate-950 sticky top-0 z-10 text-xs uppercase text-gray-500 dark:text-gray-400">
+                    <tr>
+                        <th class="px-4 py-2 font-medium">Edificio</th>
+                        <th class="px-4 py-2 font-medium">Planta</th>
+                        <th class="px-4 py-2 font-medium">ID</th>
+                        <th class="px-4 py-2 font-medium">Tipo</th>
+                        <th class="px-4 py-2 font-medium">Ubicación</th>
+                        <th class="px-4 py-2 font-medium">Hora</th>
+                        <th class="px-4 py-2 font-medium">Origen</th>
+                        <th class="px-4 py-2 font-medium">Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-table-body" class="divide-y divide-gray-100 dark:divide-slate-800">
+                    <!-- Rows injected by alerts.js -->
+                </tbody>
+            </table>
         </div>
     </div>
 
     <!-- MODAL INFO (EDITABLE) -->
-    <div class="modal-overlay" id="modal-info">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Editar Equipo</h3>
-                <button class="close-modal" onclick="closeModal('modal-info')">×</button>
+    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4 transition-opacity duration-300"
+        id="modal-info">
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-slate-700 transform scale-95 transition-transform duration-200">
+            <div
+                class="bg-gray-50 dark:bg-slate-700/50 px-6 py-4 border-b border-gray-200 dark:border-slate-600 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white"><i
+                        class="fa-solid fa-pen-to-square mr-2 text-blue-500"></i>Editar Equipo</h3>
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+                    onclick="closeModal('modal-info')">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
             </div>
-            <div class="modal-body" style="text-align: left;">
-
-                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                    <div style="flex: 1;">
-                        <label style="font-size: 0.8rem; color: #666;">Número</label>
-                        <input type="text" id="edit-num" class="form-control"
-                            style="width: 100%; box-sizing: border-box; font-size: 1.5rem; font-weight: bold; text-align: center;">
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="col-span-1">
+                        <label
+                            class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Número</label>
+                        <input type="text" id="edit-num"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xl font-bold text-center text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                     </div>
-                    <div style="width: 120px;">
-                        <label style="font-size: 0.8rem; color: #666;">Tipo</label>
-                        <select id="edit-type" class="form-control" style="width: 100%; margin-top: 5px;">
+                    <div class="col-span-2">
+                        <label
+                            class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Tipo</label>
+                        <select id="edit-type"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                             <option value="detector">Detector</option>
-                            <option value="detector">Detector Falso Techo (Deprecated - use detector_ft)</option>
-                            <!-- Temporary fix until logic update -->
                             <option value="detector_ft">Detector Falso Techo</option>
                             <option value="pulsador">Pulsador</option>
                             <option value="sirena">Sirena</option>
@@ -355,43 +490,61 @@
                     </div>
                 </div>
 
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 0.8rem; color: #666;">Ubicación</label>
-                    <input type="text" id="edit-loc" class="form-control" style="width: 100%; box-sizing: border-box;">
+                <div>
+                    <label
+                        class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Ubicación</label>
+                    <input type="text" id="edit-loc"
+                        class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
 
-                <div style="margin-bottom: 20px;">
-                    <label style="font-size: 0.8rem; color: #666;">ID Sistema</label>
-                    <input type="text" id="edit-id" class="form-control"
-                        style="width: 100%; box-sizing: border-box; font-family: monospace;">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">ID
+                        Sistema</label>
+                    <input type="text" id="edit-id"
+                        class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm font-mono text-gray-600 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
 
-                <button id="btn-activate-siren" class="btn btn-primary"
-                    style="display: none; width: 100%; margin-bottom: 10px;">🔔 Activar Sirena Física</button>
+                <button id="btn-activate-siren"
+                    class="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-2 px-4 rounded hidden mb-2 transition-colors">
+                    🔔 Activar Sirena Física
+                </button>
 
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-primary" onclick="saveDeviceEdits()" style="flex: 1;">💾 Guardar
-                        Cambios</button>
-                    <button id="btn-delete-device" class="btn btn-outline"
-                        style="border-color: red; color: red;">🗑️</button>
+                <div class="pt-4 flex gap-3">
+                    <button
+                        class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg font-bold shadow-lg transition-colors"
+                        onclick="saveDeviceEdits()">
+                        <i class="fa-solid fa-floppy-disk mr-2"></i>Guardar Cambios
+                    </button>
+                    <button id="btn-delete-device"
+                        class="px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
                 </div>
-
             </div>
         </div>
     </div>
 
     <!-- MODAL ADD DEVICE -->
-    <div class="modal-overlay" id="modal-add">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Añadir Dispositivo</h3>
-                <button class="close-modal" onclick="closeModal('modal-add')">×</button>
+    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4 transition-opacity duration-300"
+        id="modal-add">
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+            <div
+                class="bg-gray-50 dark:bg-slate-700/50 px-6 py-4 border-b border-gray-200 dark:border-slate-600 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white"><i
+                        class="fa-solid fa-plus-circle mr-2 text-green-500"></i>Añadir Dispositivo</h3>
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+                    onclick="closeModal('modal-add')">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
             </div>
-            <div class="modal-body" style="text-align: left;">
-                <form id="add-form" onsubmit="saveNewDevice(event)">
-                    <div style="margin-bottom: 10px;">
-                        <label>Tipo:</label>
-                        <select id="add-type" class="form-control" style="width: 100%; margin-top: 5px;">
+            <div class="p-6">
+                <form id="add-form" onsubmit="saveNewDevice(event)" class="space-y-4">
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Tipo</label>
+                        <select id="add-type"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 outline-none">
                             <option value="detector">Detector</option>
                             <option value="detector_ft">Detector Falso Techo</option>
                             <option value="pulsador">Pulsador</option>
@@ -399,111 +552,100 @@
                             <option value="central">Central de Incendios</option>
                         </select>
                     </div>
-                    <div style="margin-bottom: 10px;">
-                        <label>Número / Etiqueta:</label>
-                        <input type="text" id="add-number" class="form-control"
-                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Número /
+                            Etiqueta</label>
+                        <input type="text" id="add-number"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 outline-none"
+                            required>
                     </div>
-                    <div style="margin-bottom: 15px;">
-                        <label>Ubicación:</label>
-                        <input type="text" id="add-loc" class="form-control"
-                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required>
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Ubicación</label>
+                        <input type="text" id="add-loc"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 outline-none"
+                            required>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%">Guardar</button>
+                    <button type="submit"
+                        class="w-full bg-green-600 hover:bg-green-500 text-white py-2 rounded-lg font-bold shadow-lg transition-colors mt-2">
+                        Guardar Dispositivo
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 
     <!-- MODAL ADD BUILDING -->
-    <div class="modal-overlay" id="modal-add-building">
-        <div class="modal" style="max-width: 300px;">
-            <div class="modal-header">
-                <h3>Añadir Nuevo Edificio</h3>
-                <button class="close-modal" onclick="closeModal('modal-add-building')">×</button>
+    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4"
+        id="modal-add-building">
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+            <div
+                class="bg-gray-50 dark:bg-slate-700/50 px-6 py-4 border-b border-gray-200 dark:border-slate-600 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">Nuevo Edificio</h3>
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+                    onclick="closeModal('modal-add-building')">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
             </div>
-            <div class="modal-body">
-                <form onsubmit="saveNewBuilding(event)">
-                    <div style="margin-bottom: 15px;">
-                        <input type="text" id="add-building-name" class="form-control"
-                            style="width: 100%; box-sizing: border-box;" required placeholder="Nombre del Edificio">
+            <div class="p-6">
+                <form onsubmit="saveNewBuilding(event)" class="space-y-4">
+                    <div>
+                        <input type="text" id="add-building-name"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            required placeholder="Nombre del Edificio">
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%">Crear Edificio</button>
+                    <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg font-bold shadow-lg transition-colors">
+                        Crear Edificio
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 
     <!-- MODAL ADD FLOOR -->
-    <div class="modal-overlay" id="modal-add-floor">
-        <div class="modal">
-            <div class="modal-header">
-                <h3>Añadir Nueva Planta</h3>
-                <button class="close-modal" onclick="closeModal('modal-add-floor')">×</button>
+    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] hidden flex items-center justify-center p-4"
+        id="modal-add-floor">
+        <div
+            class="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden border border-gray-200 dark:border-slate-700">
+            <div
+                class="bg-gray-50 dark:bg-slate-700/50 px-6 py-4 border-b border-gray-200 dark:border-slate-600 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800 dark:text-white">Nueva Planta</h3>
+                <button class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors"
+                    onclick="closeModal('modal-add-floor')">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
             </div>
-            <div class="modal-body" style="text-align: left;">
-                <form id="add-floor-form" onsubmit="saveNewFloor(event)">
-                    <div style="margin-bottom: 15px;">
-                        <label>Nombre de la Planta:</label>
-                        <input type="text" id="add-floor-name" class="form-control"
-                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" required
-                            placeholder="Ej. Planta 2">
+            <div class="p-6">
+                <form id="add-floor-form" onsubmit="saveNewFloor(event)" class="space-y-4">
+                    <div>
+                        <label
+                            class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Nombre</label>
+                        <input type="text" id="add-floor-name"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            required placeholder="Ej. Planta 2">
                     </div>
-                    <div style="margin-bottom: 15px;">
-                        <label>Imagen del Plano:</label>
-                        <input type="file" id="add-floor-file" class="form-control"
-                            style="width: 100%; box-sizing: border-box; margin-top: 5px;" accept="image/*" required>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Plano
+                            (Imagen)</label>
+                        <input type="file" id="add-floor-file"
+                            class="w-full bg-gray-100 dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-white"
+                            accept="image/*" required>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%">Subir y Crear</button>
+                    <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg font-bold shadow-lg transition-colors mt-2">
+                        Subir y Crear
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- MODAL LOGIN REMOVED - NOW USES index.html -->
-
-
-    <div class="footer-bar">
-        Desarrollado por Luis Enrique Seco <span style="font-weight: bold;">UNIDAD DE SEGURIDAD</span>
-    </div>
-
-    <!-- ALERTS PANEL -->
-    <div id="alerts-panel">
-        <div class="alerts-header">
-            <h3>Alertas del Sistema</h3>
-            <div class="alerts-actions">
-                <select id="alert-filter-select" onchange="alerts.setFilter(this.value)"
-                    style="margin-right: 5px; padding: 2px;">
-                    <option value="ALL">Todas</option>
-                    <option value="ACTIVA">Activas</option>
-                    <option value="RESUELTA">Resueltas</option>
-                </select>
-                <button id="btn-refresh-alerts" onclick="alerts.refreshSummary()"
-                    title="Sincronizar con Simulador">🔄</button>
-                <button id="btn-clear-resolved" onclick="alerts.clearResolved()">Limpiar Resueltas</button>
-                <button id="btn-toggle-panel"
-                    onclick="document.getElementById('alerts-panel').classList.toggle('minimized')">_</button>
-            </div>
-        </div>
-        <div class="alerts-content">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Edificio</th>
-                        <th>Planta</th>
-                        <th>ID</th>
-                        <th>Tipo</th>
-                        <th>Ubicación</th>
-                        <th>Hora</th>
-                        <th>Origen</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody id="alerts-table-body">
-                    <!-- Rows injected by alerts.js -->
-                </tbody>
-            </table>
-        </div>
+    <div
+        class="footer-bar bg-slate-900 border-t border-slate-700 text-xs text-gray-500 text-center py-2 fixed bottom-0 w-full z-10 hidden">
+        Desarrollado por Luis Enrique Seco <span class="font-bold text-gray-400">UNIDAD DE SEGURIDAD</span>
     </div>
 
     <!-- SCRIPTS -->
@@ -540,16 +682,35 @@
         // ========== SIMULATOR PANEL TOGGLE ==========
         window.toggleSimulatorPanel = function () {
             const panel = document.getElementById('simulator-panel');
-            const isCollapsed = panel.classList.toggle('collapsed');
+            const btnIcon = document.querySelector('#panel-collapse-btn i');
 
-            // Save state to localStorage
-            localStorage.setItem('simulator-panel-collapsed', isCollapsed);
+            if (panel.style.transform === 'translateX(100%)' || panel.classList.contains('translate-x-full')) {
+                // EXPAND
+                panel.style.transform = 'translateX(0)';
+                panel.classList.remove('translate-x-full');
+                panel.classList.remove('w-0');
+                panel.classList.add('w-80');
+                btnIcon.className = 'fa-solid fa-chevron-right';
+                localStorage.setItem('simulator-panel-collapsed', 'false');
+            } else {
+                // COLLAPSE
+                panel.style.transform = 'translateX(100%)';
+                panel.classList.add('translate-x-full');
+                panel.classList.remove('w-80');
+                panel.classList.add('w-0');
+                btnIcon.className = 'fa-solid fa-chevron-left';
+                localStorage.setItem('simulator-panel-collapsed', 'true');
+            }
         };
 
         // Load saved panel state
         const savedPanelState = localStorage.getItem('simulator-panel-collapsed');
         if (savedPanelState === 'true') {
-            document.getElementById('simulator-panel').classList.add('collapsed');
+            // Initial collapsed state
+            const panel = document.getElementById('simulator-panel');
+            panel.classList.add('translate-x-full', 'w-0');
+            panel.classList.remove('w-80');
+            document.querySelector('#panel-collapse-btn i').className = 'fa-solid fa-chevron-left';
         }
     </script>
 </body>

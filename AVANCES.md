@@ -1,33 +1,21 @@
-# Avances del Proyecto - Visor PCI (21 de Enero 2026)
+# Avances del Proyecto - Visor PCI (22 de Enero 2026)
 
-Hoy hemos realizado una transición crítica del sistema a un entorno de producción real en el servidor de la Universidad de Zaragoza.
+Hoy se ha centrado el trabajo en la **EXCELENCIA VISUAL** y la **INTERACTIVIDAD DINÁMICA**, logrando una interfaz premium y un mapa que responde inteligentemente al entorno.
 
-## 🚀 Hitos Conseguidos
+## 🚀 Hitos de Hoy (UI & UX)
 
-### 1. Migración Exitosa a MySQL
-- Se ha pasado de una base de datos local SQLite a la base de datos **MySQL de producción** de la Universidad (`visor_pci_mysql.unizar.es`).
-- Implementación de un **Adaptador de Base de Datos** (`database.js`) que permite conmutar entre SQLite y MySQL de forma transparente.
-- Refactorización de todos los endpoints de la API en `server.js` para usar `async/await` y prevenir bloqueos.
+### 1. Refactorización Total a Tailwind (Modo Oscuro)
+- El visor (`app.html`) ahora es 100% Tailwind CSS. Se ha eliminado todo el CSS legado que causaba conflictos de color.
+- Los paneles del **Simulador** y **Alertas** han sido rediseñados para integrarse en el tema oscuro con efectos de desenfoque y tipografía moderna.
+- Corrección definitiva de los desplegables (`select`) que no eran legibles en modo oscuro.
 
-### 2. Estabilidad del Servidor (Anti-502)
-- Se ha implementado un mecanismo de **Arranque Seguro**: El servidor abre el puerto web inmediatamente antes de intentar conectar a la base de datos o hardware. Esto evita los errores "502 Bad Gateway" en Nginx si hay latencia en la conexión.
+### 2. Auto-Resize Inteligente del Mapa
+- Implementación de un sistema que detecta cambios de tamaño en el viewport (al abrir/cerrar menús).
+- El mapa ahora **se centra y maximiza automáticamente** para aprovechar siempre el 100% del espacio disponible tras cualquier cambio en la UI.
 
-### 3. Visualización y UX Premium
-- **Modo Oscuro Forzado**: Se han inyectado estilos críticos directamente en `app.html` para asegurar que el diseño premium (fondo oscuro, botones estilizados) se cargue correctamente incluso cuando el servidor de la universidad bloquea archivos CSS externos.
-- **Explorador Lateral**: Nueva funcionalidad en el visor que permite buscar dispositivos por ID, ubicación o tipo y localizarlos en el plano.
-- **Hotspots Visibles**: Se ha solucionado el problema de invisibilidad de los detectores en producción mediante inyección de CSS inline y rutas absolutas.
-
-### 4. Integración y Notificaciones
-- Actualización del servicio de notificaciones con soporte para:
-    - **Email (SMTP/Gmail)**.
-    - **SMS (Twilio)**.
-    - **Telegram**.
-- Mejoras en la integración Modbus/BACnet para el monitoreo real de centrales.
-- **Centralización de Simulación**: Se ha movido la herramienta de "Simulación de Incidencias" al Panel de Administración como una nueva pestaña integrada, eliminando el acceso directo del dashboard para una gestión más segura y organizada.
-
-### 5. Robustez en el Frontend
-- Implementación de **rutas absolutas** para todos los assets para evitar problemas de resolución de rutas tras el proxy de la universidad.
-- Unificación de claves de datos de dispositivos (soporte para claves cortas y largas) para evitar errores de visualización.
+### 3. Rediseño del Dashboard
+- Las tarjetas de los campus en la pantalla principal tienen ahora fotos más grandes e información más compacta y legible.
 
 ---
-**Estado Actual:** El sistema está operativo y cargando datos reales en `http://visor_pci.unizar.es/`.
+*Para ver el detalle técnico de ayer (21 Ene), ver el historial del archivo.*
+

@@ -543,7 +543,41 @@ window.resetView = function () {
     pointY = 0;
 
     setTransform();
+    setTransform();
 };
+
+// ===========================================
+// AUTO-RESIZE OBSERVER
+// ===========================================
+// Trigger resetView when the viewport size changes (e.g. panel toggle)
+const resizeObserver = new ResizeObserver(entries => {
+    for (const entry of entries) {
+        // Debounce slightly to wait for transition to finish if any, 
+        // though ResizeObserver fires continuously during resizing. 
+        // Since transitions take ~300ms, we might want to wait or just fit continuously.
+        // For smoother UX during transition, maybe wait? 
+        // Or simply call resetView() if not dragging.
+        if (!isDragMode && !isPanning && mapImg.src) {
+            // We can use requestAnimationFrame for performance
+            requestAnimationFrame(() => window.resetView());
+        }
+    }
+});
+
+// Observe the container
+if (viewport) {
+    resizeObserver.observe(viewport);
+}
+
+// Also hook into specific panel toggle events if we want exact timing after transition
+// But Observer handles 'width' changes well.
+// We can also add a transitionend listener to main-container children?
+document.getElementById('simulator-panel')?.addEventListener('transitionend', () => {
+    if (!isDragMode && !isPanning) window.resetView();
+});
+document.getElementById('alerts-panel')?.addEventListener('transitionend', () => {
+    if (!isDragMode && !isPanning) window.resetView();
+});
 
 // ===========================================
 // FILTER LOGIC
