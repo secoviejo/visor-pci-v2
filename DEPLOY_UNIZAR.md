@@ -1,4 +1,4 @@
-# Instrucciones de Despliegue - Servidor Universidad de Zaragoza
+# Instrucciones de Despliegue - Servidor Universidad de Zaragoza (WinSCP)
 
 ## Archivos Modificados en este Commit
 
@@ -16,36 +16,40 @@
 
 ---
 
-## Pasos para Subir al Servidor de la Universidad
+## Pasos para Subir al Servidor de la Universidad (con WinSCP)
 
-### 1. Conectar al Servidor
-```bash
-ssh tu_usuario@visor_pci.unizar.es
-```
+### 1. Abrir WinSCP y Conectar
+- Abrir WinSCP
+- Conectar a: `w_visor_pci@visor_pci.webunizar.es`
+- Navegar al directorio del proyecto (lado derecho)
 
-### 2. Navegar al Directorio del Proyecto
-```bash
-cd /ruta/al/proyecto/visor-pci
-```
+### 2. Hacer Backup (MUY RECOMENDADO)
+**Antes de subir nada**, crear una copia de seguridad:
+1. En WinSCP, seleccionar la carpeta raíz del proyecto
+2. Click derecho → **Duplicar**
+3. Renombrar a: `visor-pci-backup-YYYYMMDD` (ejemplo: `visor-pci-backup-20260122`)
 
-### 3. Hacer Backup (Recomendado)
-```bash
-cp -r . ../visor-pci-backup-$(date +%Y%m%d-%H%M%S)
-```
+### 3. Subir Archivos Nuevos
+Desde tu PC local (`c:\dev\visor-pci-final`), arrastrar estos archivos al servidor:
 
-### 4. Actualizar Código desde Git
-```bash
-git fetch origin
-git pull origin feature/mysql-async-refactor
-```
+**Carpeta `js/services/`:**
+- Arrastrar `connectivityService.js` → `/js/services/` (servidor)
 
-### 5. Instalar Dependencias (si es necesario)
-```bash
-npm install
-```
+**Carpeta `scripts/`:**
+- Arrastrar `simulator_headless.js` → `/scripts/` (servidor)
 
-### 6. Verificar Variables de Entorno
-Asegúrate de que el archivo `.env` en el servidor tenga:
+### 4. Sobrescribir Archivos Modificados
+Arrastrar y **sobrescribir** estos archivos (WinSCP preguntará, confirmar "Sí"):
+
+- `server.js` → raíz del proyecto
+- `dashboard.html` → raíz del proyecto  
+- `admin.html` → raíz del proyecto
+- `js/api.js` → `/js/`
+- `js/services/modbusService.js` → `/js/services/`
+- `js/services/bacnetService.js` → `/js/services/`
+
+### 5. Verificar que `.env` esté Correcto
+En WinSCP, abrir el archivo `.env` del servidor (doble click) y verificar:
 ```env
 DB_CLIENT=mysql
 DB_HOST=visor_pci_mysql.unizar.es
@@ -58,38 +62,43 @@ NODE_ENV=production
 ENABLE_HARDWARE=false
 ```
 
-### 7. Reiniciar el Servicio
-Dependiendo de cómo esté configurado el servidor:
+### 6. Reiniciar el Servicio Node.js
 
-**Si usa PM2:**
+**Opción A: Usando PuTTY (si tienes acceso)**
 ```bash
 pm2 restart visor-pci
 pm2 logs visor-pci --lines 50
 ```
 
-**Si usa systemd:**
-```bash
-sudo systemctl restart visor-pci
-sudo systemctl status visor-pci
-```
+**Opción B: Desde el Panel de Control de la Universidad**
+- Acceder al panel web de gestión del servidor
+- Buscar el servicio "visor-pci" o "Node.js"
+- Click en "Reiniciar" o "Restart"
 
-**Si es manual:**
-```bash
-# Detener proceso actual
-pkill -f "node server.js"
+**Opción C: Contactar con el Administrador**
+Si no tienes permisos para reiniciar, enviar un correo al administrador del servidor solicitando:
+> "Por favor, reiniciar el servicio Node.js del proyecto visor-pci para aplicar las actualizaciones"
 
-# Iniciar nuevo proceso
-nohup node server.js > logs/server.log 2>&1 &
-```
+### 7. Verificar que Funciona
+Abrir en el navegador:
+- **Dashboard:** `http://visor_pci.unizar.es/dashboard.html`
+- Verificar que el widget "ESTADO DISPOSITIVOS" muestra datos (puede ser "N/A" si no hay IPs configuradas aún)
 
-### 8. Verificar que Funciona
-```bash
-# Verificar que el servidor responde
-curl http://localhost:3000/api/status
+---
 
-# Verificar conectividad de dispositivos
-curl http://localhost:3000/api/devices/connectivity
-```
+## Lista de Archivos a Subir (Checklist)
+
+### ✅ Archivos Nuevos (Crear en servidor)
+- [ ] `js/services/connectivityService.js`
+- [ ] `scripts/simulator_headless.js`
+
+### ✅ Archivos Modificados (Sobrescribir)
+- [ ] `server.js`
+- [ ] `dashboard.html`
+- [ ] `admin.html`
+- [ ] `js/api.js`
+- [ ] `js/services/modbusService.js`
+- [ ] `js/services/bacnetService.js`
 
 ---
 
@@ -113,8 +122,9 @@ curl http://localhost:3000/api/devices/connectivity
 ## Verificación Post-Despliegue
 
 ### Checklist
-- [ ] El servidor arranca sin errores (`pm2 logs` o `systemctl status`)
-- [ ] Dashboard carga correctamente
+- [ ] Los archivos se subieron correctamente (verificar en WinSCP)
+- [ ] El servicio se reinició sin errores
+- [ ] Dashboard carga correctamente (`http://visor_pci.unizar.es/dashboard.html`)
 - [ ] Widget "Estado Dispositivos" muestra datos (puede ser "N/A" si no hay IPs configuradas)
 - [ ] Admin Panel → Pasarelas y Hardware → Toggle de Modo Hardware funciona
 - [ ] Simulador se puede activar desde Admin Panel sin errores
@@ -129,25 +139,17 @@ Para que el widget de conectividad muestre datos reales:
 ---
 
 ## Rollback (Si algo falla)
-```bash
-cd /ruta/al/proyecto
-git reset --hard HEAD~1
-pm2 restart visor-pci
-```
 
-O restaurar desde backup:
-```bash
-rm -rf visor-pci
-mv ../visor-pci-backup-YYYYMMDD-HHMMSS visor-pci
-pm2 restart visor-pci
-```
+### Con WinSCP
+1. Conectar al servidor
+2. **Eliminar** la carpeta del proyecto actual
+3. **Renombrar** la carpeta de backup (`visor-pci-backup-YYYYMMDD`) al nombre original
+4. Reiniciar el servicio Node.js
 
 ---
 
-## Contacto
-Si hay algún problema durante el despliegue, revisar los logs:
-```bash
-pm2 logs visor-pci --lines 100
-# o
-tail -f logs/server.log
-```
+## Contacto y Soporte
+Si hay algún problema durante el despliegue:
+- Verificar los logs del servidor (si tienes acceso)
+- Contactar con el administrador del sistema
+- Revisar que todos los archivos se hayan subido correctamente en WinSCP
