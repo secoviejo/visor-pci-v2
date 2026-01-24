@@ -8,10 +8,27 @@ class ModbusService extends EventEmitter {
         this.pollingInterval = parseInt(process.env.CIE_POLL_MS) || 1000;
     }
 
-    async connectBuilding(buildingId, ip, port = 502) {
+    async connectBuilding(buildingId, ip, port = 502, config = null) {
         // Disconnect if already exists
         if (this.clients.has(buildingId)) {
             await this.disconnectBuilding(buildingId);
+        }
+
+        // Parse config
+        let parsedConfig = { pollingInterval: this.pollingInterval, readMappings: [] };
+        if (config) {
+            try {
+                const parsed = typeof config === 'string' ? JSON.parse(config) : config;
+                if (parsed.pollingInterval) parsedConfig.pollingInterval = parsed.pollingInterval;
+                if (parsed.readMappings) parsedConfig.readMappings = parsed.readMappings;
+            } catch (e) {
+                console.error(`[Modbus] Invalid config JSON for Building ${buildingId}`, e);
+            }
+        }
+
+        // Default if no mappings (fallback to old behavior for safety)
+        if (parsedConfig.readMappings.length === 0) {
+            parsedConfig.readMappings.push({ type: 'DiscreteInputs', address: 0, count: 2, names: ['di0', 'di1'] });
         }
 
         const clientObj = {
@@ -20,9 +37,17 @@ class ModbusService extends EventEmitter {
             port: port,
             connected: false,
             interval: null,
-            inputs: { di0: null, di1: null },
+            inputs: {}, // Dynamic inputs
+            config: parsedConfig,
             isSimulator: (ip === '127.0.0.1' || ip === 'localhost')
         };
+
+        // Init input state
+        parsedConfig.readMappings.forEach(mapping => {
+            if (mapping.names) {
+                mapping.names.forEach(name => clientObj.inputs[name] = null);
+            }
+        });
 
         this.clients.set(buildingId, clientObj);
 
@@ -42,8 +67,6 @@ class ModbusService extends EventEmitter {
         } catch (e) {
             console.warn(`[Modbus] ⚠️ Connection failed to Building ${buildingId} (${ip}): ${e.message}`);
             clientObj.connected = false;
-            // Schedule reconnect? For now, we rely on the main server to maybe retry or just let it be fail until config update.
-            // Actually, auto-reconnect logic per client is good.
             this.scheduleReconnect(buildingId);
             return { success: false, error: e.message };
         }
@@ -72,67 +95,96 @@ class ModbusService extends EventEmitter {
         if (clientObj.reconnectTimeout) clearTimeout(clientObj.reconnectTimeout);
         clientObj.reconnectTimeout = setTimeout(() => {
             console.log(`[Modbus] Retrying connection for Building ${buildingId}...`);
-            this.connectBuilding(buildingId, clientObj.ip, clientObj.port);
+            this.connectBuilding(buildingId, clientObj.ip, clientObj.port, clientObj.config);
         }, 10000);
     }
 
     startPolling(buildingId) {
         const clientObj = this.clients.get(buildingId);
         if (!clientObj || !clientObj.connected) {
-            console.log(`[Modbus] Cannot start polling for Building ${buildingId}: ${!clientObj ? 'No client object' : 'Not connected'}`);
             return;
         }
 
         if (clientObj.interval) clearInterval(clientObj.interval);
 
-        console.log(`[Modbus] Starting polling for Building ${buildingId} (interval: ${this.pollingInterval}ms)`);
+        const interval = clientObj.config.pollingInterval || 1000;
+        console.log(`[Modbus] Starting polling for Building ${buildingId} (interval: ${interval}ms)`);
 
         clientObj.interval = setInterval(async () => {
             if (!clientObj.connected) return;
 
             try {
-                // Read 2 discrete inputs from address 0, FC02
-                const response = await clientObj.client.readDiscreteInputs(0, 2);
-                const [di0, di1] = response.data;
+                // Iterate over read mappings
+                for (const mapping of clientObj.config.readMappings) {
+                    let data = [];
 
-                // Debug: Log every 10th poll
+                    if (mapping.type === 'DiscreteInputs') {
+                        const response = await clientObj.client.readDiscreteInputs(mapping.address, mapping.count);
+                        data = response.data;
+                    } else if (mapping.type === 'Coils') {
+                        const response = await clientObj.client.readCoils(mapping.address, mapping.count);
+                        data = response.data;
+                    } else if (mapping.type === 'InputRegisters') {
+                        const response = await clientObj.client.readInputRegisters(mapping.address, mapping.count);
+                        data = response.data;
+                    } else if (mapping.type === 'HoldingRegisters') {
+                        const response = await clientObj.client.readHoldingRegisters(mapping.address, mapping.count);
+                        data = response.data;
+                    }
+
+                    // Process Data
+                    if (mapping.names && data.length === mapping.names.length) {
+                        data.forEach((val, index) => {
+                            const name = mapping.names[index];
+                            const oldVal = clientObj.inputs[name];
+
+                            if (oldVal !== val && oldVal !== undefined && oldVal !== null) {
+                                console.log(`[Modbus] ${name} changed: ${oldVal} → ${val}`);
+                                this.emit('change', {
+                                    buildingId,
+                                    port: mapping.address + index,
+                                    distinct: name,
+                                    value: val,
+                                    source: 'REAL',
+                                    description: `Alarm ${name}` // Basic description
+                                });
+                            }
+
+                            // Initialize logic trigger (first read)
+                            if (oldVal === null && val === true) {
+                                // Option: trigger event on startup for active alarms? 
+                                // For now just sync state.
+                            }
+
+                            clientObj.inputs[name] = val;
+                        });
+                    }
+                }
+
+                // Debug log occasionally
                 if (!this.pollCount) this.pollCount = {};
                 if (!this.pollCount[buildingId]) this.pollCount[buildingId] = 0;
                 this.pollCount[buildingId]++;
-
-                if (this.pollCount[buildingId] % 10 === 0) {
-                    console.log(`[Modbus] Poll #${this.pollCount[buildingId]} Building ${buildingId}: DI0=${di0}, DI1=${di1}`);
-                }
-
-                if (di0 !== clientObj.inputs.di0) {
-                    console.log(`[Modbus] DI0 changed: ${clientObj.inputs.di0} → ${di0}`);
-                    clientObj.inputs.di0 = di0;
-                    this.emit('change', { buildingId, port: 0, distinct: 'di0', value: di0, source: 'REAL' });
-                }
-
-                if (di1 !== clientObj.inputs.di1) {
-                    console.log(`[Modbus] DI1 changed: ${clientObj.inputs.di1} → ${di1}`);
-                    clientObj.inputs.di1 = di1;
-                    this.emit('change', { buildingId, port: 1, distinct: 'di1', value: di1, source: 'REAL' });
+                if (this.pollCount[buildingId] % 20 === 0) {
+                    // console.log(`[Modbus] Poll #${this.pollCount[buildingId]} Building ${buildingId} OK`);
                 }
 
             } catch (e) {
                 console.error(`[Modbus] Polling error on Building ${buildingId}: ${e.message}`);
-                // If error is strictly connection lost, trigger reconnect
                 clientObj.connected = false;
                 this.scheduleReconnect(buildingId);
             }
-        }, this.pollingInterval);
+        }, interval);
     }
 
     // Global connector for all buildings in DB
     async start(db) {
         console.log('[Modbus] Starting all building connections...');
         try {
-            const buildings = await db.query('SELECT id, modbus_ip, modbus_port FROM buildings WHERE modbus_ip IS NOT NULL AND modbus_port IS NOT NULL');
+            const buildings = await db.query('SELECT id, modbus_ip, modbus_port, modbus_config FROM buildings WHERE modbus_ip IS NOT NULL AND modbus_port IS NOT NULL');
             console.log(`[Modbus] Found ${buildings.length} buildings with Modbus config.`);
             for (const b of buildings) {
-                this.connectBuilding(b.id, b.modbus_ip, b.modbus_port || 502);
+                this.connectBuilding(b.id, b.modbus_ip, b.modbus_port || 502, b.modbus_config);
             }
         } catch (e) {
             console.error('[Modbus] Error during global start:', e.message);

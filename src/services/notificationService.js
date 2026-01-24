@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 const twilio = require('twilio');
-const { db } = require('../database');
+const { db } = require('../db/database');
 const fs = require('fs');
 const path = require('path');
 // Using native Fetch and FormData available in Node 18+
@@ -81,7 +81,7 @@ class NotificationService {
 
     loadEmailTemplate() {
         try {
-            const templatePath = path.join(__dirname, '../templates/email/alarm.html');
+            const templatePath = path.join(__dirname, '../../public/templates/email/alarm.html');
             if (fs.existsSync(templatePath)) {
                 this.emailTemplate = fs.readFileSync(templatePath, 'utf8');
             } else {

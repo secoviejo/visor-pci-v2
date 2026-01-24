@@ -29,11 +29,11 @@ function createApp(options = {}) {
     }
 
     const app = express();
-    const socket = io || { emit: () => {} };
+    const socket = io || { emit: () => { } };
 
     const safeNotificationService = notificationService || {
-        notifyAlarm: async () => {},
-        refreshConfig: async () => {},
+        notifyAlarm: async () => { },
+        refreshConfig: async () => { },
         sendEmail: async () => ({ success: true }),
         sendSMS: async () => ({ success: true }),
         sendTelegram: async () => ({ success: true })
@@ -41,17 +41,17 @@ function createApp(options = {}) {
 
     const safeModbusService = modbusService || {
         getStatus: () => ({ connected: false }),
-        writeOutput: async () => {},
-        connectBuilding: () => {},
-        disconnect: () => {}
+        writeOutput: async () => { },
+        connectBuilding: () => { },
+        disconnect: () => { }
     };
 
     const safeConnectivityService = connectivityService || {
         checkAllBuildings: async () => []
     };
 
-    const safeStartHardware = startHardwareServices || (async () => {});
-    const safeStopHardware = stopHardwareServices || (async () => {});
+    const safeStartHardware = startHardwareServices || (async () => { });
+    const safeStopHardware = stopHardwareServices || (async () => { });
     const safeHardwareStatus = getHardwareStatus || (() => false);
     const uploadInstance = upload || multer({ dest: 'uploads/' });
 
@@ -60,12 +60,14 @@ function createApp(options = {}) {
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
     if (enableStatic) {
-        app.use('/css', express.static(path.join(__dirname, '..', 'css')));
-        app.use('/js', express.static(path.join(__dirname, '..', 'js')));
-        app.use('/img', express.static(path.join(__dirname, '..', 'public', 'img')));
-        app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
-        app.use(express.static(path.join(__dirname, '..', 'public')));
-        app.use(express.static(path.join(__dirname, '..')));
+        // Updated paths relative to src/lib/appFactory.js
+        app.use('/css', express.static(path.join(__dirname, '../../public/css')));
+        app.use('/js', express.static(path.join(__dirname, '../../public/js')));
+        app.use('/img', express.static(path.join(__dirname, '../../public/img')));
+        app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+        app.use(express.static(path.join(__dirname, '../../public')));
+        // Also serve root for anything else if needed, though public should cover it
+        app.use(express.static(path.join(__dirname, '../../')));
     }
 
     const authenticateToken = (req, res, next) => {

@@ -2,14 +2,14 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const http = require('http');
 const { Server } = require('socket.io');
-const { db, initDb } = require('./database');
-const { createApp } = require('./lib/appFactory');
+const { db, initDb } = require('./src/db/database');
+const { createApp } = require('./src/lib/appFactory');
 
 // Services
-const modbusService = require('./js/services/modbusService');
-const bacnetService = require('./js/services/bacnetService');
-const connectivityService = require('./js/services/connectivityService');
-const notificationService = require('./services/notificationService');
+const modbusService = require('./src/services/modbusService');
+const bacnetService = require('./src/services/bacnetService');
+const connectivityService = require('./src/services/connectivityService');
+const notificationService = require('./src/services/notificationService');
 
 const server = http.createServer();
 const io = new Server(server, {

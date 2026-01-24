@@ -15,13 +15,16 @@ Hoy se ha consolidado el Visor PCI como una plataforma de **GRADO INDUSTRIAL**, 
 - **Validación de Inicio**: El servidor implementa chequeos críticos de seguridad antes de permitir cualquier conexión.
 
 ### 3. Nueva Arquitectura Modular (v2.3.0 - v2.4.0)
-- **Desacoplamiento de Rutas**: Extraída la lógica de Autenticación y las rutas principales de API (Campuses, Buildings, Floors, Devices, Alerts) a módulos independientes en `/routes`.
-- **Simplificación del Núcleo**: El archivo `server.js` ha comenzado su proceso de limpieza, moviendo más de 400 líneas de código a estructuras mantenibles.
-- **Documentación de Futuro**: Creada una guía técnica (`docs/MODULARIZACION.md`) para asegurar la consistencia del desarrollo a largo plazo.
+- **Desacoplamiento de Rutas**: Extraída la lógica de Autenticación y las rutas principales de API a módulos independientes.
+- **Simplificación del Núcleo**: `server.js` limpio y ligero.
 
-### 4. Auditoría Continua con OpenCode
-- **Integración Permanente**: OpenCode (v1.1.34) integrado para análisis de arquitectura y detección proactiva de riesgos.
-- **Optimización de Estructura**: Base de datos MySQL sincronizada con los adapters de portabilidad para garantizar el máximo rendimiento en el servidor de Unizar.
+### 4. Auditoría Continua
+- **Integración Permanente**: OpenCode integrado.
+
+### 5. Reestructuración v3.0 (24 Enero Noche)
+- **Separación Backend/Frontend**: Estructura `src/` y `public/` para cumplir estándares profesionales.
+- **Sistema de Migraciones**: Eliminado `initDb` hardcoded. Implementado runner de migraciones SQL (`src/db/migrations/`) con soporte dual MySQL/SQLite.
+- **Hardware Dinámico**: La configuración de registros Modbus ahora reside en la base de datos (JSON en tabla `buildings`), permitiendo ajustes en caliente sin tocar código.
 
 ---
 
