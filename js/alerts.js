@@ -163,11 +163,11 @@ export class AlertSystem {
                 : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800';
 
             row.innerHTML = `
-                <td class="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200 group-hover:text-blue-500 transition-colors">${alert.buildingName || alert.buildingId}</td>
-                <td class="px-4 py-3">${alert.floorId}</td>
-                <td class="px-4 py-3 font-mono text-gray-500">${alert.elementId}</td>
-                <td class="px-4 py-3 uppercase text-[10px] tracking-wide">${alert.type}</td>
-                <td class="px-4 py-3 truncate max-w-[150px]" title="${alert.location}">${alert.location}</td>
+                <td class="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200 group-hover:text-blue-500 transition-colors">${alert.buildingName || alert.building_name || alert.buildingId || '---'}</td>
+                <td class="px-4 py-3">${alert.floorName || alert.floor_name || alert.floorId || 'P1'}</td>
+                <td class="px-4 py-3 font-mono text-gray-500">${alert.elementId || alert.device_id || '---'}</td>
+                <td class="px-4 py-3 uppercase text-[10px] tracking-wide">${alert.type || alert.device_type || '---'}</td>
+                <td class="px-4 py-3 truncate max-w-[150px]" title="${alert.location}">${alert.location || '---'}</td>
                 <td class="px-4 py-3 font-mono">${timeStr}</td>
                 <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${originClass}">${alert.origin}</span></td>
                 <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-[10px] uppercase font-bold border ${statusClass}">${alert.status}</span></td>

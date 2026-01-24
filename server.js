@@ -642,7 +642,7 @@ async function startServer() {
         app.get('/api/alerts/active', async (req, res) => {
             try {
                 const sql = `
-                    SELECT a.*, b.name as building_name 
+                    SELECT a.*, b.name as building_name, b.campus_id 
                     FROM alerts a
                     LEFT JOIN buildings b ON a.building_id = b.id
                     WHERE a.status = 'ACTIVA' 
@@ -654,6 +654,7 @@ async function startServer() {
                     ...a,
                     buildingId: a.building_id,
                     buildingName: a.building_name,
+                    campus_id: a.campus_id,
                     floorId: a.floor_id,
                     elementId: a.element_id,
                     startedAt: a.started_at
@@ -1046,6 +1047,22 @@ async function startServer() {
                     });
                 });
 
+                // Trigger notification for the simulation
+                if (alertsCreated.length > 0) {
+                    const first = alertsCreated[0];
+                    notificationService.notifyAlarm({
+                        id: first.id,
+                        element_id: first.device_id,
+                        type: 'ALARM',
+                        building_id: buildingId,
+                        floor_id: first.floor_id,
+                        location: 'Área de Simulación',
+                        description: 'Simulacro de Incendio General (Activación Manual)',
+                        origin: 'SIMULACIÓN',
+                        started_at: now
+                    });
+                }
+
                 res.json({ success: true, count: alertsCreated.length });
 
             } catch (e) {
@@ -1241,6 +1258,29 @@ async function startServer() {
             } catch (e) { res.status(500).json({ error: e.message }); }
         });
 
+        app.post('/api/notifications/notify_device', authenticateToken, async (req, res) => {
+            try {
+                const { device_id, building_id, floor_id, location, type, id } = req.body;
+
+                await notificationService.notifyAlarm({
+                    element_id: device_id,
+                    db_id: id,
+                    building_id: building_id,
+                    floor_id: floor_id,
+                    location: location,
+                    type: type || 'detector',
+                    description: 'Activación Manual desde Simulador UI',
+                    origin: 'SIMULACIÓN',
+                    started_at: new Date().toISOString()
+                });
+
+                res.json({ success: true });
+            } catch (e) {
+                console.error('[Notify Device ERROR]', e);
+                res.status(500).json({ error: e.message });
+            }
+        });
+
         app.get('/api/notifications/logs', authenticateToken, async (req, res) => {
             try {
                 const { limit = 100, type, status } = req.query;
@@ -1382,8 +1422,26 @@ async function startServer() {
                 const result = await db.run("UPDATE alerts SET status = 'RESUELTA', ended_at = ? WHERE element_id = ? AND status = 'ACTIVA'", [now, elementId]);
                 if (result.changes > 0) {
                     try { await db.run("UPDATE events SET resolved = 1 WHERE device_id = ? AND resolved = 0", [elementId]); } catch (e) { }
-                    io.emit('pci:alarm:off', { elementId, type: deviceType, status: 'RESUELTA', ended_at: now });
+                    io.emit('pci:alarm:off', { elementId, status: 'RESUELTA', ended_at: now });
                 }
+            }
+        });
+
+        // Debug route for screenshots (Temporally unprotected for testing)
+        app.get('/api/admin/debug-screenshot', async (req, res) => {
+            try {
+                const screenshotService = require('./services/screenshotService');
+                if (!screenshotService.isAvailable) {
+                    return res.status(200).send("Servicio de capturas desactivado (Puppeteer no instalado).");
+                }
+                const buffer = await screenshotService.captureAlarm(1, 1, 1);
+                if (buffer) {
+                    res.type('image/jpeg').send(buffer);
+                } else {
+                    res.status(500).send("Error generando captura (posible falta de dependencias de Linux).");
+                }
+            } catch (e) {
+                res.status(500).send("Error en servicio: " + e.message);
             }
         });
 

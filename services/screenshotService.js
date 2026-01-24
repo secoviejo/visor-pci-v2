@@ -1,4 +1,9 @@
-const puppeteer = require('puppeteer');
+let puppeteer;
+try {
+    puppeteer = require('puppeteer');
+} catch (e) {
+    console.warn('[ScreenshotService] Puppeteer not found. Screenshots will be disabled.');
+}
 const path = require('path');
 const fs = require('fs');
 
@@ -6,6 +11,7 @@ class ScreenshotService {
     constructor() {
         this.browser = null;
         this.baseUrl = `http://localhost:${process.env.PORT || 3000}`;
+        this.isAvailable = !!puppeteer;
     }
 
     async init() {
@@ -24,6 +30,7 @@ class ScreenshotService {
     }
 
     async captureAlarm(floorId, deviceId, buildingId) {
+        if (!this.isAvailable) return null;
         let page = null;
         try {
             console.log(`[Screenshot] Generating for B:${buildingId} F:${floorId} D:${deviceId}`);
@@ -41,8 +48,8 @@ class ScreenshotService {
             // Wait for render signal
             await page.waitForFunction('window.renderComplete === true', { timeout: 5000 });
 
-            // Ensure images are fully loaded (sometimes extra safe wait)
-            // await new Promise(r => setTimeout(r, 500)); 
+            // Ensure images are fully loaded and animation has started
+            await new Promise(r => setTimeout(r, 1000));
 
             // Screenshot
             const buffer = await page.screenshot({

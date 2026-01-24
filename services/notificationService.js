@@ -3,7 +3,7 @@ const twilio = require('twilio');
 const { db } = require('../database');
 const fs = require('fs');
 const path = require('path');
-const FormData = require('form-data');
+// Using native Fetch and FormData available in Node 18+
 const screenshotService = require('./screenshotService');
 
 
@@ -284,18 +284,24 @@ class NotificationService {
 
             let response;
             if (photoBuffer) {
-                // Send Photo
+                // Use native global.FormData available in Node 20
                 const form = new FormData();
                 form.append('chat_id', recipient.telegram_chat_id);
-                form.append('photo', photoBuffer, { filename: 'alarm_view.jpg', contentType: 'image/jpeg' });
+
+                // Convert Buffer to Blob for native FormData compatibility
+                const blob = new Blob([photoBuffer], { type: 'image/jpeg' });
+                form.append('photo', blob, 'alarm_view.jpg');
+
                 form.append('caption', message);
                 form.append('parse_mode', 'HTML');
 
                 const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendPhoto`;
+
+                // IMPORTANT: When using native fetch + native FormData, 
+                // DO NOT set the Content-Type header manually.
                 response = await fetch(url, {
                     method: 'POST',
-                    body: form,
-                    headers: form.getHeaders() // Crucial for multipart
+                    body: form
                 });
             } else {
                 // Fallback Text Only
@@ -311,7 +317,14 @@ class NotificationService {
                 });
             }
 
-            const data = await response.json();
+            const responseText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error(`[Telegram] Non-JSON response from Telegram (Status ${response.status}):`, responseText.substring(0, 100));
+                throw new Error(`Telegram API returned non-JSON response (Status ${response.status})`);
+            }
 
             if (!data.ok) {
                 throw new Error(data.description || 'Telegram API Error');
@@ -342,10 +355,10 @@ class NotificationService {
 
     async notifyAlarm(alarm) {
         try {
-            // ⚠️ ONLY SEND NOTIFICATIONS FOR REAL ALARMS (not simulated)
-            if (alarm.origin !== 'REAL') {
-                console.log(`[Notify] Skipping notification for ${alarm.origin} alarm (only REAL alarms trigger notifications)`);
-                return { success: true, message: 'Simulated alarm - notifications skipped' };
+            // ⚠️ ONLY SEND NOTIFICATIONS FOR REAL OR SIMULATED ALARMS (to allow testing)
+            if (alarm.origin !== 'REAL' && alarm.origin !== 'SIMULACIÓN' && alarm.origin !== 'PRUEBA') {
+                console.log(`[Notify] Skipping notification for ${alarm.origin} alarm`);
+                return { success: true, message: 'Notification skipped for this origin' };
             }
 
             // Get system config

@@ -516,6 +516,18 @@ export async function testNotification(recipient_id, type) {
     return res.json();
 }
 
+export async function notifyDevice(data) {
+    const headers = getHeaders();
+    headers['Content-Type'] = 'application/json';
+    const res = await fetch(`${API_URL}/notifications/notify_device`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Error notifying device');
+    return res.json();
+}
+
 export async function getNotificationLogs(filters = {}) {
     const headers = getHeaders();
     let url = `${API_URL}/notifications/logs`;
@@ -578,5 +590,6 @@ window.api = {
     getNotificationConfig,
     updateNotificationConfig,
     testNotification,
+    notifyDevice,
     getNotificationLogs
 };

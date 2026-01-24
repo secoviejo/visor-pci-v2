@@ -94,6 +94,18 @@
         .hotspot.blinking {
             animation: blink-animation 0.8s infinite ease-in-out !important;
             border-color: #fee2e2;
+            box-shadow: 0 0 20px 5px rgba(234, 179, 8, 0.8) !important;
+            /* Prominent yellow glow for screenshots */
+            z-index: 1000 !important;
+        }
+
+        /* Special static highlight for the target device to ensure capture in screenshots */
+        .target-highlight {
+            border: 4px solid #facc15 !important;
+            /* Yellow border */
+            box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4), 0 0 30px 10px rgba(234, 179, 8, 1) !important;
+            /* Vignette + Glow */
+            z-index: 999 !important;
         }
 
         #map-container {
@@ -236,13 +248,12 @@
                 let targetDevice = null;
 
                 devices.forEach(d => {
-                    // Map properties (server returns some mixed keys, safe to check both)
                     const x = d.x || 50;
                     const y = d.y || 50;
                     const type = d.type || d.t || 'detector';
                     const num = d.number || d.n || '';
                     const id = d.device_id || d.id;
-                    const dbId = d.db_id || d.id; // DB ID
+                    const dbId = d.db_id || d.id;
 
                     const el = document.createElement('div');
                     el.className = `hotspot type-${type}`;
@@ -250,11 +261,15 @@
                     el.style.top = `${y}%`;
                     el.innerText = num;
 
-                    // Check match
-                    if (String(id) === String(deviceId) || String(dbId) === String(deviceId)) {
+                    // Robust matching (case insensitive, string comparison)
+                    const isMatch = (id && String(id).toLowerCase() === String(deviceId).toLowerCase()) ||
+                        (dbId && String(dbId).toLowerCase() === String(deviceId).toLowerCase());
+
+                    if (isMatch) {
+                        console.log(`[Renderer] MATCH FOUND for deviceId: ${deviceId}`, d);
                         el.classList.add('blinking');
+                        el.classList.add('target-highlight'); // Extra visible for static screenshots
                         targetDevice = { x, y, el };
-                        // Update Overlay
                         document.getElementById('overlay-title').innerText += ` - ${type.toUpperCase()} ${num}`;
                     }
 

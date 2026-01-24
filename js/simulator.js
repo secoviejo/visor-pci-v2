@@ -87,10 +87,23 @@ export class Simulator {
         } else {
             this.activeDeviceIds.add(id);
             this.emitEvent('pci:alarm:on', id);
+
+            // 🔥 Notify server to trigger Telegram (New!)
+            const dev = this.currentDevices.find(d => d.db_id == id);
+            if (dev) {
+                window.api.notifyDevice({
+                    device_id: dev.id,
+                    id: dev.db_id,
+                    building_id: this.buildingId,
+                    floor_id: this.floorId,
+                    location: dev.loc,
+                    type: dev.t
+                }).catch(e => console.error("Notify failed", e));
+            }
         }
         this.updateVisuals();
         this.saveState();
-        this.updateListCount();
+        this.updateCount();
     }
 
     emitEvent(eventName, deviceId) {
