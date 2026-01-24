@@ -129,23 +129,9 @@ async function startServer() {
            API ROUTES (Converted to Async/Await)
            ========================================= */
 
-        // 1. Auth Login
-        app.post('/api/auth/login', async (req, res) => {
-            try {
-                const { username, password } = req.body;
-                const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
-
-                if (!user) return res.status(400).json({ error: 'User not found' });
-
-                const validPassword = await bcrypt.compare(password, user.password_hash);
-                if (!validPassword) return res.status(400).json({ error: 'Invalid password' });
-
-                const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, SECRET_KEY, { expiresIn: '8h' });
-                res.json({ token, role: user.role });
-            } catch (e) {
-                res.status(500).json({ error: e.message });
-            }
-        });
+        // 1. Auth Routes (Modularized)
+        const initAuthRoutes = require('./routes/authRoutes');
+        app.use('/api/auth', initAuthRoutes(db, SECRET_KEY));
 
         // 2. Status & Stats
         app.get('/api/status', (req, res) => {
