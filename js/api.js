@@ -258,7 +258,10 @@ export async function controlDevice(action) {
 
 export async function getActiveAlerts() {
     const res = await fetch(`${API_URL}/alerts/active`);
-    if (!res.ok) throw new Error('Error loading active alerts');
+    if (!res.ok) {
+        if (handleAuthError(res)) return [];
+        throw new Error('Error loading active alerts');
+    }
     return res.json();
 }
 
@@ -275,7 +278,10 @@ export async function getEvents(filters = {}) {
 
     const headers = getHeaders();
     const res = await fetch(url, { headers });
-    if (!res.ok) throw new Error('Error loading events');
+    if (!res.ok) {
+        if (handleAuthError(res)) return [];
+        throw new Error('Error loading events');
+    }
     return res.json();
 }
 
