@@ -10,11 +10,11 @@ if (DB_CLIENT === 'mysql') {
     try {
         const MysqlAdapter = require('./js/db/adapters/mysqlAdapter');
         db = new MysqlAdapter({
-            host: 'visor_pci_mysql.unizar.es',
-            user: 'visor_pci',
-            password: 'sO8s+vKbZ4D2VHLJCwBm',
-            database: 'visor_pci_db',
-            port: 1980
+            host: process.env.DB_HOST || 'visor_pci_mysql.unizar.es',
+            user: process.env.DB_USER || 'visor_pci',
+            password: process.env.DB_PASSWORD,
+            database: process.env.DB_NAME || 'visor_pci_db',
+            port: parseInt(process.env.DB_PORT || '1980')
         });
     } catch (e) {
         console.error('[Database] CRITICAL: mysql2 dependency is missing!', e.message);

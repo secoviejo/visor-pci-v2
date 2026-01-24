@@ -27,7 +27,12 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3000;
-const SECRET_KEY = "tu_secreto_super_seguro"; // Use env var in production
+const SECRET_KEY = process.env.JWT_SECRET;
+
+if (!SECRET_KEY) {
+    console.error('❌ CRITICAL: JWT_SECRET not set in environment variables!');
+    process.exit(1);
+}
 
 // --- Global Variables ---
 let simulatorProcess = null;
@@ -52,7 +57,13 @@ async function stopHardwareServices() {
 }
 
 // --- Middleware ---
-app.use(cors());
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production'
+        ? ['https://visor_pci.unizar.es', 'https://155.210.137.1']
+        : '*',
+    credentials: true
+};
+app.use(cors(corsOptions));
 app.use(bodyParser.json({ limit: '50mb' })); // Increased limit for images/maps
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
