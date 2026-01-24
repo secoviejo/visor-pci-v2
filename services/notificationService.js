@@ -262,75 +262,112 @@ class NotificationService {
             const location = alarm.location || 'N/A';
             const description = alarm.description || 'Alarma detectada';
 
+            // Get Device Info
+            const deviceType = alarm.type || 'ELEMENTO';
+            const deviceId = alarm.element_id || alarm.device_id || '';
+
             // Richer format for Telegram
             const message = `🚨 <b>ALARMA PCI DETECTADA</b> 🚨
 <b>Prioridad:</b> ${priority}
 <b>Edificio:</b> ${buildingName}
 <b>Planta:</b> ${floorName}
+<b>Elemento:</b> ${deviceType.toUpperCase()} ${deviceId}
 <b>Ubicación:</b> ${location}
 <b>Descripción:</b> ${description}
 <b>Fecha:</b> ${new Date(alarm.started_at || Date.now()).toLocaleString('es-ES')}`;
 
             // Try to generate screenshot
             let photoBuffer = null;
+            const logFile = path.join(process.cwd(), 'server.log');
+            const log = (msg) => {
+                const line = `[${new Date().toISOString()}] ${msg}\n`;
+                fs.appendFileSync(logFile, line);
+                console.log(msg);
+            };
+
             if (alarm.floor_id && (alarm.element_id || alarm.device_id || alarm.id)) {
                 try {
                     const devId = alarm.element_id || alarm.device_id || alarm.id;
+                    log(`[Telegram] Requesting screenshot for B:${alarm.building_id} F:${alarm.floor_id} D:${devId}`);
+
                     photoBuffer = await screenshotService.captureAlarm(alarm.floor_id, devId, alarm.building_id || 1);
+
+                    if (photoBuffer && photoBuffer.length > 0) {
+                        log(`[Telegram] Screenshot SUCCESS (${photoBuffer.length} bytes) for dev: ${devId}`);
+                    } else {
+                        log(`[Telegram] Screenshot FAILED (returned null) for dev: ${devId}`);
+                    }
                 } catch (err) {
-                    console.error('[Telegram] Screenshot failed:', err.message);
+                    log(`[Telegram] Screenshot ERROR: ${err.message}`);
+                }
+            } else {
+                log(`[Telegram] Conditions for screenshot not met: F:${alarm.floor_id}, E:${alarm.element_id}, D:${alarm.device_id}, I:${alarm.id}`);
+            }
+
+            let success = false;
+            let responseData = null;
+
+            if (photoBuffer && photoBuffer.length > 0) {
+                try {
+                    log(`[Telegram] Sending photo alert to ${recipient.name} (${recipient.telegram_chat_id})...`);
+
+                    // Use native FormData and Blob (available in Node 20)
+                    const form = new FormData();
+                    form.append('chat_id', recipient.telegram_chat_id);
+
+                    const blob = new Blob([photoBuffer], { type: 'image/jpeg' });
+                    form.append('photo', blob, 'alarm_view.jpg');
+
+                    form.append('caption', message);
+                    form.append('parse_mode', 'HTML');
+
+                    const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendPhoto`;
+
+                    const fetchResponse = await fetch(url, {
+                        method: 'POST',
+                        body: form
+                    });
+
+                    responseData = await fetchResponse.json();
+                    if (responseData.ok) {
+                        log(`[Telegram] Photo sent successfully to ${recipient.name}`);
+                        success = true;
+                    } else {
+                        log(`[Telegram] Photo send FAILED: ${responseData.description}`);
+                        // Fallback will take care of it if success remains false
+                    }
+                } catch (photoErr) {
+                    log(`[Telegram] Error sending photo, falling back to text: ${photoErr.message}`);
                 }
             }
 
-            let response;
-            if (photoBuffer) {
-                // Use native global.FormData available in Node 20
-                const form = new FormData();
-                form.append('chat_id', recipient.telegram_chat_id);
+            // Fallback Text Only (if photo not sent or failed)
+            if (!success) {
+                try {
+                    log(`[Telegram] Sending text-only fallback to ${recipient.name}...`);
+                    const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`;
+                    const fetchResponse = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: recipient.telegram_chat_id,
+                            text: message,
+                            parse_mode: 'HTML'
+                        })
+                    });
 
-                // Convert Buffer to Blob for native FormData compatibility
-                const blob = new Blob([photoBuffer], { type: 'image/jpeg' });
-                form.append('photo', blob, 'alarm_view.jpg');
-
-                form.append('caption', message);
-                form.append('parse_mode', 'HTML');
-
-                const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendPhoto`;
-
-                // IMPORTANT: When using native fetch + native FormData, 
-                // DO NOT set the Content-Type header manually.
-                response = await fetch(url, {
-                    method: 'POST',
-                    body: form
-                });
-            } else {
-                // Fallback Text Only
-                const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`;
-                response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: recipient.telegram_chat_id,
-                        text: message,
-                        parse_mode: 'HTML'
-                    })
-                });
+                    responseData = await fetchResponse.json();
+                    if (responseData.ok) {
+                        log(`[Telegram] Text-only alert sent successfully to ${recipient.name}`);
+                        success = true;
+                    } else {
+                        throw new Error(responseData.description || 'Telegram API Error');
+                    }
+                } catch (textErr) {
+                    log(`[Telegram] FINAL FAILURE for ${recipient.name}: ${textErr.message}`);
+                    throw textErr;
+                }
             }
-
-            const responseText = await response.text();
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                console.error(`[Telegram] Non-JSON response from Telegram (Status ${response.status}):`, responseText.substring(0, 100));
-                throw new Error(`Telegram API returned non-JSON response (Status ${response.status})`);
-            }
-
-            if (!data.ok) {
-                throw new Error(data.description || 'Telegram API Error');
-            }
-
-            console.log(`[Telegram] Sent to ${recipient.name} (${recipient.telegram_chat_id}) [Photo: ${!!photoBuffer}]`);
 
             await db.run(`
                 INSERT INTO notification_log (alarm_id, recipient_id, type, status)

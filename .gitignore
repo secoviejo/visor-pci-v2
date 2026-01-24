@@ -20,3 +20,7 @@ visor-pci-v2-fresh/
 # Archivos de texto de notas personales
 migrar DB.txt
 publicar.txt
+
+# Herramientas y Logs locales
+OPENCODE/
+server.log

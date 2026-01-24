@@ -43,13 +43,14 @@ class ScreenshotService {
             const url = `${this.baseUrl}/map_renderer.html?buildingId=${buildingId}&floorId=${floorId}&deviceId=${deviceId}`;
             console.log(`[Screenshot] Navigating to ${url}`);
 
-            await page.goto(url, { waitUntil: 'networkidle0', timeout: 10000 });
+            // Increase timeout for slow environments (e.g. while opencode is running)
+            await page.goto(url, { waitUntil: 'networkidle0', timeout: 20000 });
 
             // Wait for render signal
-            await page.waitForFunction('window.renderComplete === true', { timeout: 5000 });
+            await page.waitForFunction('window.renderComplete === true', { timeout: 10000 });
 
             // Ensure images are fully loaded and animation has started
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 2000));
 
             // Screenshot
             const buffer = await page.screenshot({

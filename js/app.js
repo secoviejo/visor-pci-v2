@@ -332,8 +332,8 @@ window.updateMapVisuals = function () {
         const devId = dot.dataset.deviceId;
         const isCentral = dot.classList.contains('type-central');
 
-        // 1. Check Simulator (Direct Device hit) - if simulation is globally ON
-        if (isSimActive && simActiveIds.has(dbId)) {
+        // 1. Check Simulator (Direct Device hit)
+        if (simActiveIds.has(dbId)) {
             isBlinking = true;
         }
 
@@ -912,66 +912,9 @@ function showToast(msg) {
 
 // Explorer / Sidebar List Logic
 window.renderSidebarDevices = function (filterText = '') {
-    const listContainer = document.getElementById('sim-list-container');
-    if (!listContainer) return;
-
-    listContainer.innerHTML = '';
-    const devices = window.currentDevices || [];
-
-    // Sort logic (maybe by type or number?)
-    const filtered = devices.filter(d => {
-        if (!filterText) return true;
-        const txt = filterText.toLowerCase();
-        return (d.device_id && d.device_id.toLowerCase().includes(txt)) ||
-            (d.location && d.location.toLowerCase().includes(txt)) ||
-            (d.type && d.type.toLowerCase().includes(txt)) ||
-            (d.number && d.number.toString().includes(txt));
-    });
-
-    if (filtered.length === 0) {
-        listContainer.innerHTML = '<div style="padding:10px; color:#999; text-align:center;">No se encontraron elementos</div>';
-        return;
+    if (window.simulator) {
+        window.simulator.renderList(filterText);
     }
-
-    filtered.forEach(d => {
-        const item = document.createElement('div');
-        // Re-using simulator styling for now
-        item.className = 'sim-item';
-        item.style.display = 'flex';
-        item.style.justifyContent = 'space-between';
-        item.style.alignItems = 'center';
-        item.style.padding = '8px';
-        item.style.borderBottom = '1px solid #eee';
-        item.style.cursor = 'pointer';
-
-        // Icon
-        let iconHtml = '';
-        if (d.type === 'detector' || d.type === 'detector_ft') iconHtml = '<div class="legend-dot circle" style="background:var(--detector-color); width:10px; height:10px;"></div>';
-        else if (d.type === 'pulsador') iconHtml = '<div class="legend-dot square" style="background:var(--pulsador-color); width:10px; height:10px;"></div>';
-        else if (d.type === 'sirena') iconHtml = '<div class="legend-dot circle" style="background:var(--sirena-color); width:10px; height:10px; border:1px solid #333"></div>';
-        else if (d.type === 'central') iconHtml = '<div class="legend-dot square" style="background:var(--central-color); width:10px; height:10px;"></div>';
-
-        item.innerHTML = `
-            <div style="flex:1; display:flex; align-items:center; gap:8px;">
-                ${iconHtml}
-                <div>
-                    <div style="font-weight:bold; font-size:0.9em;">${(d.t || 'Elemento').toUpperCase()} #${d.n || '?'}</div>
-                    <div style="font-size:0.8em; color:#666;">${d.loc || 'Sin ubicación'}</div>
-                </div>
-            </div>
-            <div style="font-family:monospace; font-size:0.8em; color:#999;">${d.device_id || d.id || ''}</div>
-        `;
-
-        item.onclick = function () {
-            highlightDevice(d.id);
-        };
-
-        listContainer.appendChild(item);
-    });
-
-    // Update count
-    const countSpan = document.getElementById('sim-active-count'); // reusing ID
-    if (countSpan) countSpan.textContent = `${filtered.length} / ${devices.length}`;
 }
 
 window.highlightDevice = function (dbId) {

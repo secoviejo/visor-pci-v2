@@ -88,6 +88,11 @@ export class Simulator {
             this.activeDeviceIds.add(id);
             this.emitEvent('pci:alarm:on', id);
 
+            // Auto-activate simulator if it was off
+            if (!this.isActive) {
+                this.toggleSimulation(true);
+            }
+
             // 🔥 Notify server to trigger Telegram (New!)
             const dev = this.currentDevices.find(d => d.db_id == id);
             if (dev) {
@@ -103,7 +108,6 @@ export class Simulator {
         }
         this.updateVisuals();
         this.saveState();
-        this.updateCount();
     }
 
     emitEvent(eventName, deviceId) {
@@ -156,27 +160,48 @@ export class Simulator {
 
             const item = document.createElement('div');
             // Tailwind classes: flex row, padding, border, hover effect
-            item.className = 'flex items-center justify-between p-3 border-b border-slate-800 hover:bg-slate-800/50 transition-colors group';
+            item.className = 'flex items-center justify-between p-3 border-b border-slate-800 hover:bg-slate-700/30 transition-colors group cursor-pointer';
             item.dataset.id = d.db_id;
 
             const isChecked = d.db_id ? this.activeDeviceIds.has(d.db_id.toString()) : false;
 
-            // Updated HTML structure with Tailwind classes
+            // Icon color based on type
+            let iconColor = '#ef4444'; // detector
+            if (d.t === 'pulsador') iconColor = '#3b82f6';
+            else if (d.t === 'sirena') iconColor = '#f59e0b';
+            else if (d.t === 'central') iconColor = '#8b5cf6';
+
+            // HTML structure
             item.innerHTML = `
-                <div class="flex flex-col">
-                    <span class="font-bold text-white text-xs group-hover:text-blue-400 transition-colors">${d.n}</span>
-                    <span class="text-[10px] text-gray-500 uppercase tracking-wider">${d.t}</span>
+                <div class="flex items-center gap-3 flex-1 mr-2">
+                    <div class="w-2 h-2 rounded-full shrink-0" style="background-color: ${iconColor}; box-shadow: 0 0 5px ${iconColor}"></div>
+                    <div class="flex flex-col min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white text-[11px] uppercase truncate group-hover:text-blue-400 transition-colors">
+                                ${d.t || 'Elemento'} #${d.n || '?'}
+                            </span>
+                            <span class="text-[9px] font-mono text-slate-500 shrink-0">${d.id || ''}</span>
+                        </div>
+                        <span class="text-[10px] text-slate-400 truncate">${d.loc || 'Sin ubicación'}</span>
+                    </div>
                 </div>
                 <!-- Custom Tailwind Toggle -->
-                <label class="relative inline-flex items-center cursor-pointer">
+                <label class="relative inline-flex items-center cursor-pointer shrink-0" onclick="event.stopPropagation()">
                     <input type="checkbox" ${isChecked ? 'checked' : ''} class="sr-only peer">
-                    <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
             `;
 
-            // Event binding
+            // Item click -> Highlight on map
+            item.addEventListener('click', () => {
+                if (window.highlightDevice) window.highlightDevice(d.db_id || d.id);
+            });
+
+            // Toggle change -> Simulation
             const input = item.querySelector('input');
-            input.addEventListener('change', () => this.toggleDevice(d.db_id.toString()));
+            input.addEventListener('change', (e) => {
+                this.toggleDevice(String(d.db_id || d.id));
+            });
 
             this.listContainer.appendChild(item);
         });

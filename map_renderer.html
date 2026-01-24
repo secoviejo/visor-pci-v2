@@ -5,8 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Map Renderer</title>
-    <!-- Tailwind CSS (CDN for rendering) -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- CSS Inline for reliability (no external dependencies) -->
     <style>
         /* Minimal styles for markers */
         body {
@@ -160,7 +159,7 @@
                 <div class="info-sub" id="overlay-sub">...</div>
             </div>
             <div style="text-align: right;">
-                <div class="info-title text-red-400">ALARMA ACTIVA</div>
+                <div class="info-title" style="color: #f87171;">ALARMA ACTIVA</div>
                 <div class="info-sub" id="overlay-time"></div>
             </div>
         </div>

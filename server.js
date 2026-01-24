@@ -1263,8 +1263,10 @@ async function startServer() {
                 const { device_id, building_id, floor_id, location, type, id } = req.body;
 
                 await notificationService.notifyAlarm({
-                    element_id: device_id,
+                    id: id,
                     db_id: id,
+                    element_id: device_id,
+                    device_id: device_id,
                     building_id: building_id,
                     floor_id: floor_id,
                     location: location,
