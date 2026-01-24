@@ -133,6 +133,17 @@ async function startServer() {
         const initAuthRoutes = require('./routes/authRoutes');
         app.use('/api/auth', initAuthRoutes(db, SECRET_KEY));
 
+        // 2. API Routes (Modularized - Campuses, Buildings, Floors, Devices, Alerts)
+        const initApiRoutes = require('./routes/apiRoutes');
+        app.use('/api', initApiRoutes({
+            db,
+            authenticateToken,
+            authorizeRole,
+            upload,
+            io,
+            notificationService
+        }));
+
         // 2. Status & Stats
         app.get('/api/status', (req, res) => {
             res.json({
@@ -180,6 +191,7 @@ async function startServer() {
             }
         });
 
+        /* MOVED TO apiRoutes.js
         // 3. Campuses
         app.get('/api/campuses', async (req, res) => {
             try {
@@ -215,6 +227,7 @@ async function startServer() {
                 res.json({ success: true, filename: req.file.filename });
             } catch (e) { res.status(500).json({ error: e.message }); }
         });
+        */
 
         // 3. Buildings (With Campus Filtering)
         app.get('/api/buildings', async (req, res) => {
