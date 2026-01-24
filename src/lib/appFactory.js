@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 
 function createApp(options = {}) {
@@ -53,21 +54,62 @@ function createApp(options = {}) {
     const safeStartHardware = startHardwareServices || (async () => { });
     const safeStopHardware = stopHardwareServices || (async () => { });
     const safeHardwareStatus = getHardwareStatus || (() => false);
-    const uploadInstance = upload || multer({ dest: 'uploads/' });
 
-    app.use(cors());
+    // Upload config
+    const uploadsRoot = path.join(__dirname, '../../uploads');
+    const maxUploadBytes = parseInt(process.env.UPLOAD_MAX_BYTES || `${10 * 1024 * 1024}`, 10); // default 10MB
+    const storage = multer.diskStorage({
+        destination: (_, __, cb) => cb(null, uploadsRoot),
+        filename: (_, file, cb) => {
+            const ext = path.extname(file.originalname) || '';
+            const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'file';
+            cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}-${base}${ext}`);
+        }
+    });
+    const fileFilter = (_, file, cb) => {
+        if (file.mimetype.startsWith('image/')) return cb(null, true);
+        if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') return cb(null, true);
+        return cb(new Error('Archivo no permitido'));
+    };
+    const uploadInstance = upload || multer({ storage, fileFilter, limits: { fileSize: maxUploadBytes } });
+
+    // CORS configuration
+    const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+        .split(',')
+        .map(o => o.trim())
+        .filter(Boolean);
+
+    const corsOptions = allowedOrigins.length === 0 ? { origin: '*' } : {
+        origin: (origin, callback) => {
+            if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+            return callback(new Error('Not allowed by CORS'));
+        },
+        credentials: true
+    };
+
+    app.use(cors(corsOptions));
     app.use(bodyParser.json({ limit: '50mb' }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
+    // Rate limiting for APIs
+    const apiLimiter = rateLimit({
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
+        limit: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+        standardHeaders: true,
+        legacyHeaders: false
+    });
+    app.use('/api', apiLimiter);
+
     if (enableStatic) {
-        // Updated paths relative to src/lib/appFactory.js
-        app.use('/css', express.static(path.join(__dirname, '../../public/css')));
-        app.use('/js', express.static(path.join(__dirname, '../../public/js')));
-        app.use('/img', express.static(path.join(__dirname, '../../public/img')));
-        app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
-        app.use(express.static(path.join(__dirname, '../../public')));
-        // Also serve root for anything else if needed, though public should cover it
-        app.use(express.static(path.join(__dirname, '../../')));
+        // Serve only explicit public assets and uploads to avoid exposing secrets
+        const publicRoot = path.join(__dirname, '../../public');
+        const uploadsRoot = path.join(__dirname, '../../uploads');
+
+        app.use('/css', express.static(path.join(publicRoot, 'css')));
+        app.use('/js', express.static(path.join(publicRoot, 'js')));
+        app.use('/img', express.static(path.join(publicRoot, 'img')));
+        app.use('/uploads', express.static(uploadsRoot));
+        app.use(express.static(publicRoot));
     }
 
     const authenticateToken = (req, res, next) => {
@@ -97,7 +139,8 @@ function createApp(options = {}) {
         upload: uploadInstance,
         io: socket,
         notificationService: safeNotificationService,
-        modbusService: safeModbusService
+        modbusService: safeModbusService,
+        connectivityService: safeConnectivityService
     }));
     app.use('/api/events', require('../routes/eventRoutes')({ db, authenticateToken, io: socket }));
     app.use('/api/simulation', require('../routes/simulationRoutes')({
@@ -121,6 +164,15 @@ function createApp(options = {}) {
         authenticateToken,
         notificationService: safeNotificationService
     }));
+
+    app.get('/healthz', async (req, res) => {
+        try {
+            await db.get('SELECT 1');
+            res.json({ status: 'ok', db: 'up', hardware_enabled: safeHardwareStatus(), timestamp: new Date().toISOString() });
+        } catch (e) {
+            res.status(503).json({ status: 'degraded', db: 'down', error: e.message });
+        }
+    });
 
     app.get('/api/status', (req, res) => {
         res.json({

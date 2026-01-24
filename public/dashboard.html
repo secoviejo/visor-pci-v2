@@ -457,14 +457,20 @@
         window.loadDeviceConnectivity = async function () {
             try {
                 const res = await fetch('/api/devices/connectivity');
-                connectivityData = await res.json();
+                const data = await res.json();
+
+                if (!res.ok || data.error) {
+                    throw new Error(data.error || 'Unauthorized');
+                }
+                
+                connectivityData = data;
 
                 const statEl = document.getElementById('stat-connectivity');
                 const detailEl = document.getElementById('connectivity-detail');
                 const iconEl = document.getElementById('connectivity-icon');
                 const cardEl = document.getElementById('connectivity-card');
 
-                if (connectivityData.total === 0) {
+                if (!connectivityData || connectivityData.total === 0) {
                     statEl.textContent = 'N/A';
                     statEl.className = 'text-2xl font-bold text-gray-400';
                     detailEl.textContent = 'Sin dispositivos configurados';

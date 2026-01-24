@@ -2,6 +2,7 @@ const path = require('path');
 
 // Configuration
 const DEFAULT_DB_CLIENT = process.env.DB_CLIENT || 'mysql';
+const ALLOW_SQLITE_FALLBACK = process.env.DB_FALLBACK_SQLITE === 'true';
 // Provide fallback to root pci.db if not specified
 const SQLITE_FILENAME = process.env.DB_FILENAME || path.join(__dirname, '../../pci.db');
 
@@ -11,8 +12,6 @@ let mysqlError = null;
 function createDb(client = DEFAULT_DB_CLIENT, config = {}) {
     if (client === 'mysql') {
         try {
-            // Adapters are now in current directory/adapters or similar
-            // We moved js/db/* to src/db/. So adapters should be in src/db/adapters
             const MysqlAdapter = require('./adapters/mysqlAdapter');
             return new MysqlAdapter({
                 host: config.host || process.env.DB_HOST || 'visor_pci_mysql.unizar.es',
@@ -22,9 +21,13 @@ function createDb(client = DEFAULT_DB_CLIENT, config = {}) {
                 port: parseInt(config.port || process.env.DB_PORT || '1980')
             });
         } catch (e) {
-            console.error('[Database] CRITICAL: mysql2 dependency is missing!', e.message);
             mysqlError = e.message;
-            return null;
+            console.error('[Database] CRITICAL: mysql2 dependency is missing!', e.message);
+            if (!ALLOW_SQLITE_FALLBACK) {
+                throw e;
+            }
+            console.warn('[Database] Falling back to SQLite because DB_FALLBACK_SQLITE=true');
+            client = 'sqlite';
         }
     }
 
@@ -36,6 +39,10 @@ function createDb(client = DEFAULT_DB_CLIENT, config = {}) {
 }
 
 db = createDb();
+
+if (!db) {
+    throw new Error('[Database] No database adapter could be created');
+}
 
 // Initialize Schema
 async function initDb(database = db, client = DEFAULT_DB_CLIENT) {
@@ -61,13 +68,16 @@ async function seedData(database = db) {
     // Basic Admin Seed
     try {
         const bcrypt = require('bcryptjs');
-        // Check if admin exists
-        const admindUser = await database.get("SELECT * FROM users WHERE username = 'admin'");
-        if (!admindUser) {
-            console.log('Seeding admin user...');
-            const hash = await bcrypt.hash('admin123', 10);
-            await database.run("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", ['admin', hash, 'admin']);
-            console.log('✅ Admin user reset: admin / admin123');
+        const allowDefaultAdmin = process.env.ALLOW_DEFAULT_ADMIN === 'true' || (process.env.NODE_ENV !== 'production');
+
+        if (allowDefaultAdmin) {
+            const admindUser = await database.get("SELECT * FROM users WHERE username = 'admin'");
+            if (!admindUser) {
+                console.log('Seeding admin user...');
+                const hash = await bcrypt.hash('admin123', 10);
+                await database.run("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", ['admin', hash, 'admin']);
+                console.log('✅ Admin user reset: admin / admin123');
+            }
         }
     } catch (e) {
         console.warn('⚠️ Could not seed admin user:', e.message);

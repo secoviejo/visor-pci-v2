@@ -11,13 +11,22 @@ const bacnetService = require('./src/services/bacnetService');
 const connectivityService = require('./src/services/connectivityService');
 const notificationService = require('./src/services/notificationService');
 
-const server = http.createServer();
-const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
-});
+// 1. Create a proxy for IO to solve circular dependency
+const ioProxy = {
+    emit: (...args) => {
+        if (global.realIo) global.realIo.emit(...args);
+    }
+};
 
 const PORT = process.env.PORT || 3000;
-const SECRET_KEY = process.env.JWT_SECRET || 'visor-pci-default-secret';
+let SECRET_KEY = process.env.JWT_SECRET;
+if (!SECRET_KEY) {
+    SECRET_KEY = process.env.NODE_ENV === 'production' ? null : 'dev-temporary-secret';
+    if (!SECRET_KEY) {
+        console.error('[Server] JWT_SECRET is required in production');
+        process.exit(1);
+    }
+}
 
 let isHardwareEnabled = false;
 
@@ -39,16 +48,25 @@ async function stopHardwareServices() {
     isHardwareEnabled = false;
 }
 
+// 2. Setup App
 const app = createApp({
     db,
     jwtSecret: SECRET_KEY,
-    io,
+    io: ioProxy,
     notificationService,
     modbusService,
     connectivityService,
     startHardwareServices,
     stopHardwareServices,
     getHardwareStatus: () => isHardwareEnabled
+});
+
+// 3. Create Server with App as listener (Safe way)
+const server = http.createServer(app);
+
+// 4. Initialize Socket.IO on the server
+global.realIo = new Server(server, {
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 // Event Listeners for Services
@@ -71,7 +89,7 @@ function setupEventListeners() {
                     started_at: now
                 };
 
-                io.emit('pci:alarm:on', alertData);
+                global.realIo.emit('pci:alarm:on', alertData);
                 notificationService.notifyAlarm(alertData).catch(e => console.error('[Notify] Error:', e));
 
                 await db.run(
@@ -80,7 +98,7 @@ function setupEventListeners() {
                     [event.elementId, event.description, event.buildingId, 1]
                 );
 
-                io.emit('event:new', {
+                global.realIo.emit('event:new', {
                     id: info.lastInsertRowid,
                     device_id: event.elementId,
                     type: 'ALARM',
@@ -95,7 +113,6 @@ function setupEventListeners() {
 
     bacnetService.on('alarmChange', async (event) => {
         console.log('[Service] BACnet Change Event:', event);
-        // Implement similar logic if needed, but keeping it simple for now
     });
 }
 
@@ -104,14 +121,9 @@ async function start() {
     try {
         setupEventListeners();
 
-        server.on('request', app);
-        server.listen(PORT, () => {
-            console.log(`🚀 Visor PCI Server ready at http://localhost:${PORT}`);
-        });
-
-        // Async Init
         console.log('[Server] Initializing database...');
         await initDb();
+        console.log('[Server] Database initialized.');
 
         await notificationService.init();
 
@@ -119,8 +131,14 @@ async function start() {
             await startHardwareServices();
         }
 
+        server.listen(PORT, () => {
+            console.log(`🚀 Visor PCI Server ready at http://localhost:${PORT}`);
+            console.log(`[Server] Mode: ${process.env.NODE_ENV || 'development'}`);
+        });
+
     } catch (err) {
-        console.error('❌ FAILED TO START SERVER:', err);
+        console.error('❌ FAILED TO START SERVER:', err.message);
+        console.error(err.stack);
         process.exit(1);
     }
 }

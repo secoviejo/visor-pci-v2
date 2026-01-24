@@ -4,7 +4,13 @@ const csv = require('csv-parser');
 
 function initApiRoutes(dependencies) {
     const router = express.Router();
-    const { db, authenticateToken, authorizeRole, upload, modbusService } = dependencies;
+    const { db, authenticateToken, authorizeRole, upload, modbusService, connectivityService } = dependencies;
+
+    const isNonEmptyString = (v) => typeof v === 'string' && v.trim().length > 0;
+    const toIntOrNull = (v) => {
+        const n = parseInt(v, 10);
+        return Number.isNaN(n) ? null : n;
+    };
 
     // ============ CAMPUSES ============
     router.get('/campuses/stats', async (req, res) => {
@@ -97,6 +103,7 @@ function initApiRoutes(dependencies) {
     router.post('/buildings', authenticateToken, authorizeRole(['admin']), async (req, res) => {
         try {
             const { name, campus_id, x, y, modbus_ip, modbus_port } = req.body;
+            if (!isNonEmptyString(name)) return res.status(400).json({ error: 'Name is required' });
             const sql = "INSERT INTO buildings (name, campus_id, x, y, modbus_ip, modbus_port) VALUES (?, ?, ?, ?, ?, ?)";
             const info = await db.run(sql, [name, campus_id, x, y, modbus_ip, modbus_port]);
             res.json({ id: info.lastInsertRowid });
@@ -137,6 +144,9 @@ function initApiRoutes(dependencies) {
     router.post('/floors', authenticateToken, authorizeRole(['admin']), upload.single('plan'), async (req, res) => {
         try {
             const { name, building_id } = req.body;
+            if (!isNonEmptyString(name)) return res.status(400).json({ error: 'Name is required' });
+            const buildingIdNum = toIntOrNull(building_id);
+            if (buildingIdNum === null) return res.status(400).json({ error: 'building_id must be a number' });
             const filename = req.file ? req.file.filename : null;
             if (!filename) return res.status(400).json({ error: "Image required" });
             const sql = "INSERT INTO floors (name, building_id, image_filename) VALUES (?, ?, ?)";
@@ -174,12 +184,14 @@ function initApiRoutes(dependencies) {
         try {
             const { floor_id, device_id, id, number, n, type, t, x, y, location, loc } = req.body;
             const fid = floor_id || req.body.floorId;
+            const floorIdNum = toIntOrNull(fid);
+            if (floorIdNum === null) return res.status(400).json({ error: 'floor_id is required and must be numeric' });
             const did = device_id || id;
             const num = number || n;
             const tp = type || t;
             const lct = location || loc || '';
             const sql = "INSERT INTO devices (floor_id, device_id, number, type, x, y, location) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            const info = await db.run(sql, [fid, did, num, tp, x || 50, y || 50, lct]);
+            const info = await db.run(sql, [floorIdNum, did, num, tp, x || 50, y || 50, lct]);
             res.json({ db_id: info.lastInsertRowid, id: info.lastInsertRowid });
         } catch (err) { res.status(500).json({ error: err.message }); }
     });
@@ -217,11 +229,12 @@ function initApiRoutes(dependencies) {
         rs.on('end', async () => {
             try {
                 const { floor_id } = req.body;
-                if (!floor_id) return res.status(400).json({ error: "floor_id required" });
+                const floorIdNum = toIntOrNull(floor_id);
+                if (floorIdNum === null) return res.status(400).json({ error: "floor_id required" });
                 await db.exec('BEGIN');
                 const insertSql = "INSERT INTO devices (floor_id, device_id, number, type, x, y, location) VALUES (?, ?, ?, ?, ?, ?, ?)";
                 for (const row of results) {
-                    await db.run(insertSql, [floor_id, row.id || row.device_id, row.n || row.number, row.t || row.type, row.x || 50, row.y || 50, row.loc || row.location || '']);
+                    await db.run(insertSql, [floorIdNum, row.id || row.device_id, row.n || row.number, row.t || row.type, row.x || 50, row.y || 50, row.loc || row.location || '']);
                 }
                 await db.exec('COMMIT');
                 fs.unlinkSync(req.file.path);
@@ -256,9 +269,8 @@ function initApiRoutes(dependencies) {
     });
 
     // ============ CONNECTIVITY ============
-    router.get('/devices/connectivity', async (req, res) => {
+    router.get('/devices/connectivity', authenticateToken, authorizeRole(['admin', 'operator']), async (req, res) => {
         try {
-            const connectivityService = require('../js/services/connectivityService');
             const result = await connectivityService.checkAllBuildings(db);
             res.json(result);
         } catch (e) { res.status(500).json({ error: e.message }); }

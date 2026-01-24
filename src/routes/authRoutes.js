@@ -15,7 +15,10 @@ function initAuthRoutes(database, jwtSecret) {
 
 // Login
 router.post('/login', async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password are required' });
+    }
     try {
         const user = await db.get('SELECT * FROM users WHERE username = ?', [username]);
         if (!user) return res.status(401).json({ error: 'Invalid credentials' });
