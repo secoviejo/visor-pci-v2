@@ -447,5 +447,27 @@ textarea.code-export {
     opacity: 0;
     transition: opacity 0.5s;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     z-index: 2000;
+}
+
+/* Globals for mobile */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Touch Opt: Ensure clickable elements are sized for fingers */
+@media (max-width: 768px) {
+
+    button,
+    a,
+    input,
+    select {
+        min-height: 44px;
+    }
 }

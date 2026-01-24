@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Renderer</title>
+    <!-- Tailwind CSS (CDN for rendering) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Minimal styles for markers */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        #viewport {
+            width: 800px;
+            /* Fixed size for consistency */
+            height: 600px;
+            position: relative;
+            background-color: #f1f5f9;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Marker Styles */
+        .hotspot {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border: 2px solid white;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            color: white;
+            font-family: sans-serif;
+        }
+
+        .type-detector {
+            background-color: #ef4444;
+        }
+
+        .type-pulsador {
+            background-color: #3b82f6;
+            border-radius: 4px;
+        }
+
+        .type-sirena {
+            background-color: #f59e0b;
+            border: 2px solid #333;
+        }
+
+        .type-central {
+            background-color: #8b5cf6;
+            border-radius: 2px;
+        }
+
+        .type-detector_ft {
+            background-color: #f87171;
+            border: 2px dashed white;
+        }
+
+        /* Blinking Animation */
+        @keyframes blink-animation {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                filter: brightness(1);
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.6);
+                filter: brightness(1.2);
+                box-shadow: 0 0 20px rgba(255, 0, 0, 0.8);
+                z-index: 100;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                filter: brightness(1);
+            }
+        }
+
+        .hotspot.blinking {
+            animation: blink-animation 0.8s infinite ease-in-out !important;
+            border-color: #fee2e2;
+        }
+
+        #map-container {
+            position: relative;
+            transform-origin: center;
+            transition: transform 0.3s ease;
+        }
+
+        #plano-img {
+            max-width: none;
+            display: block;
+        }
+
+        /* Info overlay */
+        #info-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            font-family: sans-serif;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .info-title {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .info-sub {
+            font-size: 12px;
+            color: #ccc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="viewport">
+        <div id="map-container">
+            <img id="plano-img" src="" alt="Plano">
+            <!-- Markers injected here -->
+        </div>
+
+        <div id="info-overlay">
+            <div>
+                <div class="info-title" id="overlay-title">Cargando...</div>
+                <div class="info-sub" id="overlay-sub">...</div>
+            </div>
+            <div style="text-align: right;">
+                <div class="info-title text-red-400">ALARMA ACTIVA</div>
+                <div class="info-sub" id="overlay-time"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Utils
+        const getParams = () => new URLSearchParams(window.location.search);
+
+        window.initMap = async () => {
+            const params = getParams();
+            const floorId = params.get('floorId');
+            const deviceId = params.get('deviceId'); // element_id or db_id
+
+            if (!floorId) {
+                console.error("No floorId provided");
+                window.renderComplete = true; // Fail gracefully
+                return;
+            }
+
+            try {
+                // Fetch Floor Data
+                // Note: We access API directly since we are on same origin
+
+                // 1. Get Floor Info for Image
+                // We need to find the floor first to get image filename. 
+                // Since we don't have a direct 'getFloor' API that returns image without building context in some versions,
+                // let's try to fetch all floors for the building if buildingId is passed, or try to reconstruct.
+                // Wait, server.js has `/api/floors/:id`? No, `/api/buildings/:id/floors`.
+                // We might need to fetch building devices first to find floor? 
+                // Let's assume we can fetch devices for floor directly: `/api/floors/:id/devices`.
+                // But we need the image. 
+
+                // Let's try to fetch floor details. We don't have a direct endpoint for single floor in the list I saw earlier?
+                // Checked server.js: 
+                // app.get('/api/buildings/:id/floors' ...)
+                // We might not have 'get floor by id'.
+                // But we have devices with floor_id.
+                // WE NEED THE IMAGE.
+
+                // Workaround: We need buildingId to get floors list.
+                // If passed in params, great. If not, we might be stuck.
+                // Let's assume buildingId is passed OR we fetch all buildings/floors to find it? That's heavy.
+                // Let's rely on params.
+
+                const buildingId = params.get('buildingId');
+                let imageFilename = '';
+                let floorName = '';
+
+                if (buildingId) {
+                    const floorsRes = await fetch(`/api/buildings/${buildingId}/floors`);
+                    const floors = await floorsRes.json();
+                    const floor = floors.find(f => f.id == floorId);
+                    if (floor) {
+                        imageFilename = floor.image_filename;
+                        floorName = floor.name;
+                    }
+                } else {
+                    // Try to find building from devices if possible?
+                    // Let's just require buildingId in the URL for the renderer.
+                    document.getElementById('overlay-title').innerText = "Error: Faltan datos (buildingId)";
+                }
+
+                document.getElementById('overlay-title').innerText = `Planta: ${floorName}`;
+                document.getElementById('overlay-sub').innerText = new Date().toLocaleString('es-ES');
+                document.getElementById('overlay-time').innerText = new Date().toLocaleTimeString('es-ES');
+
+                // 2. Load Image
+                if (imageFilename) {
+                    const imgPath = imageFilename.startsWith('img/') ? `/${imageFilename}` : `/img/${imageFilename}`;
+                    await new Promise((resolve, reject) => {
+                        const img = document.getElementById('plano-img');
+                        img.onload = resolve;
+                        img.onerror = reject;
+                        img.src = imgPath;
+                    });
+                }
+
+                // 3. Fetch Devices
+                const devicesRes = await fetch(`/api/floors/${floorId}/devices`);
+                const devices = await devicesRes.json();
+
+                // 4. Render Markers
+                const mapContainer = document.getElementById('map-container');
+                let targetDevice = null;
+
+                devices.forEach(d => {
+                    // Map properties (server returns some mixed keys, safe to check both)
+                    const x = d.x || 50;
+                    const y = d.y || 50;
+                    const type = d.type || d.t || 'detector';
+                    const num = d.number || d.n || '';
+                    const id = d.device_id || d.id;
+                    const dbId = d.db_id || d.id; // DB ID
+
+                    const el = document.createElement('div');
+                    el.className = `hotspot type-${type}`;
+                    el.style.left = `${x}%`;
+                    el.style.top = `${y}%`;
+                    el.innerText = num;
+
+                    // Check match
+                    if (String(id) === String(deviceId) || String(dbId) === String(deviceId)) {
+                        el.classList.add('blinking');
+                        targetDevice = { x, y, el };
+                        // Update Overlay
+                        document.getElementById('overlay-title').innerText += ` - ${type.toUpperCase()} ${num}`;
+                    }
+
+                    mapContainer.appendChild(el);
+                });
+
+                // 5. Zoom to Target
+                if (targetDevice) {
+                    // Simple zoom
+                    const scale = 2.5; // Zoom in
+                    // Center transform
+                    // mapContainer is centered in viewport. 
+                    // To center the point (x%, y%) of image:
+                    const container = document.getElementById('viewport');
+                    const img = document.getElementById('plano-img');
+
+                    const iw = img.naturalWidth;
+                    const ih = img.naturalHeight;
+
+                    // We need to translate so that target point is in center
+                    // Target X px = (targetDevice.x / 100) * iw
+                    // Target Y px = (targetDevice.y / 100) * ih
+
+                    // But map-container size depends on img display size? 
+                    // No, img is block, max-width none. It will be natural size.
+
+                    const targetPx = (targetDevice.x / 100) * iw;
+                    const targetPy = (targetDevice.y / 100) * ih;
+
+                    // Viewport center
+                    // We want targetPx to be at 0,0 relative to viewport center?
+                    // No, standard CSS translate.
+
+                    // Translate formula:
+                    // Center of viewport is (0,0) effectively if we consider relative.
+                    // Actually, let's keep it simple.
+
+                    // Translate = (ViewportWidth/2 - TargetX * Scale, ViewportHeight/2 - TargetY * Scale)
+                    // Wait, transform-origin is center. 
+                    // If origin is center (iw/2, ih/2):
+                    // Current Center is (iw/2, ih/2).
+                    // We want Target (tx, ty) to be at center.
+                    // Delta = (iw/2 - tx, ih/2 - ty).
+                    // TranslateX = DeltaX
+
+                    // Let's use standard calculated translation
+                    // If we treat 0,0 as top-left of image:
+                    // We want point (tx, ty) to appear at (VW/2, VH/2).
+                    // Image Position = (VW/2 - tx*Scale, VH/2 - ty*Scale).
+                    // Since map-container is centered by flexbox? No, flex centers it.
+                    // If map-container is naturally 0x0 size wrapping image?
+                    // Let's just set styles on map-container.
+
+                    // Better: Calculate exact translate values.
+                    const vw = 800;
+                    const vh = 600;
+
+                    const offsetX = (vw / 2) - (targetPx * scale);
+                    const offsetY = (vh / 2) - (targetPy * scale);
+
+                    // transform-origin 0 0 is easier for this math
+                    mapContainer.style.transformOrigin = '0 0';
+                    mapContainer.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+                } else {
+                    // Fit to screen if no target
+                    const img = document.getElementById('plano-img');
+                    const scaleX = 800 / img.naturalWidth;
+                    const scaleY = 600 / img.naturalHeight;
+                    const scale = Math.min(scaleX, scaleY) * 0.95;
+                    mapContainer.style.transformOrigin = 'center';
+                    mapContainer.style.transform = `scale(${scale})`;
+                }
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('overlay-title').innerText = "ERROR RENDER";
+            } finally {
+                // Signal ready
+                window.renderComplete = true;
+            }
+        };
+
+        window.onload = window.initMap;
+
+    </script>
+</body>
+
+</html>

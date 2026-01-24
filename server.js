@@ -336,10 +336,43 @@ async function startServer() {
         app.put('/api/buildings/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
             try {
                 const { name, x, y, modbus_ip, modbus_port } = req.body;
-                const sql = "UPDATE buildings SET name = ?, x = ?, y = ?, modbus_ip = ?, modbus_port = ? WHERE id = ?";
-                await db.run(sql, [name, x, y, modbus_ip, modbus_port, req.params.id]);
+
+                // Build dynamic UPDATE query based on provided fields
+                const updates = [];
+                const values = [];
+
+                if (name !== undefined) {
+                    updates.push('name = ?');
+                    values.push(name);
+                }
+                if (x !== undefined) {
+                    updates.push('x = ?');
+                    values.push(x);
+                }
+                if (y !== undefined) {
+                    updates.push('y = ?');
+                    values.push(y);
+                }
+                if (modbus_ip !== undefined) {
+                    updates.push('modbus_ip = ?');
+                    values.push(modbus_ip);
+                }
+                if (modbus_port !== undefined) {
+                    updates.push('modbus_port = ?');
+                    values.push(modbus_port);
+                }
+
+                if (updates.length === 0) {
+                    return res.status(400).json({ error: 'No fields to update' });
+                }
+
+                values.push(req.params.id);
+                const sql = `UPDATE buildings SET ${updates.join(', ')} WHERE id = ?`;
+
+                await db.run(sql, values);
                 res.json({ success: true });
             } catch (err) {
+                console.error('[API] Error updating building:', err);
                 res.status(500).json({ error: err.message });
             }
         });

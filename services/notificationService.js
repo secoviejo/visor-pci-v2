@@ -3,6 +3,9 @@ const twilio = require('twilio');
 const { db } = require('../database');
 const fs = require('fs');
 const path = require('path');
+const FormData = require('form-data');
+const screenshotService = require('./screenshotService');
+
 
 class NotificationService {
     constructor() {
@@ -268,16 +271,45 @@ class NotificationService {
 <b>Descripción:</b> ${description}
 <b>Fecha:</b> ${new Date(alarm.started_at || Date.now()).toLocaleString('es-ES')}`;
 
-            const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`;
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: recipient.telegram_chat_id,
-                    text: message,
-                    parse_mode: 'HTML'
-                })
-            });
+            // Try to generate screenshot
+            let photoBuffer = null;
+            if (alarm.floor_id && (alarm.element_id || alarm.device_id || alarm.id)) {
+                try {
+                    const devId = alarm.element_id || alarm.device_id || alarm.id;
+                    photoBuffer = await screenshotService.captureAlarm(alarm.floor_id, devId, alarm.building_id || 1);
+                } catch (err) {
+                    console.error('[Telegram] Screenshot failed:', err.message);
+                }
+            }
+
+            let response;
+            if (photoBuffer) {
+                // Send Photo
+                const form = new FormData();
+                form.append('chat_id', recipient.telegram_chat_id);
+                form.append('photo', photoBuffer, { filename: 'alarm_view.jpg', contentType: 'image/jpeg' });
+                form.append('caption', message);
+                form.append('parse_mode', 'HTML');
+
+                const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendPhoto`;
+                response = await fetch(url, {
+                    method: 'POST',
+                    body: form,
+                    headers: form.getHeaders() // Crucial for multipart
+                });
+            } else {
+                // Fallback Text Only
+                const url = `https://api.telegram.org/bot${this.telegramBotToken}/sendMessage`;
+                response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: recipient.telegram_chat_id,
+                        text: message,
+                        parse_mode: 'HTML'
+                    })
+                });
+            }
 
             const data = await response.json();
 
@@ -285,7 +317,7 @@ class NotificationService {
                 throw new Error(data.description || 'Telegram API Error');
             }
 
-            console.log(`[Telegram] Sent to ${recipient.name} (${recipient.telegram_chat_id})`);
+            console.log(`[Telegram] Sent to ${recipient.name} (${recipient.telegram_chat_id}) [Photo: ${!!photoBuffer}]`);
 
             await db.run(`
                 INSERT INTO notification_log (alarm_id, recipient_id, type, status)

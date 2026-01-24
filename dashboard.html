@@ -3,8 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Campus - Visor PCI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Panel de Control - Visor PCI</title>
     <!-- Tailwind CSS v3 -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
@@ -51,45 +51,54 @@
 
     <!-- Header -->
     <header
-        class="bg-white dark:bg-gray-800 dark:border-gray-700 py-4 px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
-        <div class="max-w-7xl mx-auto w-full flex justify-between items-center">
-            <div class="flex items-center">
-                <img alt="Unidad de Seguridad Universidad Zaragoza" class="h-[50px] w-auto transition-all"
+        class="bg-white dark:bg-gray-800 dark:border-gray-700 py-4 px-4 md:px-8 border-b border-gray-200 shadow-sm relative z-20 flex-shrink-0">
+        <div class="max-w-7xl mx-auto w-full flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center justify-between w-full md:w-auto">
+                <img alt="Unidad de Seguridad Universidad Zaragoza" class="h-[40px] md:h-[50px] w-auto transition-all"
                     src="logo_sec.png" />
+                <div class="flex md:hidden gap-2">
+                    <button id="mobile-menu-toggle" class="p-2 text-gray-500"
+                        onclick="document.getElementById('mobile-nav').classList.toggle('hidden')">
+                        <i class="fa fa-bars text-xl"></i>
+                    </button>
+                </div>
             </div>
-            <div class="flex gap-4">
+
+            <div class="w-full md:w-auto flex-grow max-w-md">
                 <div class="relative">
                     <input type="text" id="search-input" placeholder="Buscar campus o edificio..."
-                        class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 dark:text-white dark:placeholder-gray-400 transition-colors">
+                        class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full dark:text-white dark:placeholder-gray-400 transition-colors">
                     <i class="fa fa-search absolute left-3 top-3 text-gray-400"></i>
-                    <!-- Search Results Dropdown -->
                     <div id="search-results"
                         class="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50 hidden">
-                        <!-- Results will be populated here -->
                     </div>
                 </div>
             </div>
-            <div class="flex gap-4">
-                <div id="admin-controls" class="hidden flex gap-4">
+
+            <div id="mobile-nav"
+                class="hidden md:flex flex-col md:flex-row w-full md:w-auto gap-2 md:gap-4 mt-2 md:mt-0">
+                <div id="admin-controls" class="hidden flex flex-col md:flex-row gap-2 md:gap-4">
                     <a href="admin.html"
-                        class="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
-                        <i class="fa fa-cogs"></i> Admin Panel
+                        class="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                        <i class="fa fa-cogs"></i> Panel Admin
                     </a>
                 </div>
                 <a href="history.html"
-                    class="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
+                    class="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md px-4 py-2 text-sm font-medium transition-colors shadow-sm">
                     <i class="fa fa-history"></i> Histórico
                 </a>
-                <button id="theme-toggle"
-                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
-                    title="Cambiar Tema">
-                    <i class="fa-solid fa-moon dark:hidden text-lg"></i>
-                    <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
-                </button>
-                <button onclick="logout()"
-                    class="flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <i class="fa fa-lock text-gray-400"></i> Logout
-                </button>
+                <div class="flex justify-center md:contents gap-4">
+                    <button id="theme-toggle"
+                        class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none text-gray-400 dark:text-gray-400"
+                        title="Cambiar Tema">
+                        <i class="fa-solid fa-moon dark:hidden text-lg"></i>
+                        <i class="fa-solid fa-sun hidden dark:block text-lg text-yellow-400"></i>
+                    </button>
+                    <button onclick="logout()"
+                        class="flex items-center justify-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <i class="fa fa-lock text-gray-400"></i> Salir
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -110,46 +119,42 @@
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto mt-8 mb-8 flex-grow w-full px-4">
         <!-- Welcome Section -->
-        <div class="mb-8 flex justify-between items-center">
+        <div class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800 dark:text-white">Sistema de Alarma de Incendios - Selección
-                    de Campus</h1>
+                <h1 class="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">Sistema de Alarma de Incendios
+                </h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Selección de Campus</p>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="flex flex-wrap items-center gap-3">
                 <div
                     class="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full border border-green-200 dark:border-green-800">
                     <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span id="system-status-text" class="text-sm font-medium text-green-700 dark:text-green-400">Sistema
-                        Operativo</span>
-                </div>
-
-                <div id="env-badge"
-                    class="flex items-center gap-2 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full border border-blue-200 dark:border-blue-800 hidden">
-                    <i id="env-icon" class="fa fa-cloud text-blue-500"></i>
-                    <span id="env-text" class="text-sm font-medium text-blue-700 dark:text-blue-400">Cargando...</span>
+                    <span id="system-status-text"
+                        class="text-[10px] md:text-sm font-medium text-green-700 dark:text-green-400">Online</span>
                 </div>
 
                 <!-- Alertas Activas Badge -->
                 <div id="stat-alerts-container"
                     class="flex items-center gap-2 px-3 py-1 bg-red-100 dark:bg-red-900/30 rounded-full border border-red-200 dark:border-red-800 hidden">
                     <i class="fa fa-bell text-red-500 animate-pulse"></i>
-                    <span class="text-sm font-bold text-red-700 dark:text-red-400"><span id="stat-alerts">0</span>
+                    <span class="text-[10px] md:text-sm font-bold text-red-700 dark:text-red-400"><span
+                            id="stat-alerts">0</span>
                         Alertas</span>
                 </div>
 
                 <div id="user-display" class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                    <div class="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                        <i class="fa fa-user text-gray-500 dark:text-gray-400"></i>
-                    </div>
-                    <div>
-                        <span class="font-bold" id="current-user-role">Admin</span>
+                    <div id="env-badge" class="hidden"><span id="env-text"></span><i id="env-icon"></i></div>
+                    <span id="current-user-role" class="hidden"></span>
+                    <div class="w-8 h-8 md:w-9 md:h-9 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                        title="Perfil" onclick="openProfile()">
+                        <i class="fa fa-user text-gray-500 dark:text-gray-400 text-sm md:text-base"></i>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Stats Overview -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6 mt-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 mt-4">
             <div class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
                 <div class="flex items-center justify-between">
                     <div>
@@ -186,20 +191,26 @@
                     </div>
                 </div>
             </div>
+            <!-- Stats Grid - Improved Responsive -->
             <div id="connectivity-card"
-                class="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-md transition-all"
+                class="bg-white dark:bg-gray-800 p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-md transition-all group"
                 onclick="showConnectivityModal()">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Estado Dispositivos</p>
-                        <p id="stat-connectivity" class="text-xl font-bold text-green-600">—</p>
+                        <p class="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Estado
+                            Conectividad</p>
+                        <p id="stat-connectivity" class="text-2xl md:text-3xl font-bold text-green-600">—</p>
                     </div>
                     <div id="connectivity-icon"
-                        class="w-8 h-8 bg-green-50 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                        <i class="fa fa-check-circle text-green-500 text-xs"></i>
+                        class="w-10 h-10 md:w-12 md:h-12 bg-green-50 dark:bg-green-900/30 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fa fa-network-wired text-green-500 text-sm md:text-base"></i>
                     </div>
                 </div>
-                <p id="connectivity-detail" class="text-[9px] text-gray-400 -mt-0.5">Verificando...</p>
+                <div class="mt-2 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <p id="connectivity-detail" class="text-[10px] text-gray-500 dark:text-gray-400">Verificando
+                        estado...</p>
+                </div>
             </div>
         </div>
 
