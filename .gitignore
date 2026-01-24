@@ -25,6 +25,12 @@ publicar.txt
 OPENCODE/
 server.log
 
+# Despliegue y VS Code (contienen passwords o binarios pesados)
+.vscode/
+visor-pci-deploy.zip
+test_sftp.txt
+prepare_deploy.ps1
+
 # Coverage de tests
 coverage/
 *.lcov
