@@ -24,3 +24,9 @@ publicar.txt
 # Herramientas y Logs locales
 OPENCODE/
 server.log
+
+# Coverage de tests
+coverage/
+*.lcov
+test-results/
+junit.xml

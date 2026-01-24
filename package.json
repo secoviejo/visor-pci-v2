@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "sim": "node simulator.js"
+    "sim": "node simulator.js",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@widesky/node-bacstack": "^1.0.1",
@@ -29,6 +31,20 @@
     "puppeteer": "^24.36.0",
     "socket.io": "^4.8.3",
     "twilio": "^5.11.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/"
+    ],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
   },
   "engines": {
     "node": "20.x"

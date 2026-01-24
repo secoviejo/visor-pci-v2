@@ -1,48 +1,54 @@
 const path = require('path');
 
 // Configuration
-const DB_CLIENT = 'mysql'; // Forzado para producción
+const DEFAULT_DB_CLIENT = process.env.DB_CLIENT || 'mysql';
+const SQLITE_FILENAME = process.env.DB_FILENAME || path.join(__dirname, 'pci.db');
 
 let db;
 let mysqlError = null;
 
-if (DB_CLIENT === 'mysql') {
-    try {
-        const MysqlAdapter = require('./js/db/adapters/mysqlAdapter');
-        db = new MysqlAdapter({
-            host: process.env.DB_HOST || 'visor_pci_mysql.unizar.es',
-            user: process.env.DB_USER || 'visor_pci',
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME || 'visor_pci_db',
-            port: parseInt(process.env.DB_PORT || '1980')
-        });
-    } catch (e) {
-        console.error('[Database] CRITICAL: mysql2 dependency is missing!', e.message);
-        mysqlError = e.message;
-        // Fallback to null or a dummy to allow server to start
-        db = null;
+function createDb(client = DEFAULT_DB_CLIENT, config = {}) {
+    if (client === 'mysql') {
+        try {
+            const MysqlAdapter = require('./js/db/adapters/mysqlAdapter');
+            return new MysqlAdapter({
+                host: config.host || process.env.DB_HOST || 'visor_pci_mysql.unizar.es',
+                user: config.user || process.env.DB_USER || 'visor_pci',
+                password: config.password || process.env.DB_PASSWORD,
+                database: config.database || process.env.DB_NAME || 'visor_pci_db',
+                port: parseInt(config.port || process.env.DB_PORT || '1980')
+            });
+        } catch (e) {
+            console.error('[Database] CRITICAL: mysql2 dependency is missing!', e.message);
+            mysqlError = e.message;
+            return null;
+        }
     }
-} else {
-    // Default to SQLite
+
     const SqliteAdapter = require('./js/db/adapters/sqliteAdapter');
-    db = new SqliteAdapter({
-        filename: path.join(__dirname, 'pci.db'),
-        verbose: console.log
+    return new SqliteAdapter({
+        filename: config.filename || SQLITE_FILENAME,
+        verbose: config.verbose
     });
 }
 
-// SQL Dialect Helpers
-const isMysql = DB_CLIENT === 'mysql';
-const AUTO_INC = isMysql ? 'AUTO_INCREMENT' : 'AUTOINCREMENT';
+db = createDb();
 
 // Initialize Schema
-async function initDb() {
-    console.log(`[Database] Initializing schema for ${DB_CLIENT}...`);
+async function initDb(database = db, client = DEFAULT_DB_CLIENT) {
+    console.log(`[Database] Initializing schema for ${client}...`);
 
-    await db.connect();
+    if (!database) {
+        throw new Error('[Database] No database adapter available');
+    }
+
+    const isMysql = client === 'mysql';
+    const AUTO_INC = isMysql ? 'AUTO_INCREMENT' : 'AUTOINCREMENT';
+
+    await database.connect();
 
     // Buildings table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS buildings (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             name TEXT NOT NULL,
@@ -60,7 +66,7 @@ async function initDb() {
     `);
 
     // Campuses table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS campuses (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             name TEXT NOT NULL,
@@ -74,14 +80,14 @@ async function initDb() {
     `);
 
     // Bootstrapping Default Campus (ID 1)
-    const defaultCampus = await db.get('SELECT id FROM campuses WHERE id = 1');
+    const defaultCampus = await database.get('SELECT id FROM campuses WHERE id = 1');
     if (!defaultCampus) {
         console.log('Bootstrapping default campus (ID 1)...');
-        await db.run("INSERT INTO campuses (id, name, description, image_filename, background_image) VALUES (1, 'Campus Default', 'Temp', 'placeholder.jpg', 'placeholder.jpg')");
+        await database.run("INSERT INTO campuses (id, name, description, image_filename, background_image) VALUES (1, 'Campus Default', 'Temp', 'placeholder.jpg', 'placeholder.jpg')");
     }
 
     // Floors table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS floors (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             name TEXT NOT NULL,
@@ -94,7 +100,7 @@ async function initDb() {
     `);
 
     // Devices table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS devices (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             floor_id INTEGER,
@@ -109,7 +115,7 @@ async function initDb() {
     `);
 
     // Users table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             username VARCHAR(255) UNIQUE, 
@@ -121,7 +127,7 @@ async function initDb() {
     // Ideally we alter table if exists to ensure compatibility, but for now we assume fresh or compatible.
 
     // Gateways table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS gateways (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             name TEXT NOT NULL,
@@ -133,7 +139,7 @@ async function initDb() {
     `);
 
     // Events History table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS events (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             device_id TEXT, 
@@ -151,7 +157,7 @@ async function initDb() {
     `);
 
     // Notification Recipients table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS notification_recipients (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             name TEXT NOT NULL,
@@ -168,7 +174,7 @@ async function initDb() {
     `);
 
     // Alerts Table (Active Alarms)
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS alerts (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             element_id TEXT,
@@ -185,7 +191,7 @@ async function initDb() {
     `);
 
     // Notification Configuration table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS notification_config (
             id INTEGER PRIMARY KEY DEFAULT 1,
             email_enabled BOOLEAN DEFAULT 1,
@@ -201,13 +207,13 @@ async function initDb() {
     `);
 
     // Init Config Row
-    const configExists = await db.get('SELECT id FROM notification_config WHERE id = 1');
+    const configExists = await database.get('SELECT id FROM notification_config WHERE id = 1');
     if (!configExists) {
-        await db.run("INSERT INTO notification_config (id, email_enabled, sms_enabled) VALUES (1, 1, 1)");
+        await database.run("INSERT INTO notification_config (id, email_enabled, sms_enabled) VALUES (1, 1, 1)");
     }
 
     // Notification Log table
-    await db.exec(`
+    await database.exec(`
         CREATE TABLE IF NOT EXISTS notification_log (
             id INTEGER PRIMARY KEY ${AUTO_INC},
             alarm_id INTEGER,
@@ -223,17 +229,17 @@ async function initDb() {
     console.log('[Database] Schema initialized.');
 
     // Seeding (Optional: Check if empty)
-    await seedData();
+    await seedData(database);
 }
 
-async function seedData() {
+async function seedData(database = db) {
     // Basic Admin Seed
     try {
         const bcrypt = require('bcryptjs');
-        const admindUser = await db.get("SELECT * FROM users WHERE username = 'admin'");
+        const admindUser = await database.get("SELECT * FROM users WHERE username = 'admin'");
         if (!admindUser) {
             const hash = await bcrypt.hash('admin123', 10);
-            await db.run("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", ['admin', hash, 'admin']);
+            await database.run("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", ['admin', hash, 'admin']);
             console.log('✅ Admin user reset: admin / admin123');
         }
     } catch (e) {
@@ -246,5 +252,6 @@ async function seedData() {
 
 module.exports = {
     db,
-    initDb
+    initDb,
+    createDb
 };
